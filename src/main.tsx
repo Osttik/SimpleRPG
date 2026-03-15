@@ -1,14 +1,17 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { Provider } from 'react-redux'
-import { store } from './modules/store_module/index.ts'
-import App from './modules/ui_module/App.tsx'
-import './modules/ui_module/index.scss'
+import { store } from './store/index.ts'
+import App from './App.tsx'
+import './index.scss'
+import { PrimeReactProviderServiceComponent } from './services/components/PrimeReactProviderServiceComponent.tsx'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Provider store={store}>
-      <App />
+      <PrimeReactProviderServiceComponent>
+        <App />
+      </PrimeReactProviderServiceComponent>
     </Provider>
   </React.StrictMode>,
 )
