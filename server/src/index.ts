@@ -81,8 +81,18 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const data = JSON.parse(message.toString());
       if (data.type === 'move') {
         const speed = 5;
-        if (data.dx) players[id].x += data.dx * speed;
-        if (data.dy) players[id].y += data.dy * speed;
+        let dx = data.dx || 0;
+        let dy = data.dy || 0;
+
+        // Normalise diagonal movement
+        if (dx !== 0 && dy !== 0) {
+          const length = Math.sqrt(dx * dx + dy * dy);
+          dx /= length;
+          dy /= length;
+        }
+
+        players[id].x += dx * speed;
+        players[id].y += dy * speed;
       } else if (data.type === 'ping') {
         ws.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
       }

@@ -27,8 +27,10 @@ export const useMapInitialize = () => {
     const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
     const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
     const colorUniformLocation = gl.getUniformLocation(program, "u_color");
+    const pointSizeUniformLocation = gl.getUniformLocation(program, "u_pointSize");
 
     const positionBuffer = gl.createBuffer();
+    const pointSize = 40.0; // Diameter of the circle in pixels
 
     let animationFrameId: number;
 
@@ -41,25 +43,17 @@ export const useMapInitialize = () => {
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
       gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
       gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
+      gl.uniform1f(pointSizeUniformLocation, pointSize);
 
       Object.values(gameState.players).forEach(player => {
-        const x1 = player.x;
-        const x2 = x1 + 20;
-        const y1 = player.y;
-        const y2 = y1 + 20;
-        
+        // Player position represents the center of the circle
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-          x1, y1,
-          x2, y1,
-          x1, y2,
-          x1, y2,
-          x2, y1,
-          x2, y2,
+          player.x, player.y
         ]), gl.STATIC_DRAW);
 
         const color = player.color || [1, 0, 0, 1];
         gl.uniform4f(colorUniformLocation, color[0], color[1], color[2], color[3]);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
+        gl.drawArrays(gl.POINTS, 0, 1);
       });
 
       animationFrameId = requestAnimationFrame(render);
@@ -126,12 +120,13 @@ export const useMapInitialize = () => {
       if (keys['ArrowLeft']) dx -= 1;
       if (keys['ArrowRight']) dx += 1;
 
+      // Mouse logic
       if (dx === 0 && dy === 0 && targetPos && gameState.myId) {
         const me = gameState.players[gameState.myId];
         if (me) {
           const distThreshold = 5;
-          const vX = targetPos.x - (me.x + 10); // Center adjustment
-          const vY = targetPos.y - (me.y + 10);
+          const vX = targetPos.x - me.x;
+          const vY = targetPos.y - me.y;
           const dist = Math.sqrt(vX * vX + vY * vY);
 
           if (dist > distThreshold) {
@@ -143,6 +138,8 @@ export const useMapInitialize = () => {
         }
       }
 
+      // Keyboard diagonal normalization happens on the server now
+      // We just send the intended direction.
       if (dx !== 0 || dy !== 0) {
         socket.send(JSON.stringify({ type: 'move', dx, dy }));
       }
