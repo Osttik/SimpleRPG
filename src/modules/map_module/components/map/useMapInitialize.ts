@@ -77,8 +77,18 @@ export const useMapInitialize = () => {
         gameState.players = data.players;
       } else if (data.type === 'state') {
         gameState.players = data.players;
+      } else if (data.type === 'pong') {
+        const now = Date.now();
+        gameState.ping = now - data.timestamp;
       }
     };
+
+    // Ping heartbeat
+    const pingInterval = setInterval(() => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+      }
+    }, 2000);
 
     // Input state
     const keys: Record<string, boolean> = {};
@@ -145,6 +155,7 @@ export const useMapInitialize = () => {
       canvas.removeEventListener('mousedown', handleMouseDown);
       cancelAnimationFrame(animationFrameId);
       clearInterval(moveInterval);
+      clearInterval(pingInterval);
       socket.close();
     };
   }, []);

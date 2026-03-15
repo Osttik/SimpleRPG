@@ -83,6 +83,8 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         const speed = 5;
         if (data.dx) players[id].x += data.dx * speed;
         if (data.dy) players[id].y += data.dy * speed;
+      } else if (data.type === 'ping') {
+        ws.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
       }
     } catch (e) {
       console.error('Failed to parse message:', e);
