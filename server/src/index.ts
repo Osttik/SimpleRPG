@@ -7,7 +7,7 @@ dotenv.config();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const host = process.env.HOST || 'localhost';
 
-const wss = new WebSocketServer({ port, host });
+const wss = new WebSocketServer({ port });
 
 interface Player {
   x: number;
@@ -37,16 +37,16 @@ function hslToRgbFloat(h: number, s: number, l: number): number[] {
     const hue2rgb = (p: number, q: number, t: number) => {
       if (t < 0) t += 1;
       if (t > 1) t -= 1;
-      if (t < 1/6) return p + (q - p) * 6 * t;
-      if (t < 1/2) return q;
-      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
       return p;
     };
     const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
     const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1/3);
+    r = hue2rgb(p, q, h + 1 / 3);
     g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1/3);
+    b = hue2rgb(p, q, h - 1 / 3);
   }
   return [r, g, b, 1.0];
 }
@@ -54,7 +54,7 @@ function hslToRgbFloat(h: number, s: number, l: number): number[] {
 wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   const id = Math.random().toString(36).substring(2, 9);
   console.log(`Player connected: ${id} from ${req.socket.remoteAddress}`);
-  
+
   // Assign random color
   const colorStr = getRandomColor();
   // Extract hue from string (hacky but works for this simple case)
@@ -103,7 +103,7 @@ setInterval(() => {
     type: 'state',
     players,
   });
-  
+
   wss.clients.forEach((client: WebSocket) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(stateMessage);

@@ -1,4 +1,11 @@
+interface Player {
+  x: number;
+  y: number;
+  color: number[];
+}
+
 export const gameState = {
   canvasRef: null as any,
-  players: {} as Record<string, { x: number; y: number }>,
+  myId: null as string | null,
+  players: {} as Record<string, Player>,
 };

@@ -57,7 +57,8 @@ export const useMapInitialize = () => {
           x2, y2,
         ]), gl.STATIC_DRAW);
 
-        gl.uniform4f(colorUniformLocation, 1, 0, 0, 1);
+        const color = player.color || [1, 0, 0, 1];
+        gl.uniform4f(colorUniformLocation, color[0], color[1], color[2], color[3]);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       });
 
@@ -66,16 +67,84 @@ export const useMapInitialize = () => {
 
     render();
 
-    const socket = new WebSocket('ws://your-game-server.com');
+    const wsUrl = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3001`;
+    const socket = new WebSocket(wsUrl);
     
     socket.onmessage = (event) => {
-      const serverData = JSON.parse(event.data);
-      gameState.players = serverData.players; 
+      const data = JSON.parse(event.data);
+      if (data.type === 'init') {
+        gameState.myId = data.id;
+        gameState.players = data.players;
+      } else if (data.type === 'state') {
+        gameState.players = data.players;
+      }
     };
+
+    // Input state
+    const keys: Record<string, boolean> = {};
+    let targetPos: { x: number, y: number } | null = null;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keys[e.key] = true;
+      targetPos = null; // Keyboard movement overrides mouse
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keys[e.key] = false;
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      targetPos = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    canvas.addEventListener('mousedown', handleMouseDown);
+
+    // Movement loop (30 times per second)
+    const moveInterval = setInterval(() => {
+      if (socket.readyState !== WebSocket.OPEN) return;
+
+      let dx = 0;
+      let dy = 0;
+
+      if (keys['ArrowUp']) dy -= 1;
+      if (keys['ArrowDown']) dy += 1;
+      if (keys['ArrowLeft']) dx -= 1;
+      if (keys['ArrowRight']) dx += 1;
+
+      if (dx === 0 && dy === 0 && targetPos && gameState.myId) {
+        const me = gameState.players[gameState.myId];
+        if (me) {
+          const distThreshold = 5;
+          const vX = targetPos.x - (me.x + 10); // Center adjustment
+          const vY = targetPos.y - (me.y + 10);
+          const dist = Math.sqrt(vX * vX + vY * vY);
+
+          if (dist > distThreshold) {
+            dx = vX / dist;
+            dy = vY / dist;
+          } else {
+            targetPos = null;
+          }
+        }
+      }
+
+      if (dx !== 0 || dy !== 0) {
+        socket.send(JSON.stringify({ type: 'move', dx, dy }));
+      }
+    }, 1000 / 30);
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      canvas.removeEventListener('mousedown', handleMouseDown);
       cancelAnimationFrame(animationFrameId);
+      clearInterval(moveInterval);
       socket.close();
     };
   }, []);
