@@ -1,4 +1,0 @@
--I./node_modules/node-addon-api
--IC:/Users/lolol/.cmake-js/nw-x64/v0.109.0/include/node
--DNAPI_DISABLE_CPP_EXCEPTIONS
--std=c++20
