@@ -8,7 +8,7 @@ export const useMapInitialize = () => {
     const canvas = gameState.canvasRef.current;
     if (!canvas) return;
     
-    const gl = canvas.getContext('webgl');
+    const gl = canvas.getContext('webgl2');
     if (!gl) return;
 
     const resizeCanvas = () => {
@@ -20,8 +20,8 @@ export const useMapInitialize = () => {
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-    const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+    const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource.trim());
+    const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource.trim());
     const program = createProgram(gl, vertexShader, fragmentShader);
 
     const positionAttributeLocation = gl.getAttribLocation(program, "a_position");

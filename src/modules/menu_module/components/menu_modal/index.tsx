@@ -11,24 +11,23 @@ export const MenuModal = () => {
       visible={isMenuOpen}
       setVisible={setMenuState}
       content={(
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '20px' }}>
+        <div className="flex flex-col gap-3 p-5 min-w-[200px]">
           <CoreButton 
             label="Continue" 
             onClick={() => setMenuState(false)} 
-            className="p-button-outlined"
+            className="p-button-outlined w-full"
           />
           <CoreButton 
             label="Quit" 
             onClick={() => {
               if (confirm('Are you sure you want to quit?')) {
                 window.close();
-                // Fallback if window.close() is blocked
                 setTimeout(() => {
                   window.location.href = 'about:blank';
                 }, 100);
               }
             }} 
-            className="p-button-danger p-button-outlined"
+            className="p-button-danger p-button-outlined w-full"
           />
         </div>
       )}
