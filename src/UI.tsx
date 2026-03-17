@@ -3,11 +3,12 @@ import { CoreButton } from "./components/button";
 import { GameInternalState } from "./components/game_internal_state";
 import { MenuModal } from "./modules/menu_module";
 import { useMenuActions, useMenuSelections } from "./store/slices/menu.slice";
+import { gameCoreService } from "./services/import-modules/game-core.service";
 
 export const UIComponent = () => {
   const { setMenuState } = useMenuActions();
   const { isMenuOpen } = useMenuSelections();
-
+  console.log(gameCoreService)
   return (
     <div className="absolute w-screen h-screen overflow-hidden z-[1000] flex flex-col relative">
       <GameInternalState className="absolute" />

@@ -5,8 +5,8 @@
       "includePath": [
         "${workspaceFolder}/**",
         "${workspaceFolder}/node_modules/node-addon-api",
-        "${env:USERPROFILE}/.cmake-js/nw-x64/v0.109.0/src",
-        "${env:USERPROFILE}/.cmake-js/nw-x64/v0.109.0/deps/v8/include"
+        "${env:USERPROFILE}/.cmake-js/nw-x64/v0.109.0/include/node",
+        "${workspaceFolder}/core/headers"
       ],
       "defines": [
         "_DEBUG",
@@ -14,7 +14,6 @@
         "_UNICODE",
         "NAPI_DISABLE_CPP_EXCEPTIONS"
       ],
-      "compilerPath": "cl.exe",
       "cStandard": "c17",
       "cppStandard": "c++20",
       "intelliSenseMode": "windows-msvc-x64"

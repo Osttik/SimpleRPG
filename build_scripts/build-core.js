@@ -13,12 +13,14 @@ const rawVersion = JSON.parse(fs.readFileSync(nwPackagePath, 'utf-8')).version;
 const cleanVersion = rawVersion.split('-')[0];
 
 const homeDir = os.homedir();
-const cmakeJsIncludePath = path.join(homeDir, '.cmake-js', 'nw-x64', `v${cleanVersion}`, 'include', 'node');
-const normalizedIncludePath = cmakeJsIncludePath.replace(/\\/g, '/');
+const cmakeJsPath = path.join(homeDir, '.cmake-js', 'nw-x64', `v${cleanVersion}`);
+const nodeIncludePath = path.join(cmakeJsPath, 'src').replace(/\\/g, '/');
+const v8IncludePath = path.join(cmakeJsPath, 'deps', 'v8', 'include').replace(/\\/g, '/');
 
 const compileFlagsContent = [
   '-I./node_modules/node-addon-api',
-  `-I${normalizedIncludePath}`,
+  `-I${nodeIncludePath}`,
+  `-I${v8IncludePath}`,
   '-DNAPI_DISABLE_CPP_EXCEPTIONS',
   '-std=c++20'
 ].join('\n');

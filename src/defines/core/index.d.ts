@@ -1,0 +1,3 @@
+interface IGameCore {
+  hello(): string;
+}
