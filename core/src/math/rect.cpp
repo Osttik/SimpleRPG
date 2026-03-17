@@ -47,7 +47,10 @@ bool Intersects(Circle *first, Circle *second)
 
 bool Intersects(Rectangle *first, Rectangle *second)
 {
-  
+  return (first->BottomRight.X >= second->TopLeft.X &&
+           first->TopLeft.X <= second->BottomRight.X &&
+           first->BottomRight.Y >= second->TopLeft.Y &&
+           first->TopLeft.Y <= second->BottomRight.Y);
 }
 
 bool RectOperator::Intersects(Shape *first, Shape *second)
