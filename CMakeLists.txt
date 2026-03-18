@@ -7,9 +7,6 @@ include_directories("core/headers")
 
 include_directories(${CMAKE_SOURCE_DIR}/node_modules/node-addon-api)
 
-string(REPLACE "\"" "" NODE_ADDON_API_DIR ${NODE_ADDON_API_DIR})
-include_directories(${NODE_ADDON_API_DIR})
-
 file(GLOB_RECURSE SOURCE_FILES "core/*.cpp")
 
 include(FetchContent)
