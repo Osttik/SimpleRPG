@@ -152,7 +152,9 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         let dx = data.dx || 0;
         let dy = data.dy || 0;
 
-        // Normalize diagonal movement
+        // Normalize diagonal movement to maintain consistent speed in all directions
+        // When pressing Up+Right, the client sends (1, -1). We normalize to (0.707, -0.707)
+        // so diagonal movement is same speed as cardinal movement, not sqrt(2) times faster
         if (dx !== 0 && dy !== 0) {
           const length = Math.sqrt(dx * dx + dy * dy);
           dx /= length;

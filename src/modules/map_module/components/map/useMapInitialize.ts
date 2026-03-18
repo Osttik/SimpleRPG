@@ -7,7 +7,7 @@ export const useMapInitialize = () => {
   useEffect(() => {
     const canvas = gameState.canvasRef.current;
     if (!canvas) return;
-    
+
     const gl = canvas.getContext('webgl2');
     if (!gl) return;
 
@@ -63,7 +63,7 @@ export const useMapInitialize = () => {
 
     const wsUrl = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3001`;
     const socket = new WebSocket(wsUrl);
-    
+
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'init') {
@@ -107,7 +107,7 @@ export const useMapInitialize = () => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     canvas.addEventListener('mousedown', handleMouseDown);
-
+    let wasMoving = false;
     // Movement loop (30 times per second)
     const moveInterval = setInterval(() => {
       if (socket.readyState !== WebSocket.OPEN) return;
@@ -138,11 +138,15 @@ export const useMapInitialize = () => {
         }
       }
 
-      // Keyboard diagonal normalization happens on the server now
-      // We just send the intended direction.
-      if (dx !== 0 || dy !== 0) {
-        console.log("dx dy", dx, dy);
+      const isMoving = dx !== 0 || dy !== 0;
+
+      if (isMoving) {
         socket.send(JSON.stringify({ type: 'move', dx, dy }));
+        wasMoving = true;
+      } else if (wasMoving) {
+        // They just stopped! Send the zero vector once to halt the server physics.
+        socket.send(JSON.stringify({ type: 'move', dx: 0, dy: 0 }));
+        wasMoving = false;
       }
     }, 1000 / 30);
 

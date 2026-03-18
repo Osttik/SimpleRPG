@@ -4,9 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "install": "echo \"Skipping node-gyp auto-build!\"",
     "start": "vite",
-    "nw": "npm run build:cpp && concurrently \"npm run dev:web\" \"nw .\"",
-    "dev": "npm run build:cpp && npm run build:addon && concurrently \"npm run dev:web\" \"npm run dev:server\" \"nw .\"",
+    "start:nw": "nw .",
+    "nw": "npm run build:cpp && concurrently \"npm run dev:web\" \"npm run start:nw\"",
+    "dev": "npm run build:cpp && npm run build:addon && concurrently \"npm run dev:web\" \"npm run dev:server\" \"npm run start:nw\"",
     "dev:web": "vite",
     "dev:server": "npm --prefix server run dev",
     "build:cpp": "node build_scripts/build-core.js",
