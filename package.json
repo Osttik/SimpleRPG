@@ -6,10 +6,11 @@
   "scripts": {
     "start": "vite",
     "nw": "npm run build:cpp && concurrently \"npm run dev:web\" \"nw .\"",
-    "dev": "npm run build:cpp && concurrently \"npm run dev:web\" \"npm run dev:server\" \"nw .\"",
+    "dev": "npm run build:cpp && npm run build:addon && concurrently \"npm run dev:web\" \"npm run dev:server\" \"nw .\"",
     "dev:web": "vite",
     "dev:server": "npm --prefix server run dev",
     "build:cpp": "node build_scripts/build-core.js",
+    "build:addon": "node build_scripts/build-core-nodejs.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

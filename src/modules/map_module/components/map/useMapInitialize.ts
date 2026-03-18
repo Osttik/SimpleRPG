@@ -141,6 +141,7 @@ export const useMapInitialize = () => {
       // Keyboard diagonal normalization happens on the server now
       // We just send the intended direction.
       if (dx !== 0 || dy !== 0) {
+        console.log("dx dy", dx, dy);
         socket.send(JSON.stringify({ type: 'move', dx, dy }));
       }
     }, 1000 / 30);

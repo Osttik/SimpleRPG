@@ -3,7 +3,7 @@
 
 class TransformData {
 public:
-  const Point Position;
+  mutable Point Position;
 
   TransformData(Point position): Position(position) {}
 };

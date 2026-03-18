@@ -6,12 +6,21 @@ import App from './App.tsx';
 import './index.scss';
 import { PrimeReactProviderServiceComponent } from './services/components/PrimeReactProviderServiceComponent.tsx';
 
+const Strict = ({ strict, children }: any) => {
+  if (!strict) return children;
+  return (
+    <React.StrictMode>
+      {children}
+    </React.StrictMode>
+  );
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+  <Strict strict={false}>
     <Provider store={store}>
       <PrimeReactProviderServiceComponent>
         <App />
       </PrimeReactProviderServiceComponent>
     </Provider>
-  </React.StrictMode>,
+  </Strict>,
 )
