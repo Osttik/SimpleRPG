@@ -5,10 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include_directories(${CMAKE_JS_INC})
 include_directories("core/headers")
 
-execute_process(COMMAND node -p "require('node-addon-api').include"
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                OUTPUT_VARIABLE NODE_ADDON_API_DIR
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
+include_directories(${CMAKE_SOURCE_DIR}/node_modules/node-addon-api)
 
 string(REPLACE "\"" "" NODE_ADDON_API_DIR ${NODE_ADDON_API_DIR})
 include_directories(${NODE_ADDON_API_DIR})
