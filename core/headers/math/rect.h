@@ -44,5 +44,5 @@ public:
 
 static class RectOperator {
 public:
-  static bool Intersects(Shape* first, Shape* second);
+  static bool Intersects(const Shape& first, const Shape& second);
 };
