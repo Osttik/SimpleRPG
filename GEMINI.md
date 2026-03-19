@@ -56,7 +56,10 @@ SimpleRPG/
 │   │   │   ├── index.ts           # Barrel export
 │   │   │   └── components/map/
 │   │   │       ├── index.tsx      # MapComponent: canvas ref + useMapInitialize
-│   │   │       └── useMapInitialize.ts  # Core game hook: WebGL render loop, WebSocket client, movement input (keyboard+mouse)
+│   │   │       ├── useMapInitialize.ts  # Orchestrator hook: calls render, websocket, and control hooks
+│   │   │       ├── useWebGLRender.ts    # WebGL2 initialization and render loop
+│   │   │       ├── useWebSocket.ts      # WebSocket connection, message handling, and pinging
+│   │   │       └── useControls.ts       # Input handling (KB/Mouse) and 30Hz movement interval
 │   │   └── menu_module/
 │   │       ├── index.ts           # Barrel export
 │   │       └── components/menu_modal/
@@ -146,11 +149,11 @@ SimpleRPG/
 * Server env: `PORT` (default 3001), `HOST` (default localhost).
 
 ### 3. Frontend
-* `gameState` (singleton, NOT Redux) holds real-time game data: `canvasRef`, `myId`, `players`, `ping`.
-* Redux is only for UI state (menu open/close).
-* WebGL renders circles as `gl.POINTS` with fragment shader using `gl_PointCoord` for circular shape.
-* `useMapInitialize` hook handles WebGL init, WebSocket connection, render loop, and input handling. It runs once (empty deps `[]`).
-* StrictMode is OFF to prevent double-mount issues with WebGL/WebSocket.
+*   `gameState` (singleton, NOT Redux) holds real-time game data: `canvasRef`, `myId`, `players`, `ping`.
+*   Redux is only for UI state (menu open/close).
+*   WebGL renders circles as `gl.POINTS` with fragment shader using `gl_PointCoord` for circular shape.
+*   **Modular Hooks**: The `useMapInitialize` hook is an orchestrator. Logic is split into `useWebGLRender`, `useWebSocket`, and `useControls` to maintain separation of concerns.
+*   StrictMode is OFF to prevent double-mount issues with WebGL/WebSocket.
 
 ### 4. Build System
 * Use `CMakeLists.txt` via `cmake-js`. DO NOT use `binding.gyp`.

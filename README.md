@@ -1,48 +1,52 @@
 # SimpleRPG
 
-A RPG game project built with:
-- **Framework**: [React](https://reactjs.org/) + [Vite](https://vitejs.dev/)
-- **Language**: [TypeScript](https://www.typescriptlang.org/)
-- **State Management**: [Redux Toolkit](https://redux-toolkit.js.org/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) & [SCSS](https://sass-lang.com/)
+A high-performance Multiplayer 2D RPG featuring a deterministic C++ physics engine and a WebGL-powered React frontend.
+
+## Architecture
+
+- **Physics Engine**: C++ (`core/`) using fixed-point math (`fpm`) for determinism across platforms.
+- **Server**: Node.js WebSocket server (`server/`) that runs the C++ engine via N-API and broadcasts authoritative state.
+- **Frontend**: React 19 + WebGL2 (`src/`) rendering circles as `gl.POINTS` for high performance.
+- **Client Runtime**: [NW.js](https://nwjs.io/) (Chromium + Node.js) to allow desktop execution and development.
+
+## Tech Stack
+
+*   **Frontend**: React 19, Vite 8, TypeScript 5.9
+*   **UI**: PrimeReact 10, Tailwind CSS 4, SCSS
+*   **Backend**: Node.js, `ws` (WebSockets)
+*   **Physics**: C++20, `cmake-js`, `node-addon-api`
+*   **Math**: `fpm` (Fixed-point math library)
 
 ## Project Commands
 
+### Installation
+```bash
+npm install
+```
+*Note: This runs a custom script that bypasses `node-gyp` auto-builds, which can be brittle in hybrid C++/Node projects.*
+
 ### Development
-Run the development server:
 ```bash
 npm run dev
 ```
+*Compiles the C++ core and addon, then starts the Vite dev server, the Node.js game server, and the NW.js client concurrently.*
 
 ### Build
-Build for production:
-```bash
-npm run build
-```
+- **Frontend/Vite**: `npm run build`
+- **C++ Core Build**: `npm run build:cpp` (Outputs `build/Release/gamecore.node`)
+- **C++ Node.js Addon**: `npm run build:addon` (Outputs `build-nodejs/Release/gamecore.node`)
 
-### Lint
-Check for linting issues:
-```bash
-npm run lint
-```
-
-### Preview
-Preview the production build locally:
-```bash
-npm run preview
-```
+### Other
+- **Frontend/NW.js only**: `npm run nw`
+- **Server only**: `npm --prefix server run dev`
+- **Lint**: `npm run lint`
 
 ## Project Structure
 
-- `src/store/`: Redux store configuration and slices.
-- `src/index.scss`: Global styles with Tailwind directives.
-- `src/App.tsx`: Main application component.
-- `tailwind.config.js`: Tailwind CSS configuration.
-- `postcss.config.js`: PostCSS configuration.
-
-## Initialization Details
-
-The project was initialized with a React-TS template and expanded to include:
-1. **Redux Toolkit**: Set up with a dummy counter slice.
-2. **Tailwind CSS**: Integrated with PostCSS and Autoprefixer.
-3. **SCSS**: Configured for advanced styling capabilities.
+- `core/`: C++ Physics Engine implementation.
+- `server/`: Authoritative Node.js server.
+- `src/`: React frontend source code.
+    - `src/modules/game_module/`: Global game state and shader definitions.
+    - `src/modules/map_module/`: Map rendering and hook-based initialization.
+    - `src/components/`: Reusable UI components.
+- `build_scripts/`: Utility scripts for C++ compilation via `cmake-js`.
