@@ -10,7 +10,7 @@ public:
   Point(float32 x, float32 y): X(x), Y(y) {}
 };
 
-static class PointOperations {
+class PointOperations {
 public:
   static bool DecartLengthMoreThen(Point a, Point b, float32 length);
   static Point Add(Point a, Point b);

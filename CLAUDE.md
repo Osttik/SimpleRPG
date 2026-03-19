@@ -19,18 +19,21 @@ SimpleRPG/
 │   ├── headers/
 │   │   ├── game/
 │   │   │   ├── game-object.h      # GameObject: owns TransformData + unique_ptr<Shape> BoundingBox
-│   │   │   ├── game-object-physics.h  # GameObjectPhysics: AABB tree wrapper (AddObject, RemoveObject, UpdateObject, GetObjectsInArea)
-│   │   │   └── transform.h        # TransformData: mutable Point Position
+│   │   │   ├── game-object-physics.h  # GameObjectPhysics: AABB tree wrapper
+│   │   │   ├── transform.h        # TransformData: mutable Point Position
+│   │   │   ├── chunk.h            # Chunk: 16x16x16 uint16_t tile IDs array (4KB)
+│   │   │   └── world.h            # WorldManager: Chunk mapping + procedural generation
 │   │   └── math/
 │   │       ├── aabb.h             # AABB tree (Box2D-derived, uses float32)
 │   │       ├── point.h            # Point: float32 X, Y
-│   │       ├── rect.h             # Shape hierarchy: Shape -> Circle (Center, Radius) / Rectangle (TopLeft, BottomRight)
+│   │       ├── rect.h             # Shape hierarchy
 │   │       └── number.h           # float32 = fpm::fixed_16_16
 │   └── src/
 │       ├── game/
-│       │   ├── game-object-physics.cpp  # AABB tree operations impl
+│       │   ├── game-object-physics.cpp
 │       │   ├── game-object.cpp
-│       │   └── transform.cpp
+│       │   ├── transform.cpp
+│       │   └── world.cpp          # WorldManager impl: simple procedural gen
 │       └── math/
 │           ├── aabb.cpp
 │           ├── point.cpp
@@ -45,10 +48,12 @@ SimpleRPG/
 │   ├── index.scss                 # Global styles
 │   ├── modules/
 │   │   ├── game_module/
-│   │   │   ├── game_state.ts      # Singleton game state: canvasRef, myId, players, ping (NOT Redux)
+│   │   │   ├── game_state.ts      # Singleton: canvasRef, myId, players, chunks (Map), ping
 │   │   │   ├── shaders/
-│   │   │   │   ├── vertex.glsl    # WebGL2 vertex shader: pixel-to-clip coords, point size
-│   │   │   │   ├── fragment.glsl  # WebGL2 fragment shader: circle via gl_PointCoord + discard
+│   │   │   │   ├── vertex.glsl    # Player vertex shader
+│   │   │   │   ├── fragment.glsl  # Player fragment shader
+│   │   │   │   ├── tileVertex.glsl # Instanced tile vertex shader
+│   │   │   │   ├── tileFragment.glsl # Tile fragment shader with Z-layer tint
 │   │   │   │   └── index.ts       # ?raw GLSL imports
 │   │   │   └── utils/
 │   │   │       └── webGLUtils.ts  # createShader, createProgram helpers
@@ -103,7 +108,7 @@ SimpleRPG/
 * **UI Library**: PrimeReact 10 + PrimeIcons 7
 * **State**: Redux Toolkit (menu only); game state is a plain singleton (`gameState`)
 * **Styling**: Tailwind CSS 4 + SCSS
-* **Rendering**: WebGL2 (GLSL 300 es), circles drawn as `gl.POINTS` with fragment shader discard
+* **Rendering**: WebGL2 (GLSL 300 es). Players drawn as `gl.POINTS`. Tiles rendered via `gl.drawArraysInstanced(gl.TRIANGLES, ...)` for high performance.
 * **Client Runtime**: NW.js 0.109 (Chromium + Node.js, points to Vite dev server at localhost:5173)
 * **Server**: Node.js + `ws` WebSocket library, port 3001 (configurable via `.env`)
 * **Physics**: C++ addon (`gamecore.node`) loaded via `createRequire()` in ESM server
@@ -116,20 +121,22 @@ SimpleRPG/
 1. Client captures keyboard/mouse input → sends `{type:'move', dx, dy}` at 30Hz
 2. Server normalizes diagonal movement, calls `physics.applyMovement(id, dx, dy, speed)`
 3. Server runs `physics.tick()` at 60fps → C++ detects collisions (broad: AABB tree, narrow: circle-circle) → resolves by pushing apart
-4. Server calls `physics.getState()` → broadcasts `{type:'state', players}` to all clients
-5. Client renders players as WebGL points (circles via fragment shader)
+4. Server calls `physics.getState()` and `physics.getChunk()` → broadcasts/streams state (JSON) and chunks (Binary) to clients
+5. Client renders world using WebGL2 Instancing and players as points. Darker tint applied to lower Z-levels.
 
 ### Protocol Messages
-| Direction | Type | Fields |
-|-----------|--------|--------|
-| Client→Server | `move` | `dx`, `dy` (-1/0/1 or float) |
-| Client→Server | `ping` | `timestamp` |
-| Server→Client | `init` | `id`, `players` (map of id→{x,y,color}) |
-| Server→Client | `state` | `players` (map of id→{x,y,color}) |
-| Server→Client | `pong` | `timestamp` |
+| Direction     | Type    | Fields                                  |
+|---------------|---------|-----------------------------------------|
+| Client→Server | `move`  | `dx`, `dy` (-1/0/1 or float)            |
+| Client→Server | `ping`  | `timestamp`                             |
+| Server→Client | `init`  | `id`, `players` (map of id→{x,y,color}) |
+| Server→Client | `state` | `players` (map of id→{x,y,color})       |
+| Server→Client | `pong`  | `timestamp`                             |
+| Server→Client | `Binary Chunk` | `[1b Type][4b cx][4b cy][4b cz][8KiB tiles]` |
 
 ### Constants
 * `PLAYER_RADIUS = 20`, `MOVEMENT_SPEED = 5`, tick rate = 60fps, input send rate = 30Hz
+* `TILE_SIZE = 40`, `CHUNK_SIZE = 16` (640px per chunk side)
 * Canvas = full viewport, WebGL point size = 40px (diameter)
 
 ## Architecture Rules
@@ -139,8 +146,10 @@ SimpleRPG/
 * **Square Roots:** Avoid sqrt for distance checks. Use Squared Distance vs Squared Radius. If required (e.g., normalization), use `fpm::sqrt`.
 * **Memory:** GameObjectPhysics AABB tree uses RAW observer pointers (`GameObject*`). It does NOT own the memory.
 * **Collision:** Broad Phase (AABB Tree) → Narrow Phase (circle-circle distance check) → Resolution (push apart along normal by half overlap each).
-* **ID Tracking:** `core.cpp` stores per-player AABB tree particle IDs in `playerPhysicsIds_`. Always use these IDs for `UpdateObject()`/`RemoveObject()` calls.
-* **`GameObject` fields:** `Transform` and `BoundingBox` are `const` but `Transform.Position` is `mutable`. Circle centers must be manually synced with `Transform.Position` after movement.
+* **Z-Level Logic:** "Stacked 2D" architecture. Physics/Collision only occurs on the same `chunkZ`.
+* **ID Tracking:** `core.cpp` stores per-player AABB tree IDs.
+* **`WorldManager`:** Owns chunks in a `std::unordered_map`. Generates chunks on-demand using simple procedural logic.
+* **Serialization:** Chunks are returned as `Napi::Buffer` (uint8 raw bytes) for zero-overhead networking.
 
 ### 2. Node.js & Server
 * Server (`server/src/index.ts`) is the authoritative source of truth.
@@ -149,11 +158,11 @@ SimpleRPG/
 * Server env: `PORT` (default 3001), `HOST` (default localhost).
 
 ### 3. Frontend
-*   `gameState` (singleton, NOT Redux) holds real-time game data: `canvasRef`, `myId`, `players`, `ping`.
-*   Redux is only for UI state (menu open/close).
-*   WebGL renders circles as `gl.POINTS` with fragment shader using `gl_PointCoord` for circular shape.
-*   **Modular Hooks**: The `useMapInitialize` hook is an orchestrator. Logic is split into `useWebGLRender`, `useWebSocket`, and `useControls` to maintain separation of concerns.
-*   StrictMode is OFF to prevent double-mount issues with WebGL/WebSocket.
+*   `gameState` (singleton, NOT Redux) holds: `canvasRef`, `myId`, `players`, `chunks`, `ping`.
+*   WebGL renders players as circles via `gl.POINTS` and tiles via **Instancing**.
+*   **Layer Tinting:** Lower Z-levels are rendered with a darker tint in `tileFragment.glsl`.
+*   **Modular Hooks**: Logic split into `useWebGLRender`, `useWebSocket`, and `useControls`.
+*   StrictMode is OFF.
 
 ### 4. Build System
 * Use `CMakeLists.txt` via `cmake-js`. DO NOT use `binding.gyp`.

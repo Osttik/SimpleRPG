@@ -42,7 +42,7 @@ public:
   Point GetCornerPoint(CornerType corner) const override;
 };
 
-static class RectOperator {
+class RectOperator {
 public:
   static bool Intersects(const Shape& first, const Shape& second);
 };

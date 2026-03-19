@@ -7,6 +7,7 @@
 #include "game/game-object.h"
 #include "math/rect.h"
 #include "math/number.h"
+#include "game/world.h"
 
 class GameWorldWrapper : public Napi::ObjectWrap<GameWorldWrapper> {
 public:
@@ -16,6 +17,7 @@ public:
       InstanceMethod("removePlayer", &GameWorldWrapper::RemovePlayer),
       InstanceMethod("applyMovement", &GameWorldWrapper::ApplyMovement),
       InstanceMethod("tick", &GameWorldWrapper::Tick),
+      InstanceMethod("getChunk", &GameWorldWrapper::GetChunk),
       InstanceMethod("getState", &GameWorldWrapper::GetState),
     });
   }
@@ -29,10 +31,12 @@ public:
   GameWorldWrapper(const Napi::CallbackInfo &info)
       : Napi::ObjectWrap<GameWorldWrapper>(info) {
     this->physics_ = std::make_unique<GameObjectPhysics>();
+    this->world_ = std::make_unique<WorldManager>();
   }
 
 private:
   std::unique_ptr<GameObjectPhysics> physics_;
+  std::unique_ptr<WorldManager> world_;
   std::unordered_map<std::string, GameObject*> playerObjects_;
   std::unordered_map<GameObject*, std::string> playerIds_;
   std::unordered_map<std::string, float32> playerRadius_;
@@ -182,6 +186,29 @@ private:
     }
 
     return env.Undefined();
+  }
+
+  Napi::Value GetChunk(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 3) {
+      Napi::TypeError::New(env, "getChunk requires 3 arguments: cx, cy, cz")
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+
+    int32_t cx = info[0].As<Napi::Number>().Int32Value();
+    int32_t cy = info[1].As<Napi::Number>().Int32Value();
+    int32_t cz = info[2].As<Napi::Number>().Int32Value();
+
+    Chunk* chunk = world_->GetChunk(cx, cy, cz);
+
+    if (!chunk) {
+      return env.Null();
+    }
+
+    Napi::Buffer<uint8_t> buffer = Napi::Buffer<uint8_t>::Copy(env, reinterpret_cast<uint8_t*>(chunk->tiles), CHUNK_VOLUME * sizeof(uint16_t));
+    return buffer;
   }
 
   Napi::Value GetState(const Napi::CallbackInfo &info) {

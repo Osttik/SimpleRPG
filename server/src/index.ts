@@ -7,7 +7,6 @@ import { createRequire } from 'module';
 
 dotenv.config();
 
-// ESM compatibility: construct __dirname and createRequire
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
@@ -17,9 +16,6 @@ const host = process.env.HOST || 'localhost';
 
 const wss = new WebSocketServer({ port });
 
-// ============================================================================
-// Load the C++ Physics Engine Addon
-// ============================================================================
 let gamecore: any;
 try {
   const gamecorePath = path.resolve(__dirname, '../..', 'build-nodejs', 'Release', 'gamecore.node');
@@ -31,22 +27,13 @@ try {
   process.exit(1);
 }
 
-// ============================================================================
-// Physics Constants
-// ============================================================================
 const PLAYER_RADIUS = 20;
 const MOVEMENT_SPEED = 5;
-const GAME_TICK_RATE = 1000 / 60; // 60 FPS = ~16.67ms
+const GAME_TICK_RATE = 1000 / 60;
 
-// ============================================================================
-// Initialize Physics World
-// ============================================================================
 const physics = new gamecore.GameWorld();
-console.log('✓ Initialized C++ GameWorld physics engine');
+console.log('Initialized C++ GameWorld physics engine');
 
-// ============================================================================
-// Player Metadata (color and connection, separate from physics)
-// ============================================================================
 interface PlayerMetadata {
   color: number[];
   ws: WebSocket;
@@ -55,27 +42,38 @@ interface PlayerMetadata {
 const playerMetadata: Record<string, PlayerMetadata> = {};
 let nextColorId = 0;
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
+const TILE_SIZE = 40;
+const CHUNK_PIXEL_SIZE = 16 * TILE_SIZE;
 
-/**
- * Generate a vibrant color using golden angle approximation
- */
+function sendChunk(ws: WebSocket, cx: number, cy: number, cz: number) {
+  try {
+    const chunkBuffer = physics.getChunk(cx, cy, cz);
+    if (!chunkBuffer) return;
+
+    const header = Buffer.alloc(13);
+    header.writeUInt8(1, 0);
+    header.writeInt32LE(cx, 1);
+    header.writeInt32LE(cy, 5);
+    header.writeInt32LE(cz, 9);
+    
+    const message = Buffer.concat([header, chunkBuffer]);
+    ws.send(message);
+  } catch (e) {
+    console.error(`Failed to send chunk ${cx},${cy},${cz}:`, e);
+  }
+}
+
 function getRandomColor(): string {
   const h = (nextColorId * 137.5) % 360;
   nextColorId++;
   return `hsl(${h}, 80%, 60%)`;
 }
 
-/**
- * Convert HSL to RGB float array (for WebGL)
- */
 function hslToRgbFloat(h: number, s: number, l: number): number[] {
   h /= 360;
   let r, g, b;
   if (s === 0) {
-    r = g = b = l; // achromatic
+    r = g = b = l;
   } else {
     const hue2rgb = (p: number, q: number, t: number) => {
       if (t < 0) t += 1;
@@ -94,29 +92,21 @@ function hslToRgbFloat(h: number, s: number, l: number): number[] {
   return [r, g, b, 1.0];
 }
 
-// ============================================================================
-// WebSocket Connection Handler
-// ============================================================================
-
 wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   const id = Math.random().toString(36).substring(2, 9);
   console.log(`[+] Player connected: ${id} from ${req.socket.remoteAddress}`);
 
-  // Generate random color
   const colorStr = getRandomColor();
   const hMatch = colorStr.match(/hsl\((\d+(?:\.\d+)?)/);
   const hue = hMatch ? parseFloat(hMatch[1]) : Math.random() * 360;
   const color = hslToRgbFloat(hue, 0.8, 0.6);
 
-  // Store metadata
   playerMetadata[id] = { color, ws };
 
-  // Initialize player in physics engine at random position
   const initialX = Math.random() * 800;
   const initialY = Math.random() * 600;
   physics.addPlayer(id, initialX, initialY, PLAYER_RADIUS);
 
-  // Send init data to the new player
   try {
     const state = physics.getState();
     const playersData = Object.entries(state).reduce(
@@ -140,9 +130,17 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     console.error(`Failed to send init to ${id}:`, e);
   }
 
-  // ========================================================================
-  // Handle Incoming Messages
-  // ========================================================================
+  const centerCX = Math.floor(initialX / CHUNK_PIXEL_SIZE);
+  const centerCY = Math.floor(initialY / CHUNK_PIXEL_SIZE);
+  const centerCZ = 0;
+
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dz = -1; dz <= 0; dz++) {
+        sendChunk(ws, centerCX + dx, centerCY + dy, centerCZ + dz);
+      }
+    }
+  }
 
   ws.on('message', (message: Buffer) => {
     try {
@@ -152,16 +150,12 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         let dx = data.dx || 0;
         let dy = data.dy || 0;
 
-        // Normalize diagonal movement to maintain consistent speed in all directions
-        // When pressing Up+Right, the client sends (1, -1). We normalize to (0.707, -0.707)
-        // so diagonal movement is same speed as cardinal movement, not sqrt(2) times faster
         if (dx !== 0 && dy !== 0) {
           const length = Math.sqrt(dx * dx + dy * dy);
           dx /= length;
           dy /= length;
         }
 
-        // Apply movement to C++ physics engine
         physics.applyMovement(id, dx, dy, MOVEMENT_SPEED);
       } else if (data.type === 'ping') {
         ws.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
@@ -170,10 +164,6 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       console.error('Failed to parse message:', e);
     }
   });
-
-  // ========================================================================
-  // Handle Disconnection
-  // ========================================================================
 
   ws.on('close', () => {
     console.log(`[-] Player disconnected: ${id}`);
@@ -188,19 +178,12 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
 
 console.log(`WebSocket server running on ws://${host}:${port}`);
 
-// ============================================================================
-// Game Loop: Physics Tick + Broadcast State (60 FPS)
-// ============================================================================
-
 setInterval(() => {
   try {
-    // Run physics simulation
     physics.tick();
 
-    // Get updated state from physics engine
     const physicsState = physics.getState();
 
-    // Build broadcast message
     const playersData: Record<string, any> = {};
     for (const [id, data] of Object.entries(physicsState)) {
       const metadata = playerMetadata[id as string];
@@ -218,7 +201,6 @@ setInterval(() => {
       players: playersData,
     });
 
-    // Broadcast to all connected clients
     wss.clients.forEach((client: WebSocket) => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(stateMessage);
