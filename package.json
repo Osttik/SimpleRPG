@@ -9,7 +9,7 @@
     "start:nw": "nw .",
     "nw": "npm run build:cpp && concurrently \"npm run dev:web\" \"npm run start:nw\"",
     "dev": "npm run build:cpp && npm run build:addon && concurrently \"npm run dev:web\" \"npm run dev:server\" \"npm run start:nw\"",
-    "dev:web": "vite",
+    "dev:web": "vite --port 3000",
     "dev:server": "npm --prefix server run dev",
     "build:cpp": "node build_scripts/build-core.js",
     "build:addon": "node build_scripts/build-core-nodejs.js",
@@ -17,8 +17,8 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
-  "main": "http://localhost:5173",
-  "node-remote": "http://localhost:5173",
+  "main": "http://localhost:3000",
+  "node-remote": "http://localhost:3000",
   "window": {
     "title": "RPG (Dev Mode)",
     "width": 1280,

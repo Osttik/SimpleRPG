@@ -2,16 +2,11 @@
 
 void GameObjectPhysics::GetWorldBounds(GameObject* obj, std::vector<float32>& lower, std::vector<float32>& upper)
 {
-  Point localTopLeft = obj->BoundingBox->GetCornerPoint(CornerType::TopLeft);
-  Point localBottomRight = obj->BoundingBox->GetCornerPoint(CornerType::BottomRight);
+  Point topLeft = obj->BoundingBox->GetCornerPoint(CornerType::TopLeft);
+  Point bottomRight = obj->BoundingBox->GetCornerPoint(CornerType::BottomRight);
 
-  float32 worldMinX = obj->Transform.Position.X + localTopLeft.X;
-  float32 worldMaxX = obj->Transform.Position.X + localBottomRight.X;
-  float32 worldMinY = obj->Transform.Position.Y + localTopLeft.Y;
-  float32 worldMaxY = obj->Transform.Position.Y + localBottomRight.Y;
-
-  lower = {(std::min)(worldMinX, worldMaxX), (std::min)(worldMinY, worldMaxY)};
-  upper = {(std::max)(worldMinX, worldMaxX), (std::max)(worldMinY, worldMaxY)};
+  lower = {(std::min)(topLeft.X, bottomRight.X), (std::min)(topLeft.Y, bottomRight.Y)};
+  upper = {(std::max)(topLeft.X, bottomRight.X), (std::max)(topLeft.Y, bottomRight.Y)};
 }
 
 unsigned int GameObjectPhysics::AddObject(GameObject* obj)
@@ -24,6 +19,16 @@ unsigned int GameObjectPhysics::AddObject(GameObject* obj)
 
   tree.insertParticle(id, lower, upper);
   return id;
+}
+
+void GameObjectPhysics::RemoveObject(unsigned int id)
+{
+  auto it = objects.find(id);
+  if (it == objects.end())
+    return;
+
+  tree.removeParticle(id);
+  objects.erase(it);
 }
 
 void GameObjectPhysics::UpdateObject(unsigned int id)

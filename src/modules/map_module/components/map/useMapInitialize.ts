@@ -30,7 +30,7 @@ export const useMapInitialize = () => {
     const pointSizeUniformLocation = gl.getUniformLocation(program, "u_pointSize");
 
     const positionBuffer = gl.createBuffer();
-    const pointSize = 40.0; // Diameter of the circle in pixels
+    const pointSize = 40.0;
 
     let animationFrameId: number;
 
@@ -46,7 +46,6 @@ export const useMapInitialize = () => {
       gl.uniform1f(pointSizeUniformLocation, pointSize);
 
       Object.values(gameState.players).forEach(player => {
-        // Player position represents the center of the circle
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
           player.x, player.y
         ]), gl.STATIC_DRAW);
@@ -77,20 +76,18 @@ export const useMapInitialize = () => {
       }
     };
 
-    // Ping heartbeat
     const pingInterval = setInterval(() => {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
       }
     }, 2000);
 
-    // Input state
     const keys: Record<string, boolean> = {};
     let targetPos: { x: number, y: number } | null = null;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       keys[e.key] = true;
-      targetPos = null; // Keyboard movement overrides mouse
+      targetPos = null;
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keys[e.key] = false;
@@ -108,7 +105,7 @@ export const useMapInitialize = () => {
     window.addEventListener('keyup', handleKeyUp);
     canvas.addEventListener('mousedown', handleMouseDown);
     let wasMoving = false;
-    // Movement loop (30 times per second)
+
     const moveInterval = setInterval(() => {
       if (socket.readyState !== WebSocket.OPEN) return;
 
@@ -120,7 +117,6 @@ export const useMapInitialize = () => {
       if (keys['ArrowLeft']) dx -= 1;
       if (keys['ArrowRight']) dx += 1;
 
-      // Mouse logic
       if (dx === 0 && dy === 0 && targetPos && gameState.myId) {
         const me = gameState.players[gameState.myId];
         if (me) {
@@ -144,7 +140,6 @@ export const useMapInitialize = () => {
         socket.send(JSON.stringify({ type: 'move', dx, dy }));
         wasMoving = true;
       } else if (wasMoving) {
-        // They just stopped! Send the zero vector once to halt the server physics.
         socket.send(JSON.stringify({ type: 'move', dx: 0, dy: 0 }));
         wasMoving = false;
       }

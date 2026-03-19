@@ -20,6 +20,8 @@ public:
 
   unsigned int AddObject(GameObject* obj);
 
+  void RemoveObject(unsigned int id);
+
   void UpdateObject(unsigned int id);
 
   std::vector<GameObject*> GetObjectsInArea(Point areaTopLeft, Point areaBottomRight);
