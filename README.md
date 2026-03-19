@@ -1,6 +1,6 @@
 # SimpleRPG
 
-A modern RPG game project built with:
+A RPG game project built with:
 - **Framework**: [React](https://reactjs.org/) + [Vite](https://vitejs.dev/)
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
 - **State Management**: [Redux Toolkit](https://redux-toolkit.js.org/)
@@ -8,25 +8,25 @@ A modern RPG game project built with:
 
 ## Project Commands
 
-### 🚀 Development
+### Development
 Run the development server:
 ```bash
 npm run dev
 ```
 
-### 🏗️ Build
+### Build
 Build for production:
 ```bash
 npm run build
 ```
 
-### 🔍 Lint
+### Lint
 Check for linting issues:
 ```bash
 npm run lint
 ```
 
-### 🖼️ Preview
+### Preview
 Preview the production build locally:
 ```bash
 npm run preview
