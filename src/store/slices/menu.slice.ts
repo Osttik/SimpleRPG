@@ -34,11 +34,6 @@ export const useMenuActions = () => {
     setMenuState: useAppDispatch(menuSlice.actions.setMenuState),
   };
 }
-// TO DO, rework to good
-export const useMenuSelections = () => {
-  return {
-    isMenuOpen: useSelector((state: RootState) => state.menu.isMenuOpen),
-  };
-}
 
+export const selectIsMenuOpen = () => useSelector((state: RootState) => state.menu.isMenuOpen);
 export default menuSlice.reducer;

@@ -3,11 +3,11 @@ import { PrimeIcons } from "primereact/api";
 import { CoreButton } from "./components/button";
 import { GameInternalState } from "./components/game_internal_state";
 import { MenuModal } from "./modules/menu_module/components/menu_modal"; 
-import { useMenuActions, useMenuSelections } from "./store/slices/menu.slice";
+import { selectIsMenuOpen, useMenuActions } from "./store/slices/menu.slice";
 
 export const UIComponent = () => {
   const { setMenuState } = useMenuActions();
-  const { isMenuOpen } = useMenuSelections();
+  const isMenuOpen = selectIsMenuOpen();
   const [volume, setVolume] = useState(50);
   const playerRef = useRef<any>(null);
 

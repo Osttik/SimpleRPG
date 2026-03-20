@@ -4,13 +4,15 @@ import type { ReactNode } from "react";
 interface IProps {
   visible: boolean;
   setVisible: (v: boolean) => void;
+  maximized?: boolean;
   content?: ReactNode | ((props: ContentProps) => React.ReactNode) | string | string[];
 }
 
 export const CoreOverlay = ( {
   visible,
-  setVisible,
   content,
+  maximized,
+  setVisible,
 }: IProps) => {
   const handleOnHide = () => {
     if (!visible) return; 
@@ -21,6 +23,7 @@ export const CoreOverlay = ( {
     <Dialog
       visible={visible}
       modal
+      maximized={maximized}
       onHide={handleOnHide}
       content={content}
     />

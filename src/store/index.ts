@@ -1,11 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit';
-import counterReducer from './slices/counterSlice';
+import uiReducer from './slices/ui.slice';
 import menuReducer from './slices/menu.slice';
 
 export const store = configureStore({
   reducer: {
     menu: menuReducer,
-    counter: counterReducer,
+    ui: uiReducer,
   },
 });
 

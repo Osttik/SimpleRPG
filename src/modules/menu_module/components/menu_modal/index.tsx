@@ -1,9 +1,9 @@
 import { useNavigate } from "react-router-dom"; 
 import { CoreOverlay } from "../../../../components/overlay";
-import { useMenuActions, useMenuSelections } from "../../../../store/slices/menu.slice";
+import { useMenuActions, selectIsMenuOpen } from "../../../../store/slices/menu.slice";
 
 export const MenuModal = () => {
-  const { isMenuOpen } = useMenuSelections();
+  const isMenuOpen = selectIsMenuOpen();
   const { setMenuState } = useMenuActions();
   const navigate = useNavigate(); 
 
