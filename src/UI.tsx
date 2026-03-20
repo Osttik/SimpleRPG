@@ -47,35 +47,28 @@ export const UIComponent = () => {
     };
   }, []);
 
-  const changeVolume = (amount: number) => {
+  const handleVolumeChange = () => {
     setVolume((prev) => {
-      let newVol = prev + amount;
-      if (newVol > 100) newVol = 100;
-      if (newVol < 0) newVol = 0;
+      const nextVol = prev >= 100 ? 0 : prev + 25;
       if (playerRef.current?.setVolume) {
-        playerRef.current.setVolume(newVol);
+        playerRef.current.setVolume(nextVol);
       }
-      return newVol;
+      return nextVol;
     });
   };
 
   return (
     <div className="absolute w-screen h-screen overflow-hidden pointer-events-none z-50 flex flex-col p-4">
-      <div id="yt-player-game" className="hidden"></div>
+      <div className="absolute opacity-0 pointer-events-none w-[1px] h-[1px] overflow-hidden z-[-1]">
+        <div id="yt-player-game"></div>
+      </div>
       
       <GameInternalState className="absolute pointer-events-auto" />
       
       <div className="flex flex-row w-full justify-between pointer-events-auto">
         <div className="flex-1"></div>
         <div className="flex-1"></div>
-        <div className="flex-1 flex justify-end gap-6 items-center">
-          
-          <div className="flex items-center gap-4 bg-black/60 px-5 py-2 border border-[#c1874b] rounded-[30px] backdrop-blur-md shadow-[0_0_15px_rgba(212,175,55,0.3)]">
-            <button onClick={() => changeVolume(-10)} className="text-[#d4af37] text-3xl hover:scale-125 hover:text-white transition-all active:scale-95 drop-shadow-md pb-1">-</button>
-            <span className="text-[#f3e5ab] font-bold text-xl font-serif w-12 text-center" style={{ textShadow: "1px 1px 2px black" }}>{volume}%</span>
-            <button onClick={() => changeVolume(10)} className="text-[#d4af37] text-3xl hover:scale-125 hover:text-white transition-all active:scale-95 drop-shadow-md">+</button>
-          </div>
-
+        <div className="flex-1 flex justify-end">
           <CoreButton
             icon={PrimeIcons.BARS}
             onClick={() => setMenuState(!isMenuOpen)}
@@ -86,7 +79,7 @@ export const UIComponent = () => {
       </div>
       <div className="flex-1"></div>
       <InventoryComponent />
-      <MenuModal />
+      <MenuModal volume={volume} onVolumeChange={handleVolumeChange} />
     </div>
   );
 }
