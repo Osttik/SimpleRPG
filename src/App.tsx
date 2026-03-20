@@ -1,7 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
-import { MainMenu } from './modules/menu_module/components/main_menu/index';
-
-import GameScene from './GameScene'; 
+import { MainMenu } from './modules/menu_module/components/main_menu';
+import GameScene from './GameScene';
 
 function App() {
   return (
