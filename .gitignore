@@ -29,3 +29,4 @@ dist-ssr
 # Environment variables
 .env
 compile_flags.txt
+build_log.txt
