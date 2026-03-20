@@ -5,6 +5,7 @@ import { store } from './store/index.ts';
 import App from './App.tsx';
 import './index.scss';
 import { PrimeReactProviderServiceComponent } from './services/components/PrimeReactProviderServiceComponent.tsx';
+import { BrowserRouter } from 'react-router-dom';
 
 const Strict = ({ strict, children }: any) => {
   if (!strict) return children;
@@ -19,7 +20,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <Strict strict={false}>
     <Provider store={store}>
       <PrimeReactProviderServiceComponent>
-        <App />
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
       </PrimeReactProviderServiceComponent>
     </Provider>
   </Strict>,

@@ -1,14 +1,15 @@
-import { MapComponent } from './modules/map_module';
-import { UIComponent } from './UI';
+import { Routes, Route } from 'react-router-dom';
+import { MainMenu } from './modules/menu_module/components/main_menu/index';
+
+import GameScene from './GameScene'; 
 
 function App() {
-
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-neutral-900">
-      <MapComponent />
-      <UIComponent />
-    </div>
+    <Routes>
+      <Route path="/" element={<MainMenu />} />
+      <Route path="/game" element={<GameScene />} />
+    </Routes>
   );
 }
 
-export default App
+export default App;

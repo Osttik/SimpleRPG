@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom"; 
 import { CoreButton } from "../../../../components/button";
 import { CoreOverlay } from "../../../../components/overlay";
 import { useMenuActions, useMenuSelections } from "../../../../store/slices/menu.slice";
@@ -5,6 +6,7 @@ import { useMenuActions, useMenuSelections } from "../../../../store/slices/menu
 export const MenuModal = () => {
   const { isMenuOpen } = useMenuSelections();
   const { setMenuState } = useMenuActions();
+  const navigate = useNavigate(); 
 
   return (
     <CoreOverlay 
@@ -20,11 +22,9 @@ export const MenuModal = () => {
           <CoreButton 
             label="Quit" 
             onClick={() => {
-              if (confirm('Are you sure you want to quit?')) {
-                window.close();
-                setTimeout(() => {
-                  window.location.href = 'about:blank';
-                }, 100);
+              if (confirm('Are you sure you want to quit to the Main Menu?')) {
+                setMenuState(false);
+                navigate('/');
               }
             }} 
             className="p-button-danger p-button-outlined w-full"
