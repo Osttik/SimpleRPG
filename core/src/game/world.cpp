@@ -153,6 +153,11 @@ bool WorldManager::CheckTileCollision(const aabb::AABB& box, int32_t z, Point& r
     bool collided = false;
     resolution = Point(float32(0), float32(0));
 
+    float32 maxPushX = float32(0);
+    float32 minPushX = float32(0);
+    float32 maxPushY = float32(0);
+    float32 minPushY = float32(0);
+
     // Convert world coordinates to tile indices
     int32_t minX = static_cast<int32_t>(std::floor(static_cast<double>(box.lowerBound[0]) / static_cast<double>(TILE_SIZE)));
     int32_t minY = static_cast<int32_t>(std::floor(static_cast<double>(box.lowerBound[1]) / static_cast<double>(TILE_SIZE)));
@@ -179,7 +184,7 @@ bool WorldManager::CheckTileCollision(const aabb::AABB& box, int32_t z, Point& r
                 float32 dx1 = tileRight - boxLeft;
                 float32 dx2 = boxRight - tileLeft;
                 float32 dy1 = tileBottom - boxTop;
-                float32 dy2 = boxBottom - boxTop;
+                float32 dy2 = boxBottom - tileTop;
 
                 // Find minimum overlap direction
                 float32 absDx1 = dx1 < float32(0) ? float32(0) - dx1 : dx1;
@@ -203,11 +208,16 @@ bool WorldManager::CheckTileCollision(const aabb::AABB& box, int32_t z, Point& r
                     res = Point(float32(0), float32(0) - absDy2);
                 }
 
-                resolution.X += res.X;
-                resolution.Y += res.Y;
+                if (res.X > maxPushX) maxPushX = res.X;
+                if (res.X < minPushX) minPushX = res.X;
+                if (res.Y > maxPushY) maxPushY = res.Y;
+                if (res.Y < minPushY) minPushY = res.Y;
             }
         }
     }
+
+    resolution.X = maxPushX + minPushX;
+    resolution.Y = maxPushY + minPushY;
 
     return collided;
 }

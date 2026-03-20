@@ -6,6 +6,7 @@ import {
   tileVertexShaderSource
 } from '../../game_module/shaders';
 import { SpriteSystem } from '../../game_module/utils/SpriteSystem';
+import { RegistryManager } from '../../game_module/utils/RegistryManager';
 
 interface RenderGameState {
   players: Record<string, any>;
@@ -39,6 +40,10 @@ function initWebGL() {
   const playerResLoc = gl.getUniformLocation(playerProgram, "u_resolution");
   const playerColorLoc = gl.getUniformLocation(playerProgram, "u_color");
   const playerSizeLoc = gl.getUniformLocation(playerProgram, "u_pointSize");
+  const playerTexLoc = gl.getUniformLocation(playerProgram, "u_texture");
+  const playerUvOffsetLoc = gl.getUniformLocation(playerProgram, "u_uvOffset");
+  const playerUvScaleLoc = gl.getUniformLocation(playerProgram, "u_uvScale");
+  const playerUseTexLoc = gl.getUniformLocation(playerProgram, "u_useTexture");
 
   const playerPosBuffer = gl.createBuffer();
   
@@ -185,7 +190,46 @@ function initWebGL() {
     gl.bindBuffer(gl.ARRAY_BUFFER, playerPosBuffer);
     gl.vertexAttribPointer(playerPosLoc, 2, gl.FLOAT, false, 0, 0);
     gl.uniform2f(playerResLoc, canvas.width, canvas.height);
-    gl.uniform1f(playerSizeLoc, pointSize);
+
+    const playerVisual = RegistryManager.getEntityVisual("player");
+    const playerLogic = RegistryManager.getEntityLogic("player");
+    const pSize = playerLogic?.width || pointSize;
+    gl.uniform1f(playerSizeLoc, pSize);
+
+    if (playerVisual) {
+        gl.uniform1i(playerUseTexLoc, 1);
+        const tex = SpriteSystem.entityTextures.get(playerVisual.sheet);
+        const dims = SpriteSystem.entityDimensions.get(playerVisual.sheet);
+        if (tex && dims) {
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.uniform1i(playerTexLoc, 1);
+            
+            const sheets: any = RegistryManager.rawSpritesData.sheets;
+            const sheetInfo = sheets[playerVisual.sheet];
+            const tileSize = sheetInfo ? (sheetInfo.tileSize || 16) : 16;
+            
+            const cols = dims.width / tileSize;
+            const rows = dims.height / tileSize;
+
+            const row = playerVisual.coords?.row || 0;
+            const col = playerVisual.coords?.col || 0;
+
+            const uScale = 1.0 / cols;
+            const vScale = 1.0 / rows;
+            const uOffset = col * uScale;
+            const vOffset = row * vScale;
+            
+            gl.uniform2f(playerUvOffsetLoc, uOffset, vOffset);
+            gl.uniform2f(playerUvScaleLoc, uScale, vScale);
+        } else {
+            // Initiate fetch so it's ready next frame
+            SpriteSystem.getEntityTexture(playerVisual.sheet).catch(console.error);
+            gl.uniform1i(playerUseTexLoc, 0);
+        }
+    } else {
+        gl.uniform1i(playerUseTexLoc, 0);
+    }
 
     for (const player of Object.values(gameState.players)) {
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([

@@ -47,9 +47,11 @@ SimpleRPG/
 │   ├── assets/                    # Bundled assets (tilesets, configs)
 │   │   ├── Tileset.png            # Main tile atlas (imported by SpriteSystem)
 │   │   ├── tiles_registry.json    # Numerical IDs, names, and collision properties
-│   │   └── sprites_data.json      # Metadata: tile names -> UV/SpriteID mapping
-│   ├── main.tsx                   # Entry: React + Redux + PrimeReact providers (StrictMode OFF)
-│   ├── App.tsx                    # Root: MapComponent + UIComponent
+│   │   ├── entities_registry.json # Entity-specific logic (type, stats, spriteKey)
+│   │   └── sprites_data.json      # Metadata: Multi-atlas sheets, sprite coordinates/masks
+│   ├── main.tsx                   # Entry: React + Redux + PrimeReact + Browser Router
+│   ├── App.tsx                    # Root: Routes (MainMenu, GameScene)
+│   ├── GameScene.tsx              # Component: Orchestrates MapComponent + UIComponent
 │   ├── UI.tsx                     # HUD layer: ping display, burger menu button, menu modal
 │   ├── index.scss                 # Global styles
 │   ├── modules/
@@ -62,9 +64,11 @@ SimpleRPG/
 │   │   │   │   ├── tileFragment.glsl # Tile fragment shader with Z-layer tint
 │   │   │   │   └── index.ts       # ?raw GLSL imports
 │   │   │   └── utils/
-│   │   │       ├── webGLUtils.ts  # createShader, createProgram helpers
-│   │   │       ├── SpriteSystem.ts # SpriteSystem: WebGL texture management
-│   │   │       └── TileDataManager.ts # TileDataManager: Baked Float32Array UV lookup table
+│   │   │       ├── webGLUtils.ts      # createShader, createProgram helpers
+│   │   │       ├── AssetManager.ts    # Async ImageBitmap cache (Vite-safe)
+│   │   │       ├── RegistryManager.ts # Bridge: LogicData -> SpriteKey lookup
+│   │   │       ├── SpriteSystem.ts    # Texture management (Arrays + 2D)
+│   │   │       └── TileDataManager.ts # Baked Float32Array UV lookup table
 │   │   ├── map_module/
 │   │   │   ├── index.ts           # Barrel export
 │   │   │   └── components/map/
@@ -75,9 +79,12 @@ SimpleRPG/
 │   │   │       ├── RenderWorker.ts    # WebGL2 render loop + Lerp smoothing on OffscreenCanvas
 │   │   │       └── SocketWorker.ts    # WebSocket lifecycle + binary decoding; proxies to RenderWorker via MessagePort
 │   │   └── menu_module/
-│   │       ├── index.ts           # Barrel export
-│   │       └── components/menu_modal/
-│   │           └── index.tsx      # MenuModal: Continue + Quit buttons in CoreOverlay
+│   │   │   ├── index.ts           # Barrel export
+│   │   │   └── components/
+│   │   │       ├── main_menu/
+│   │   │       │   └── index.tsx  # MainMenu: Splash screen with "Play" button
+│   │   │       └── menu_modal/
+│   │   │           └── index.tsx      # MenuModal: Continue + Quit buttons in CoreOverlay
 │   ├── components/
 │   │   ├── button/index.tsx       # CoreButton: PrimeReact Button wrapper
 │   │   ├── overlay/index.tsx      # CoreOverlay: PrimeReact Dialog wrapper
@@ -113,13 +120,13 @@ SimpleRPG/
 ```
 
 ## Tech Stack
-* **Frontend**: React 19 + Vite 8 + TypeScript 5.9
+* **Frontend**: React 19 + Vite 8 + TypeScript 5.9 + React Router 7
 * **UI Library**: PrimeReact 10 + PrimeIcons 7
 * **State**: Redux Toolkit (menu only); game state is a plain singleton (`gameState`)
 * **Styling**: Tailwind CSS 4 + SCSS
-* **Rendering**: WebGL2 (GLSL 300 es) via **OffscreenCanvas**. Players drawn as `gl.POINTS`. Tiles rendered via `gl.drawArraysInstanced(gl.TRIANGLES, ...)` for high performance.
+* **Rendering**: WebGL2 (GLSL 300 es) via **OffscreenCanvas**. Players/NPCs drawn as textured `gl.POINTS` (with fallback to circles). Tiles rendered via `gl.drawArraysInstanced(gl.TRIANGLES, ...)` for high performance.
 * **Concurrency**: Multi-threaded architecture using **Web Workers** to decouple networking and rendering from the React main thread.
-* **Client Runtime**: NW.js 0.109 (Chromium + Node.js, points to Vite dev server at localhost:5173)
+* **Client Runtime**: NW.js 0.109 (Chromium + Node.js, points to Vite dev server at localhost:3000)
 * **Server**: Node.js + `ws` WebSocket library, port 3001 (configurable via `.env`)
 * **Physics**: C++ addon (`gamecore.node`) loaded via `createRequire()` in ESM server
 * **Math**: `fpm` library (fixed-point `fpm::fixed_16_16` aliased as `float32`)
@@ -161,13 +168,13 @@ SimpleRPG/
 * **Square Roots:** Avoid sqrt for distance checks. Use Squared Distance vs Squared Radius. If required (e.g., normalization), use `fpm::sqrt`.
 * **Memory:** GameObjectPhysics AABB tree uses RAW observer pointers (`GameObject*`). It does NOT own the memory.
 * **Collision:** **Hybrid System**:
-    - **Environment**: Grid-based lookup in `WorldManager::CheckTileCollision` resolves overlaps with solid tiles.
+    - **Environment**: Grid-based lookup in `WorldManager::CheckTileCollision` resolves overlaps with solid tiles using Max/Min directional tracking to prevent additive jitter.
     - **Entities**: Broad Phase (AABB Tree) → Narrow Phase (circle-circle check) → Resolution (push apart by half).
     - **Static Props**: Non-grid destructible objects added to tree with `IsStaticProp = true`.
 * **Destruction**:
     - **Tiles**: `DestroyTile` sets ID to 0 and notifies neighbors for autotiling updates.
     - **Props/Entities**: `IsPendingDestruction` flag triggers cleanup and removal from AABB tree during next tick.
-* **Z-Level Logic:** "Stacked 2D" architecture. Physics/Collision only occurs on the same `chunkZ`.
+* **Z-Level Logic:** "Stacked 2D" architecture. Physics/Collision only occurs on the same `chunkZ`. Players spawn on `ChunkZ = 1` by default.
 * **ID Tracking:** `core.cpp` stores per-player and per-prop AABB tree IDs.
 * **`TileRegistry`**: Maps numeric `uint16_t` IDs to string names and `CollisionMap` (solidity bitset).
 * **`WorldManager`**: Owns chunks. Implements **8-Neighbor Bitmask Autotiling** (N:1, NE:2, E:4, SE:8, S:16, SW:32, W:64, NW:128) with corner checking.
@@ -183,15 +190,17 @@ SimpleRPG/
 
 ### 3. Frontend
 *   `gameState` (singleton, NOT Redux) holds: `canvasRef`, `myId`, `players`, `chunks`, `tileRegistry`, `ping`.
-*   **Tile Data Manager**: Loads `tiles_registry.json` and `sprites_data.json` at boot. Generates a flat `Float32Array` lookup table indexed by `(id * 256) + mask` for O(1) rendering performance. Handles missing textures at (0,0).
-*   **Sprite System**: Manages WebGL `TEXTURE_2D_ARRAY` using `gl.texStorage3D`. Worker-safe: uses `fetch` + `createImageBitmap` + `OffscreenCanvas`.
-*   WebGL renders players as circles via `gl.POINTS` and tiles via **Instancing** on a background thread.
+*   **Asset Manager**: Handles asynchronous `ImageBitmap` caching. Uses explicit Vite imports to resolve asset URLs safely within Worker contexts.
+*   **Registry Manager**: Unified bridge for `tiles_registry.json` and `entities_registry.json`. Matches logic metadata to sprite visual keys.
+*   **Tile Data Manager**: Uses `RegistryManager` to generate a flat `Float32Array` lookup table indexed by `(id * 256) + mask` for O(1) tile rendering.
+*   **Sprite System**: Manages WebGL `TEXTURE_2D_ARRAY` for tiles and `TEXTURE_2D` for entities. Decoupled from file fetching via `AssetManager`.
+*   WebGL renders entities (players/NPCs) as textured points via `gl.POINTS` and tiles via **Instancing** on a background thread.
 *   **Layer Tinting**: Lower Z-levels are rendered with a darker tint in `tileFragment.glsl`.
 *   **Modular Architecture**: Logic split into `SocketWorker` (Networking), `RenderWorker` (WebGL + Lerp), and `useControls` (Main Thread Inputs).
 *   StrictMode is OFF.
 
 ### 4. Build System
-* Use `CMakeLists.txt` via `cmake-js`. DO NOT use `binding.gyp`.
+* Use `CMakeLists.txt` via `cmake-js`.
 * NW.js is the runtime for the client.
 * Two build targets: `build/` (standalone) and `build-nodejs/` (Node.js addon).
-* **Testing Policy**: The AI agent should only perform build tests (`npm run build:addon`). Runtime functional testing is performed by the USER.
+* **Testing Policy**: The AI agent could only perform build tests. Runtime functional testing is performed by the USER.
