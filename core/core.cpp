@@ -104,7 +104,7 @@ private:
     auto circle = std::make_unique<Circle>(position, fradius);
 
     GameObject* obj = new GameObject(transform, std::move(circle));
-    obj->ChunkZ = 0; // Default to layer 0
+    obj->ChunkZ = 1;
 
     playerObjects_[id] = obj;
     playerIds_[obj] = id;

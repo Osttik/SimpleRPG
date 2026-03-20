@@ -1,29 +1,24 @@
-import tilesRegistry from '../../../assets/tiles_registry.json';
-import spritesData from '../../../assets/sprites_data.json';
-
-export interface TileData {
-    id: number;
-    name: string;
-    collide: boolean;
-}
+import { RegistryManager } from './RegistryManager';
 
 export class TileDataManager {
-    static registry: TileData[] = tilesRegistry;
-    static spritesConfig: any = spritesData;
-    
     // Flat Float32Array to store the pre-calculated textureArrayLayer
     // Index: (tileId * 256) + mask
     static lookupTable: Float32Array;
     static maxTileId = 0;
     static cols = 0;
     
-    static init(cols: number) {
+    // Default sheet used for tiles in WebGL Texture Array
+    static tileSheetKey = "forest_env";
+    static tileSize = 16;
+    
+    static init(cols: number, tileSize: number) {
         this.cols = cols;
+        this.tileSize = tileSize;
         
-        // Find max tile ID
-        for (const tile of this.registry) {
-            if (tile.id > this.maxTileId) {
-                this.maxTileId = tile.id;
+        // Find max tile ID from RegistryManager
+        for (const [id] of RegistryManager.tilesById.entries()) {
+            if (id > this.maxTileId) {
+                this.maxTileId = id;
             }
         }
         
@@ -34,19 +29,22 @@ export class TileDataManager {
         // Fill table with fallback layer (row: 0, col: 0 -> layer 0)
         this.lookupTable.fill(0);
         
-        for (const tile of this.registry) {
-            const tileData = this.spritesConfig.tiles[tile.name];
-            if (!tileData) continue;
+        for (const [id, data] of RegistryManager.tilesById.entries()) {
+            const visualData = data.visual;
+            if (!visualData || !visualData.masks) continue;
+            
+            // Only bake tiles that belong to the main tile sheet into this lookup table
+            if (visualData.sheet !== this.tileSheetKey) continue;
             
             for (let mask = 0; mask < 256; mask++) {
-                let variant = tileData[`mask_${mask}`];
+                let variant = visualData.masks[mask.toString()];
                 if (!variant) {
-                    variant = tileData['mask_0'] || Object.values(tileData)[0];
+                    variant = visualData.masks['0'] || Object.values(visualData.masks)[0];
                 }
                 
                 if (variant) {
                     const layerId = variant.row * cols + variant.col;
-                    const index = (tile.id * 256) + mask;
+                    const index = (id * 256) + mask;
                     this.lookupTable[index] = layerId;
                 }
             }

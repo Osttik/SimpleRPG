@@ -1,5 +1,5 @@
 [
-  { "id": 1, "name": "grass", "collide": false },
-  { "id": 2, "name": "stone", "collide": true },
-  { "id": 3, "name": "dark_grass", "collide": false }
+  { "id": 1, "name": "grass", "collide": false, "spriteKey": "grass" },
+  { "id": 2, "name": "stone", "collide": true, "spriteKey": "stone" },
+  { "id": 3, "name": "dark_grass", "collide": false, "spriteKey": "dark_grass" }
 ]

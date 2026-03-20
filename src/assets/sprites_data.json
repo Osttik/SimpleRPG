@@ -1,24 +1,47 @@
 {
-  "texturePath": "assets/Tileset.png",
-  "tileSize": 16,
-  "spacing": 0,
-  "tiles": {
-    "grass": {
-      "mask_255": {
-        "row": 1,
-        "col": 1
-      }
+  "sheets": {
+    "forest_env": {
+      "url": "assets/Tileset.png",
+      "tileSize": 16
     },
-    "dark_grass": {
-      "mask_255": {
-        "row": 11,
-        "col": 1
+    "player_sheet": {
+      "url": "assets/Tileset.png",
+      "tileSize": 16
+    }
+  },
+  "sprites": {
+    "grass": {
+      "sheet": "forest_env",
+      "masks": {
+        "255": {
+          "row": 1,
+          "col": 1
+        }
       }
     },
     "stone": {
-      "mask_255": {
-        "row": 1,
-        "col": 6
+      "sheet": "forest_env",
+      "masks": {
+        "255": {
+          "row": 4,
+          "col": 6
+        }
+      }
+    },
+    "dark_grass": {
+      "sheet": "forest_env",
+      "masks": {
+        "255": {
+          "row": 11,
+          "col": 1
+        }
+      }
+    },
+    "player_idle": {
+      "sheet": "player_sheet",
+      "coords": {
+        "row": 6,
+        "col": 0
       }
     }
   }
