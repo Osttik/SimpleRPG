@@ -1,0 +1,5 @@
+[
+  { "id": 1, "name": "grass", "collide": false },
+  { "id": 2, "name": "stone", "collide": true },
+  { "id": 3, "name": "dark_grass", "collide": false }
+]

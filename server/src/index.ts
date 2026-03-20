@@ -34,6 +34,15 @@ const GAME_TICK_RATE = 1000 / 60;
 const physics = new gamecore.GameWorld();
 console.log('Initialized C++ GameWorld physics engine');
 
+try {
+    const registryPath = path.resolve(__dirname, '../../src/assets/tiles_registry.json');
+    const registryData = JSON.parse(require('fs').readFileSync(registryPath, 'utf8'));
+    physics.setTileRegistry(registryData);
+    console.log('Loaded TileRegistry into C++ core with', registryData.length, 'tiles.');
+} catch (e) {
+    console.error('Failed to load tiles_registry.json for C++ core:', e);
+}
+
 interface PlayerMetadata {
   color: number[];
   ws: WebSocket;
@@ -48,7 +57,8 @@ const CHUNK_PIXEL_SIZE = 16 * TILE_SIZE;
 function sendChunk(ws: WebSocket, cx: number, cy: number, cz: number) {
   try {
     const chunkBuffer = physics.getChunk(cx, cy, cz);
-    if (!chunkBuffer) return;
+    const chunkVisuals = physics.getChunkVisuals(cx, cy, cz);
+    if (!chunkBuffer || !chunkVisuals) return;
 
     const header = Buffer.alloc(13);
     header.writeUInt8(1, 0);
@@ -56,7 +66,7 @@ function sendChunk(ws: WebSocket, cx: number, cy: number, cz: number) {
     header.writeInt32LE(cy, 5);
     header.writeInt32LE(cz, 9);
     
-    const message = Buffer.concat([header, chunkBuffer]);
+    const message = Buffer.concat([header, chunkBuffer, chunkVisuals]);
     ws.send(message);
   } catch (e) {
     console.error(`Failed to send chunk ${cx},${cy},${cz}:`, e);
@@ -108,8 +118,8 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   physics.addPlayer(id, initialX, initialY, PLAYER_RADIUS);
 
   try {
-    const state = physics.getState();
-    const playersData = Object.entries(state).reduce(
+    const { players: physicsPlayers } = physics.getState();
+    const playersData = Object.entries(physicsPlayers).reduce(
       (acc: Record<string, any>, [pid, data]: [string, any]) => {
         acc[pid] = {
           x: data.x,
@@ -125,6 +135,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       type: 'init',
       id,
       players: playersData,
+      tileRegistry: physics.getTileRegistry(),
     }));
   } catch (e) {
     console.error(`Failed to send init to ${id}:`, e);
@@ -182,10 +193,10 @@ setInterval(() => {
   try {
     physics.tick();
 
-    const physicsState = physics.getState();
+    const { players: physicsPlayers, destroyed: destroyedIds } = physics.getState();
 
     const playersData: Record<string, any> = {};
-    for (const [id, data] of Object.entries(physicsState)) {
+    for (const [id, data] of Object.entries(physicsPlayers)) {
       const metadata = playerMetadata[id as string];
       if (metadata) {
         playersData[id] = {
@@ -199,6 +210,7 @@ setInterval(() => {
     const stateMessage = JSON.stringify({
       type: 'state',
       players: playersData,
+      destroyed: destroyedIds,
     });
 
     wss.clients.forEach((client: WebSocket) => {

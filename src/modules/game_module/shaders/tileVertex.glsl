@@ -1,13 +1,14 @@
 #version 300 es
 in vec2 a_position;
 in vec2 a_instancePosition;
-in float a_tileType;
+in float a_spriteId;
 in float a_cz;
 
 uniform vec2 u_resolution;
 uniform float u_tileSize;
 
-out float v_tileType;
+out vec2 v_uv;
+out float v_spriteId;
 out float v_cz;
 
 void main() {
@@ -18,6 +19,7 @@ void main() {
   vec2 clipSpace = zeroToTwo - 1.0;
   
   gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-  v_tileType = a_tileType;
+  v_uv = a_position;
+  v_spriteId = a_spriteId;
   v_cz = a_cz;
 }

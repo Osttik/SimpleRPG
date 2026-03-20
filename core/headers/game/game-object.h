@@ -8,5 +8,10 @@ public:
   const TransformData Transform;
   const std::unique_ptr<Shape> BoundingBox;
 
-  GameObject(TransformData transform, std::unique_ptr<Shape> rect): Transform(transform), BoundingBox(std::move(rect)) {}
+  bool IsStaticProp = false;
+  bool IsPendingDestruction = false;
+  int32_t ChunkZ = 0;
+
+  GameObject(TransformData transform, std::unique_ptr<Shape> rect)
+      : Transform(transform), BoundingBox(std::move(rect)) {}
 };

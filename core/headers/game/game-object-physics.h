@@ -6,6 +6,8 @@
 #include "game/game-object.h"
 #include "math/number.h"
 
+class WorldManager;
+
 class GameObjectPhysics
 {
 private:
@@ -23,6 +25,8 @@ public:
   void RemoveObject(unsigned int id);
 
   void UpdateObject(unsigned int id);
+
+  void Tick(WorldManager* world);
 
   std::vector<GameObject*> GetObjectsInArea(Point areaTopLeft, Point areaBottomRight);
 };

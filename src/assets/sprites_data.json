@@ -1,0 +1,25 @@
+{
+  "texturePath": "assets/Tileset.png",
+  "tileSize": 16,
+  "spacing": 0,
+  "tiles": {
+    "grass": {
+      "mask_255": {
+        "row": 1,
+        "col": 1
+      }
+    },
+    "dark_grass": {
+      "mask_255": {
+        "row": 11,
+        "col": 1
+      }
+    },
+    "stone": {
+      "mask_255": {
+        "row": 4,
+        "col": 6
+      }
+    }
+  }
+}

@@ -14,15 +14,16 @@ Multiplayer 2D RPG: React/WebGL frontend, Node.js WebSocket server, deterministi
 ```
 SimpleRPG/
 ├── core/                          # C++ physics engine (deterministic, fixed-point)
-│   ├── core.cpp                   # N-API wrapper: GameWorldWrapper (AddPlayer, RemovePlayer, ApplyMovement, Tick, GetState)
+│   ├── core.cpp                   # N-API wrapper: GameWorldWrapper (AddPlayer, AddProp, RemovePlayer, ApplyMovement, Tick, GetState, DestroyTile, DestroyProp)
 │   ├── app.cpp                    # Standalone native entry (unused for Node addon)
 │   ├── headers/
 │   │   ├── game/
 │   │   │   ├── game-object.h      # GameObject: owns TransformData + unique_ptr<Shape> BoundingBox
 │   │   │   ├── game-object-physics.h  # GameObjectPhysics: AABB tree wrapper
 │   │   │   ├── transform.h        # TransformData: mutable Point Position
-│   │   │   ├── chunk.h            # Chunk: 16x16x16 uint16_t tile IDs array (4KB)
-│   │   │   └── world.h            # WorldManager: Chunk mapping + procedural generation
+│   │   │   ├── chunk.h            # Chunk: 16x16x16 uint16_t tiles + uint8_t visual_mask_layer (12KB total)
+│   │   │   ├── tile-registry.h    # TileRegistry: numeric ID to string mapping
+│   │   │   └── world.h            # WorldManager: Chunk mapping + procedural generation + autotiling logic
 │   │   └── math/
 │   │       ├── aabb.h             # AABB tree (Box2D-derived, uses float32)
 │   │       ├── point.h            # Point: float32 X, Y
@@ -32,8 +33,9 @@ SimpleRPG/
 │       ├── game/
 │       │   ├── game-object-physics.cpp
 │       │   ├── game-object.cpp
+│       │   ├── tile-registry.cpp
 │       │   ├── transform.cpp
-│       │   └── world.cpp          # WorldManager impl: simple procedural gen
+│       │   └── world.cpp          # WorldManager: Reactive 8-neighbor bitmask autotiling implementation
 │       └── math/
 │           ├── aabb.cpp
 │           ├── point.cpp
@@ -42,6 +44,10 @@ SimpleRPG/
 │   └── src/
 │       └── index.ts               # WebSocket server: 60fps game loop, loads gamecore.node, broadcasts state
 ├── src/                           # React frontend (Vite + NW.js)
+│   ├── assets/                    # Bundled assets (tilesets, configs)
+│   │   ├── Tileset.png            # Main tile atlas (imported by SpriteSystem)
+│   │   ├── tiles_registry.json    # Numerical IDs, names, and collision properties
+│   │   └── sprites_data.json      # Metadata: tile names -> UV/SpriteID mapping
 │   ├── main.tsx                   # Entry: React + Redux + PrimeReact providers (StrictMode OFF)
 │   ├── App.tsx                    # Root: MapComponent + UIComponent
 │   ├── UI.tsx                     # HUD layer: ping display, burger menu button, menu modal
@@ -56,15 +62,18 @@ SimpleRPG/
 │   │   │   │   ├── tileFragment.glsl # Tile fragment shader with Z-layer tint
 │   │   │   │   └── index.ts       # ?raw GLSL imports
 │   │   │   └── utils/
-│   │   │       └── webGLUtils.ts  # createShader, createProgram helpers
+│   │   │       ├── webGLUtils.ts  # createShader, createProgram helpers
+│   │   │       ├── SpriteSystem.ts # SpriteSystem: WebGL texture management
+│   │   │       └── TileDataManager.ts # TileDataManager: Baked Float32Array UV lookup table
 │   │   ├── map_module/
 │   │   │   ├── index.ts           # Barrel export
 │   │   │   └── components/map/
 │   │   │       ├── index.tsx      # MapComponent: canvas ref + useMapInitialize
-│   │   │       ├── useMapInitialize.ts  # Orchestrator hook: calls render, websocket, and control hooks
-│   │   │       ├── useWebGLRender.ts    # WebGL2 initialization and render loop
-│   │   │       ├── useWebSocket.ts      # WebSocket connection, message handling, and pinging
-│   │   │       └── useControls.ts       # Input handling (KB/Mouse) and 30Hz movement interval
+│   │   │       ├── useMapInitialize.ts  # Orchestrator hook: spawns Render & Socket Workers, sets up MessageChannel
+│   │   │       └── useControls.ts       # Input handling (KB/Mouse) and 30Hz movement interval; forwards to SocketWorker
+│   │   │   └── workers/
+│   │   │       ├── RenderWorker.ts    # WebGL2 render loop + Lerp smoothing on OffscreenCanvas
+│   │   │       └── SocketWorker.ts    # WebSocket lifecycle + binary decoding; proxies to RenderWorker via MessagePort
 │   │   └── menu_module/
 │   │       ├── index.ts           # Barrel export
 │   │       └── components/menu_modal/
@@ -108,7 +117,8 @@ SimpleRPG/
 * **UI Library**: PrimeReact 10 + PrimeIcons 7
 * **State**: Redux Toolkit (menu only); game state is a plain singleton (`gameState`)
 * **Styling**: Tailwind CSS 4 + SCSS
-* **Rendering**: WebGL2 (GLSL 300 es). Players drawn as `gl.POINTS`. Tiles rendered via `gl.drawArraysInstanced(gl.TRIANGLES, ...)` for high performance.
+* **Rendering**: WebGL2 (GLSL 300 es) via **OffscreenCanvas**. Players drawn as `gl.POINTS`. Tiles rendered via `gl.drawArraysInstanced(gl.TRIANGLES, ...)` for high performance.
+* **Concurrency**: Multi-threaded architecture using **Web Workers** to decouple networking and rendering from the React main thread.
 * **Client Runtime**: NW.js 0.109 (Chromium + Node.js, points to Vite dev server at localhost:5173)
 * **Server**: Node.js + `ws` WebSocket library, port 3001 (configurable via `.env`)
 * **Physics**: C++ addon (`gamecore.node`) loaded via `createRequire()` in ESM server
@@ -118,21 +128,26 @@ SimpleRPG/
 ## Architecture
 
 ### Data Flow
-1. Client captures keyboard/mouse input → sends `{type:'move', dx, dy}` at 30Hz
+1. Client captures keyboard/mouse input → forwards command to `SocketWorker` → sends `{type:'move', dx, dy}` at 30Hz
 2. Server normalizes diagonal movement, calls `physics.applyMovement(id, dx, dy, speed)`
-3. Server runs `physics.tick()` at 60fps → C++ detects collisions (broad: AABB tree, narrow: circle-circle) → resolves by pushing apart
-4. Server calls `physics.getState()` and `physics.getChunk()` → broadcasts/streams state (JSON) and chunks (Binary) to clients
-5. Client renders world using WebGL2 Instancing and players as points. Darker tint applied to lower Z-levels.
+3. Server runs `physics.tick()` at 60fps → C++ performs **Hybrid Collision Resolution**:
+    - **Grid Phase**: Each entity resolves against solid tiles in `WorldManager`.
+    - **Entity Phase**: Dynamic entities query the AABB tree and resolve overlaps (circle-circle).
+4. Server calls `physics.getState()` → broadcasts state (JSON) including `players` positions and `destroyed` IDs.
+5. `SocketWorker` decodes binary chunks and proxies state directly to `RenderWorker` via `MessagePort`.
+6. `RenderWorker` performs **Linear Interpolation (Lerp)** on entities at user refresh rate and renders using `OffscreenCanvas`.
+7. `RenderWorker` uses `TileDataManager` to perform 1us UV lookups via baked `LookupTable`.
+8. `RenderWorker` triggers "Particle/Debris" events for IDs in the `destroyed` list.
 
 ### Protocol Messages
-| Direction     | Type    | Fields                                  |
-|---------------|---------|-----------------------------------------|
-| Client→Server | `move`  | `dx`, `dy` (-1/0/1 or float)            |
-| Client→Server | `ping`  | `timestamp`                             |
-| Server→Client | `init`  | `id`, `players` (map of id→{x,y,color}) |
-| Server→Client | `state` | `players` (map of id→{x,y,color})       |
-| Server→Client | `pong`  | `timestamp`                             |
-| Server→Client | `Binary Chunk` | `[1b Type][4b cx][4b cy][4b cz][8KiB tiles]` |
+| Direction     | Type           | Fields                                                          |
+|---------------|----------------|-----------------------------------------------------------------|
+| Client→Server | `move`         | `dx`, `dy` (-1/0/1 or float)                                    |
+| Client→Server | `ping`         | `timestamp`                                                     |
+| Server→Client | `init`         | `id`, `players`, `tileRegistry` (id→name map)                   |
+| Server→Client | `state`        | `players` (map of id→{x,y,color,z}), `destroyed` (array of IDs) |
+| Server→Client | `pong`         | `timestamp`                                                     |
+| Server→Client | `Binary Chunk` | `[1b Type][4b cx][4b cy][4b cz][8KiB tiles][4KiB visual masks]` |
 
 ### Constants
 * `PLAYER_RADIUS = 20`, `MOVEMENT_SPEED = 5`, tick rate = 60fps, input send rate = 30Hz
@@ -145,11 +160,20 @@ SimpleRPG/
 * **Fixed-Point Math Only:** NEVER use `float`, `double`, or `<cmath>`. Use `fpm::fixed_16_16` (aliased as `float32`).
 * **Square Roots:** Avoid sqrt for distance checks. Use Squared Distance vs Squared Radius. If required (e.g., normalization), use `fpm::sqrt`.
 * **Memory:** GameObjectPhysics AABB tree uses RAW observer pointers (`GameObject*`). It does NOT own the memory.
-* **Collision:** Broad Phase (AABB Tree) → Narrow Phase (circle-circle distance check) → Resolution (push apart along normal by half overlap each).
+* **Collision:** **Hybrid System**:
+    - **Environment**: Grid-based lookup in `WorldManager::CheckTileCollision` resolves overlaps with solid tiles.
+    - **Entities**: Broad Phase (AABB Tree) → Narrow Phase (circle-circle check) → Resolution (push apart by half).
+    - **Static Props**: Non-grid destructible objects added to tree with `IsStaticProp = true`.
+* **Destruction**:
+    - **Tiles**: `DestroyTile` sets ID to 0 and notifies neighbors for autotiling updates.
+    - **Props/Entities**: `IsPendingDestruction` flag triggers cleanup and removal from AABB tree during next tick.
 * **Z-Level Logic:** "Stacked 2D" architecture. Physics/Collision only occurs on the same `chunkZ`.
-* **ID Tracking:** `core.cpp` stores per-player AABB tree IDs.
-* **`WorldManager`:** Owns chunks in a `std::unordered_map`. Generates chunks on-demand using simple procedural logic.
-* **Serialization:** Chunks are returned as `Napi::Buffer` (uint8 raw bytes) for zero-overhead networking.
+* **ID Tracking:** `core.cpp` stores per-player and per-prop AABB tree IDs.
+* **`TileRegistry`**: Maps numeric `uint16_t` IDs to string names and `CollisionMap` (solidity bitset).
+* **`WorldManager`**: Owns chunks. Implements **8-Neighbor Bitmask Autotiling** (N:1, NE:2, E:4, SE:8, S:16, SW:32, W:64, NW:128) with corner checking.
+* **Initialization**: C++ core is populated via `setTileRegistry(array)` N-API call from the server at startup.
+* **Reactive Logic**: `NotifyTileChanged` triggers recalculation for a 3x3 grid centered on modification.
+* **Serialization**: Chunks return 12KB buffers (8KB tiles + 4KB visuals) as `Napi::Buffer`.
 
 ### 2. Node.js & Server
 * Server (`server/src/index.ts`) is the authoritative source of truth.
@@ -158,13 +182,16 @@ SimpleRPG/
 * Server env: `PORT` (default 3001), `HOST` (default localhost).
 
 ### 3. Frontend
-*   `gameState` (singleton, NOT Redux) holds: `canvasRef`, `myId`, `players`, `chunks`, `ping`.
-*   WebGL renders players as circles via `gl.POINTS` and tiles via **Instancing**.
-*   **Layer Tinting:** Lower Z-levels are rendered with a darker tint in `tileFragment.glsl`.
-*   **Modular Hooks**: Logic split into `useWebGLRender`, `useWebSocket`, and `useControls`.
+*   `gameState` (singleton, NOT Redux) holds: `canvasRef`, `myId`, `players`, `chunks`, `tileRegistry`, `ping`.
+*   **Tile Data Manager**: Loads `tiles_registry.json` and `sprites_data.json` at boot. Generates a flat `Float32Array` lookup table indexed by `(id * 256) + mask` for O(1) rendering performance. Handles missing textures at (0,0).
+*   **Sprite System**: Manages WebGL `TEXTURE_2D_ARRAY` using `gl.texStorage3D`. Worker-safe: uses `fetch` + `createImageBitmap` + `OffscreenCanvas`.
+*   WebGL renders players as circles via `gl.POINTS` and tiles via **Instancing** on a background thread.
+*   **Layer Tinting**: Lower Z-levels are rendered with a darker tint in `tileFragment.glsl`.
+*   **Modular Architecture**: Logic split into `SocketWorker` (Networking), `RenderWorker` (WebGL + Lerp), and `useControls` (Main Thread Inputs).
 *   StrictMode is OFF.
 
 ### 4. Build System
 * Use `CMakeLists.txt` via `cmake-js`. DO NOT use `binding.gyp`.
 * NW.js is the runtime for the client.
 * Two build targets: `build/` (standalone) and `build-nodejs/` (Node.js addon).
+* **Testing Policy**: The AI agent should only perform build tests (`npm run build:addon`). Runtime functional testing is performed by the USER.

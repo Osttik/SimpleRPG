@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { gameState } from '../../../game_module/game_state';
 
-export const useControls = (socket: WebSocket | null) => {
+export const useControls = (socketWorker: Worker | null) => {
   useEffect(() => {
-    if (!socket) return;
+    if (!socketWorker) return;
     
     const canvas = gameState.canvasRef.current;
     if (!canvas) return;
@@ -34,7 +34,7 @@ export const useControls = (socket: WebSocket | null) => {
     let wasMoving = false;
 
     const moveInterval = setInterval(() => {
-      if (socket.readyState !== WebSocket.OPEN) return;
+      if (!socketWorker) return;
 
       let dx = 0;
       let dy = 0;
@@ -64,10 +64,10 @@ export const useControls = (socket: WebSocket | null) => {
       const isMoving = dx !== 0 || dy !== 0;
 
       if (isMoving) {
-        socket.send(JSON.stringify({ type: 'move', dx, dy }));
+        socketWorker.postMessage({ type: 'move', dx, dy });
         wasMoving = true;
       } else if (wasMoving) {
-        socket.send(JSON.stringify({ type: 'move', dx: 0, dy: 0 }));
+        socketWorker.postMessage({ type: 'move', dx: 0, dy: 0 });
         wasMoving = false;
       }
     }, 1000 / 30);
@@ -78,5 +78,5 @@ export const useControls = (socket: WebSocket | null) => {
       canvas.removeEventListener('mousedown', handleMouseDown);
       clearInterval(moveInterval);
     };
-  }, [socket]);
+  }, [socketWorker]);
 };
