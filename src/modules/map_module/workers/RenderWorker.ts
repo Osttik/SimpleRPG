@@ -216,37 +216,43 @@ self.onmessage = (event) => {
       canvas.height = data.height;
       gl.viewport(0, 0, canvas.width, canvas.height);
     }
-  } else if (data.type === 'chunk') {
-    // Unpack binary chunk
-    const buffer = data.buffer;
-    const view = new DataView(buffer);
-    const cx = view.getInt32(1, true);
-    const cy = view.getInt32(5, true);
-    const cz = view.getInt32(9, true);
-    
-    const tilesBuffer = buffer.slice(13, 13 + 8192);
-    const tiles = new Uint16Array(tilesBuffer);
-    
-    let visuals: Uint8Array;
-    if (buffer.byteLength >= 13 + 8192 + 4096) {
-      const visualsBuffer = buffer.slice(13 + 8192, 13 + 8192 + 4096);
-      visuals = new Uint8Array(visualsBuffer);
-    } else {
-      visuals = new Uint8Array(4096);
-    }
-    
-    const chunkKey = `${cx},${cy},${cz}`;
-    gameState.chunks.set(chunkKey, { raw: tiles, visual: visuals });
-  } else if (data.type === 'init') {
-    targetPlayers = data.players || {};
-    // Deep copy target players to previous players
-    previousPlayers = JSON.parse(JSON.stringify(targetPlayers)); 
-    gameState.tileRegistry = data.tileRegistry || {};
-    lastStateTime = performance.now();
-  } else if (data.type === 'state') {
-    // Save current interpolated positions as the start for the next Lerp
-    previousPlayers = JSON.parse(JSON.stringify(gameState.players));
-    targetPlayers = data.players || {};
-    lastStateTime = performance.now();
+  } else if (data.type === 'initPort') {
+    const port = data.port;
+    port.onmessage = (portEvent: MessageEvent) => {
+      const portData = portEvent.data;
+      if (portData.type === 'chunk') {
+        // Unpack binary chunk
+        const buffer = portData.buffer;
+        const view = new DataView(buffer);
+        const cx = view.getInt32(1, true);
+        const cy = view.getInt32(5, true);
+        const cz = view.getInt32(9, true);
+        
+        const tilesBuffer = buffer.slice(13, 13 + 8192);
+        const tiles = new Uint16Array(tilesBuffer);
+        
+        let visuals: Uint8Array;
+        if (buffer.byteLength >= 13 + 8192 + 4096) {
+          const visualsBuffer = buffer.slice(13 + 8192, 13 + 8192 + 4096);
+          visuals = new Uint8Array(visualsBuffer);
+        } else {
+          visuals = new Uint8Array(4096);
+        }
+        
+        const chunkKey = `${cx},${cy},${cz}`;
+        gameState.chunks.set(chunkKey, { raw: tiles, visual: visuals });
+      } else if (portData.type === 'init') {
+        targetPlayers = portData.players || {};
+        // Deep copy target players to previous players
+        previousPlayers = JSON.parse(JSON.stringify(targetPlayers)); 
+        gameState.tileRegistry = portData.tileRegistry || {};
+        lastStateTime = performance.now();
+      } else if (portData.type === 'state') {
+        // Save current interpolated positions as the start for the next Lerp
+        previousPlayers = JSON.parse(JSON.stringify(gameState.players));
+        targetPlayers = portData.players || {};
+        lastStateTime = performance.now();
+      }
+    };
   }
 };
