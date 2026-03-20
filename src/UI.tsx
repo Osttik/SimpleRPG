@@ -4,6 +4,7 @@ import { CoreButton } from "./components/button";
 import { GameInternalState } from "./components/game_internal_state";
 import { MenuModal } from "./modules/menu_module/components/menu_modal"; 
 import { selectIsMenuOpen, useMenuActions } from "./store/slices/menu.slice";
+import { InventoryComponent } from './modules/ui_module/components/inventory';
 
 export const UIComponent = () => {
   const { setMenuState } = useMenuActions();
@@ -84,6 +85,7 @@ export const UIComponent = () => {
         </div>
       </div>
       <div className="flex-1"></div>
+      <InventoryComponent />
       <MenuModal />
     </div>
   );
