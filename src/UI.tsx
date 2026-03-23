@@ -1,83 +1,37 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { PrimeIcons } from "primereact/api";
 import { CoreButton } from "./components/button";
 import { GameInternalState } from "./components/game_internal_state";
 import { MenuModal } from "./modules/menu_module/components/menu_modal"; 
 import { useMenuActions, useMenuSelections } from "./store/slices/menu.slice";
+import gameMusicFile from './assets/Game.m4a';
 
 export const UIComponent = () => {
   const { setMenuState } = useMenuActions();
   const { isMenuOpen } = useMenuSelections();
-  const [volume, setVolume] = useState(50);
-  const playerRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
-    const initYT = () => {
-      if (!document.getElementById('yt-api-script')) {
-        const tag = document.createElement('script');
-        tag.id = 'yt-api-script';
-        tag.src = "https://www.youtube.com/iframe_api";
-        document.body.appendChild(tag);
-      }
-
-      const interval = setInterval(() => {
-        if ((window as any).YT && (window as any).YT.Player) {
-          clearInterval(interval);
-          playerRef.current = new (window as any).YT.Player('yt-player-game', {
-            videoId: '4WIMyqBG9gs',
-            playerVars: { autoplay: 1, loop: 1, playlist: '4WIMyqBG9gs', controls: 0 },
-            events: {
-              onReady: (e: any) => { 
-                e.target.setVolume(50); 
-                e.target.playVideo(); 
-              }
-            }
-          });
-        }
-      }, 100);
-    };
-
-    initYT();
-
-    return () => {
-      if (playerRef.current?.destroy) {
-        playerRef.current.destroy();
-      }
-    };
+    const savedVol = Number(localStorage.getItem('game_music_volume')) || 50;
+    if (audioRef.current) {
+      audioRef.current.volume = savedVol / 100;
+      audioRef.current.play().catch(() => {});
+    }
   }, []);
 
-  const handleVolumeChange = () => {
-    setVolume((prev) => {
-      const nextVol = prev >= 100 ? 0 : prev + 25;
-      if (playerRef.current?.setVolume) {
-        playerRef.current.setVolume(nextVol);
-      }
-      return nextVol;
-    });
-  };
-
   return (
-    <div className="absolute w-screen h-screen overflow-hidden pointer-events-none z-50 flex flex-col p-4">
-      <div className="absolute opacity-0 pointer-events-none w-[1px] h-[1px] overflow-hidden z-[-1]">
-        <div id="yt-player-game"></div>
-      </div>
-      
+    <div className="absolute w-screen h-screen overflow-hidden pointer-events-none z-50 flex flex-col p-10 bg-transparent">
+      <audio ref={audioRef} src={gameMusicFile} loop />
       <GameInternalState className="absolute pointer-events-auto" />
-      
-      <div className="flex flex-row w-full justify-between pointer-events-auto">
-        <div className="flex-1"></div>
-        <div className="flex-1"></div>
-        <div className="flex-1 flex justify-end">
-          <CoreButton
-            icon={PrimeIcons.BARS}
-            onClick={() => setMenuState(!isMenuOpen)}
-            className="p-button-rounded p-button-text bg-black/60 border border-[#c1874b] backdrop-blur-md hover:bg-black/80 hover:border-[#d4af37] hover:scale-110 transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)] text-[#d4af37] w-14 h-14"
-            aria-label="Menu"
-          />
-        </div>
+      <div className="flex flex-row w-full justify-end pointer-events-auto">
+        <CoreButton
+          icon={PrimeIcons.BARS}
+          onClick={() => setMenuState(!isMenuOpen)}
+          className="bg-black/60 border-2 border-[#d4af37]/40 text-[#d4af37] w-16 h-16 rounded-xl hover:scale-110 transition-all shadow-xl"
+        />
       </div>
       <div className="flex-1"></div>
-      <MenuModal volume={volume} onVolumeChange={handleVolumeChange} />
+      <MenuModal />
     </div>
   );
 }
