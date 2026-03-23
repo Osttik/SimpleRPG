@@ -12,6 +12,7 @@ interface RenderGameState {
   players: Record<string, any>;
   chunks: Map<string, { raw: Uint16Array, visual: Uint8Array }>;
   tileRegistry: Record<number, string>;
+  myId?: string;
 }
 
 const gameState: RenderGameState = {
@@ -191,47 +192,63 @@ function initWebGL() {
     gl.vertexAttribPointer(playerPosLoc, 2, gl.FLOAT, false, 0, 0);
     gl.uniform2f(playerResLoc, canvas.width, canvas.height);
 
-    const playerVisual = RegistryManager.getEntityVisual("player");
-    const playerLogic = RegistryManager.getEntityLogic("player");
-    const pSize = playerLogic?.width || pointSize;
-    gl.uniform1f(playerSizeLoc, pSize);
+    gl.uniform2f(playerResLoc, canvas.width, canvas.height);
 
-    if (playerVisual) {
-        gl.uniform1i(playerUseTexLoc, 1);
-        const tex = SpriteSystem.entityTextures.get(playerVisual.sheet);
-        const dims = SpriteSystem.entityDimensions.get(playerVisual.sheet);
-        if (tex && dims) {
-            gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, tex);
-            gl.uniform1i(playerTexLoc, 1);
-            
-            const sheets: any = RegistryManager.rawSpritesData.sheets;
-            const sheetInfo = sheets[playerVisual.sheet];
-            const tileSize = sheetInfo ? (sheetInfo.tileSize || 16) : 16;
-            
-            const cols = dims.width / tileSize;
-            const rows = dims.height / tileSize;
+    const myPlayer = gameState.myId ? gameState.players[gameState.myId] : null;
+    const focusedId = myPlayer?.focusedId;
 
-            const row = playerVisual.coords?.row || 0;
-            const col = playerVisual.coords?.col || 0;
+    for (const [id, player] of Object.entries(gameState.players)) {
+      const type = player.type || 'player';
+      const playerVisual = RegistryManager.getEntityVisual(type) || RegistryManager.getEntityVisual("player");
+      const playerLogic = RegistryManager.getEntityLogic(type) || RegistryManager.getEntityLogic("player");
+      const pSize = playerLogic?.width || pointSize;
 
-            const uScale = 1.0 / cols;
-            const vScale = 1.0 / rows;
-            const uOffset = col * uScale;
-            const vOffset = row * vScale;
-            
-            gl.uniform2f(playerUvOffsetLoc, uOffset, vOffset);
-            gl.uniform2f(playerUvScaleLoc, uScale, vScale);
-        } else {
-            // Initiate fetch so it's ready next frame
-            SpriteSystem.getEntityTexture(playerVisual.sheet).catch(console.error);
-            gl.uniform1i(playerUseTexLoc, 0);
-        }
-    } else {
-        gl.uniform1i(playerUseTexLoc, 0);
-    }
+      if (id === focusedId) {
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+          player.x, player.y
+        ]), gl.STATIC_DRAW);
+        gl.uniform1f(playerSizeLoc, pSize + 10.0);
+        gl.uniform1i(playerUseTexLoc, 0); 
+        gl.uniform4f(playerColorLoc, 1, 1, 1, 0.4); 
+        gl.drawArrays(gl.POINTS, 0, 1);
+      }
 
-    for (const player of Object.values(gameState.players)) {
+      gl.uniform1f(playerSizeLoc, pSize);
+      
+      if (playerVisual) {
+          const tex = SpriteSystem.entityTextures.get(playerVisual.sheet);
+          const dims = SpriteSystem.entityDimensions.get(playerVisual.sheet);
+          if (tex && dims) {
+              gl.activeTexture(gl.TEXTURE1);
+              gl.bindTexture(gl.TEXTURE_2D, tex);
+              gl.uniform1i(playerTexLoc, 1);
+              gl.uniform1i(playerUseTexLoc, 1);
+              
+              const sheets: any = RegistryManager.rawSpritesData.sheets;
+              const sheetInfo = sheets[playerVisual.sheet];
+              const tSize = sheetInfo ? (sheetInfo.tileSize || 16) : 16;
+              
+              const cols = dims.width / tSize;
+              const rows = dims.height / tSize;
+
+              const row = playerVisual.coords?.row || 0;
+              const col = playerVisual.coords?.col || 0;
+
+              const uScale = 1.0 / cols;
+              const vScale = 1.0 / rows;
+              const uOffset = col * uScale;
+              const vOffset = row * vScale;
+              
+              gl.uniform2f(playerUvOffsetLoc, uOffset, vOffset);
+              gl.uniform2f(playerUvScaleLoc, uScale, vScale);
+          } else {
+              SpriteSystem.getEntityTexture(playerVisual.sheet).catch(console.error);
+              gl.uniform1i(playerUseTexLoc, 0);
+          }
+      } else {
+          gl.uniform1i(playerUseTexLoc, 0);
+      }
+
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
         player.x, player.y
       ]), gl.STATIC_DRAW);
@@ -286,6 +303,7 @@ self.onmessage = (event) => {
         const chunkKey = `${cx},${cy},${cz}`;
         gameState.chunks.set(chunkKey, { raw: tiles, visual: visuals });
       } else if (portData.type === 'init') {
+        gameState.myId = portData.id;
         targetPlayers = portData.players || {};
         // Deep copy target players to previous players
         previousPlayers = JSON.parse(JSON.stringify(targetPlayers)); 

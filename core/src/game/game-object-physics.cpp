@@ -79,6 +79,7 @@ void GameObjectPhysics::Tick(WorldManager* world)
       // Circle-Circle Resolution
       Circle* circleA = dynamic_cast<Circle*>(obj->BoundingBox.get());
       Circle* circleB = dynamic_cast<Circle*>(other->BoundingBox.get());
+      Rectangle* rectB = dynamic_cast<Rectangle*>(other->BoundingBox.get());
 
       if (circleA && circleB)
       {
@@ -115,6 +116,29 @@ void GameObjectPhysics::Tick(WorldManager* world)
             
             circleB->Center = other->Transform.Position;
           }
+          circleA->Center = obj->Transform.Position;
+        }
+      }
+      else if (circleA && rectB)
+      {
+        float32 closestX = (std::max)(rectB->TopLeft.X, (std::min)(circleA->Center.X, rectB->BottomRight.X));
+        float32 closestY = (std::max)(rectB->TopLeft.Y, (std::min)(circleA->Center.Y, rectB->BottomRight.Y));
+
+        float32 dx = closestX - circleA->Center.X;
+        float32 dy = closestY - circleA->Center.Y;
+        float32 distSq = dx * dx + dy * dy;
+
+        if (distSq < circleA->Radius * circleA->Radius)
+        {
+          float32 dist = fpm::sqrt(distSq);
+          if (dist == float32(0)) dist = float32(0.0001);
+          float32 overlap = circleA->Radius - dist;
+          float32 nx = dx / dist;
+          float32 ny = dy / dist;
+
+          // Push circleA outwards
+          obj->Transform.Position.X -= nx * overlap;
+          obj->Transform.Position.Y -= ny * overlap;
           circleA->Center = obj->Transform.Position;
         }
       }

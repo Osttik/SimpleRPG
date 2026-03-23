@@ -1,8 +1,8 @@
-import { useRef } from 'react';
+import React, { useRef } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { useMapInitialize } from './useMapInitialize';
 
-export const MapComponent = () => {
+export const MapComponent = React.memo(() => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   gameState.canvasRef = canvasRef;
   
@@ -21,4 +21,4 @@ export const MapComponent = () => {
       }}
     />
   );
-};
+});

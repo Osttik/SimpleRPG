@@ -6,7 +6,7 @@ Multiplayer 2D RPG: React/WebGL frontend, Node.js WebSocket server, deterministi
 * **Full Stack** (Server + Web + NW.js): `npm run dev`
 * **Frontend/NW.js only**: `npm run nw`
 * **Rebuild C++ Addon**: `npm run build:addon` (cmake-js, outputs to `build-nodejs/Release/gamecore.node`)
-* **Build C++ core**: `npm run build:cpp` (cmake-js, outputs to `build/Release/gamecore.node`)
+* **Build C++ core**: `npm run build:cpp` (Uses `node build_scripts/build-core.js`, outputs to `build/Release/gamecore.node`)
 * **Install deps**: `npm install` (custom script bypasses broken node-gyp auto-builds)
 * **Server only**: `npm --prefix server run dev`
 
@@ -46,17 +46,20 @@ SimpleRPG/
 ├── src/                           # React frontend (Vite + NW.js)
 │   ├── assets/                    # Bundled assets (tilesets, configs)
 │   │   ├── Tileset.png            # Main tile atlas (imported by SpriteSystem)
+│   │   ├── Decorations.png        # Decoration atlas
+│   │   ├── Start_Menu.png         # Splash screen background
+│   │   ├── hero.png               # Player/NPC sprite sheet
 │   │   ├── tiles_registry.json    # Numerical IDs, names, and collision properties
 │   │   ├── entities_registry.json # Entity-specific logic (type, stats, spriteKey)
 │   │   └── sprites_data.json      # Metadata: Multi-atlas sheets, sprite coordinates/masks
 │   ├── main.tsx                   # Entry: React + Redux + PrimeReact + Browser Router
 │   ├── App.tsx                    # Root: Routes (MainMenu, GameScene)
 │   ├── GameScene.tsx              # Component: Orchestrates MapComponent + UIComponent
-│   ├── UI.tsx                     # HUD layer: ping display, burger menu button, menu modal
+│   ├── UI.tsx                     # HUD layer: ping display, menu button, Inventory, YouTube integration
 │   ├── index.scss                 # Global styles
 │   ├── modules/
 │   │   ├── game_module/
-│   │   │   ├── game_state.ts      # Singleton: canvasRef, myId, players, chunks (Map), ping
+│   │   │   ├── game_state.ts      # Singleton: canvasRef, myId, players, chunks (Map), ping, mousePosition
 │   │   │   ├── shaders/
 │   │   │   │   ├── vertex.glsl    # Player vertex shader
 │   │   │   │   ├── fragment.glsl  # Player fragment shader
@@ -74,7 +77,7 @@ SimpleRPG/
 │   │   │   └── components/map/
 │   │   │       ├── index.tsx      # MapComponent: canvas ref + useMapInitialize
 │   │   │       ├── useMapInitialize.ts  # Orchestrator hook: spawns Render & Socket Workers, sets up MessageChannel
-│   │   │       └── useControls.ts       # Input handling (KB/Mouse) and 30Hz movement interval; forwards to SocketWorker
+│   │   │       └── useControls.ts       # Input handling (KB/Mouse); forwards to SocketWorker
 │   │   │   └── workers/
 │   │   │       ├── RenderWorker.ts    # WebGL2 render loop + Lerp smoothing on OffscreenCanvas
 │   │   │       └── SocketWorker.ts    # WebSocket lifecycle + binary decoding; proxies to RenderWorker via MessagePort
@@ -85,6 +88,10 @@ SimpleRPG/
 │   │   │       │   └── index.tsx  # MainMenu: Splash screen with "Play" button
 │   │   │       └── menu_modal/
 │   │   │           └── index.tsx      # MenuModal: Continue + Quit buttons in CoreOverlay
+│   │   └── ui_module/
+│   │       ├── index.ts           # Barrel export
+│   │       └── components/inventory/
+│   │           └── index.tsx      # InventoryComponent: Toggleable item grid
 │   ├── components/
 │   │   ├── button/index.tsx       # CoreButton: PrimeReact Button wrapper
 │   │   ├── overlay/index.tsx      # CoreOverlay: PrimeReact Dialog wrapper
@@ -96,15 +103,19 @@ SimpleRPG/
 │   │   ├── index.ts               # Redux store config (menu + counter slices)
 │   │   ├── hooks/useAppDispatch.ts
 │   │   └── slices/
-│   │       ├── menu.slice.ts      # Menu open/close state + useMenuActions/useMenuSelections hooks
-│   │       └── counterSlice.ts    # Counter slice (unused)
+│   │       ├── index.ts           # SliceBuilder utility for Redux
+│   │       ├── menu.slice.ts      # Menu state
+│   │       └── ui.slice.ts        # UI state (Inventory toggle)
 │   ├── services/
+│   │   ├── keyboard.service.ts    # Reactive input handling via @most/core
 │   │   ├── components/
 │   │   │   └── PrimeReactProviderServiceComponent.tsx
 │   │   └── import-modules/
 │   │       ├── import.service.ts
 │   │       └── game-core.service.ts
-│   └── defines/core/index.d.ts   # .glsl module declarations for TypeScript
+│   └── defines/
+│       ├── key.enum.ts            # Key definitions and MouseKeyEnum
+│       └── core/index.d.ts        # .glsl module declarations
 ├── CMakeLists.txt                 # C++ build config (cmake-js, fpm dependency)
 ├── package.json                   # NW.js config (main: localhost:5173), scripts, deps
 ├── vite.config.ts                 # Vite config (React plugin)
@@ -130,6 +141,8 @@ SimpleRPG/
 * **Server**: Node.js + `ws` WebSocket library, port 3001 (configurable via `.env`)
 * **Physics**: C++ addon (`gamecore.node`) loaded via `createRequire()` in ESM server
 * **Math**: `fpm` library (fixed-point `fpm::fixed_16_16` aliased as `float32`)
+* **Reactive Core**: `@most/core` + `@most/adapter` for high-performance input streams
+* **Audio**: YouTube IFrame API integration for background music loop
 * **Build**: cmake-js (NOT binding.gyp), C++20
 
 ## Architecture

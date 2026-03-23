@@ -6,6 +6,9 @@ import App from './App.tsx';
 import './index.scss';
 import { PrimeReactProviderServiceComponent } from './services/components/PrimeReactProviderServiceComponent.tsx';
 import { BrowserRouter } from 'react-router-dom';
+import { addExtensions } from './extensions/index.ts';
+
+addExtensions();
 
 const Strict = ({ strict, children }: any) => {
   if (!strict) return children;

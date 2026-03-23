@@ -18,7 +18,7 @@ const wss = new WebSocketServer({ port });
 
 let gamecore: any;
 try {
-  const gamecorePath = path.resolve(__dirname, '../..', 'build-nodejs', 'Release', 'gamecore.node');
+  const gamecorePath = path.resolve(__dirname, '../..', 'build', 'Release', 'gamecore.node');
   gamecore = require(gamecorePath);
   console.log('✓ Loaded C++ physics engine (gamecore.node)');
 } catch (e) {
@@ -35,13 +35,16 @@ const physics = new gamecore.GameWorld();
 console.log('Initialized C++ GameWorld physics engine');
 
 try {
-    const registryPath = path.resolve(__dirname, '../../src/assets/tiles_registry.json');
-    const registryData = JSON.parse(require('fs').readFileSync(registryPath, 'utf8'));
-    physics.setTileRegistry(registryData);
-    console.log('Loaded TileRegistry into C++ core with', registryData.length, 'tiles.');
+  const registryPath = path.resolve(__dirname, '../../src/assets/tiles_registry.json');
+  const registryData = JSON.parse(require('fs').readFileSync(registryPath, 'utf8'));
+  physics.setTileRegistry(registryData);
+  console.log('Loaded TileRegistry into C++ core with', registryData.length, 'tiles.');
 } catch (e) {
-    console.error('Failed to load tiles_registry.json for C++ core:', e);
+  console.error('Failed to load tiles_registry.json for C++ core:', e);
 }
+
+physics.spawnTestChest();
+console.log('Spawned test chest at (0,0).');
 
 interface PlayerMetadata {
   color: number[];
@@ -65,7 +68,7 @@ function sendChunk(ws: WebSocket, cx: number, cy: number, cz: number) {
     header.writeInt32LE(cx, 1);
     header.writeInt32LE(cy, 5);
     header.writeInt32LE(cz, 9);
-    
+
     const message = Buffer.concat([header, chunkBuffer, chunkVisuals]);
     ws.send(message);
   } catch (e) {
@@ -121,11 +124,23 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const { players: physicsPlayers } = physics.getState();
     const playersData = Object.entries(physicsPlayers).reduce(
       (acc: Record<string, any>, [pid, data]: [string, any]) => {
-        acc[pid] = {
-          x: data.x,
-          y: data.y,
-          color: playerMetadata[pid]?.color || [1, 1, 1, 1],
-        };
+        const type = data.type || 'player';
+        if (type === 'player') {
+            acc[pid] = {
+              x: data.x,
+              y: data.y,
+              color: playerMetadata[pid]?.color || [1, 1, 1, 1],
+              focusedId: data.focusedId,
+              type: 'player'
+            };
+        } else {
+            acc[pid] = {
+              x: data.x,
+              y: data.y,
+              color: [0.8, 0.5, 0.2, 1.0], // Default color for props
+              type: type
+            };
+        }
         return acc;
       },
       {}
@@ -170,6 +185,17 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         physics.applyMovement(id, dx, dy, MOVEMENT_SPEED);
       } else if (data.type === 'ping') {
         ws.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
+      } else if (data.type === 'interact') {
+        const result = physics.interact(id);
+        if (result && result.length > 0) {
+          ws.send(result); // Already JSON string
+        }
+      } else if (data.type === 'transfer_item') {
+        const success = physics.transferItem(id, data.targetId, data.fromContainer, data.toContainer, data.itemIndex);
+        if (success) {
+          const result = physics.interact(id);
+          if (result && result.length > 0) ws.send(result);
+        }
       }
     } catch (e) {
       console.error('Failed to parse message:', e);
@@ -197,12 +223,25 @@ setInterval(() => {
 
     const playersData: Record<string, any> = {};
     for (const [id, data] of Object.entries(physicsPlayers)) {
-      const metadata = playerMetadata[id as string];
-      if (metadata) {
+      const type = (data as any).type || 'player';
+      
+      if (type === 'player') {
+          const metadata = playerMetadata[id as string];
+          if (metadata) {
+            playersData[id] = {
+              x: (data as any).x,
+              y: (data as any).y,
+              color: metadata.color,
+              focusedId: (data as any).focusedId,
+              type: 'player'
+            };
+          }
+      } else {
         playersData[id] = {
           x: (data as any).x,
           y: (data as any).y,
-          color: metadata.color,
+          color: [0.8, 0.5, 0.2, 1.0], // Default color for props (like chests)
+          type: type
         };
       }
     }

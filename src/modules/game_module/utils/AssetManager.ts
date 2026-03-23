@@ -2,12 +2,14 @@ import spritesData from '../../../assets/sprites_data.json';
 import tilesetUrl from '../../../assets/Tileset.png';
 import heroUrl from '../../../assets/hero.png';
 import decorationsUrl from '../../../assets/Decorations.png';
+import chestsUrl from '../../../assets/chestsAll.png';
 
 const assetMap: Record<string, string> = {
     'assets/Tileset.png': tilesetUrl,
     'assets/hero.png': heroUrl,
     'assets/Player_Base.png': heroUrl,
-    'assets/Decorations.png': decorationsUrl
+    'assets/Decorations.png': decorationsUrl,
+    'assets/chestsAll.png': chestsUrl
 };
 
 // Create a map to cache our ImageBitmaps

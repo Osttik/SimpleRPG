@@ -56,6 +56,14 @@ self.onmessage = (event) => {
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'move', dx: event.data.dx, dy: event.data.dy }));
     }
+  } else if (event.data.type === 'interact') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'interact' }));
+    }
+  } else if (event.data.type === 'transfer_item') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(event.data));
+    }
   }
 };
 

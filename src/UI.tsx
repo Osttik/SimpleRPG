@@ -6,6 +6,7 @@ import { MenuModal } from "./modules/menu_module/components/menu_modal";
 import { selectIsMenuOpen, useMenuActions } from "./store/slices/menu.slice";
 import gameMusicFile from './assets/Game.m4a';
 import { InventoryComponent } from './modules/ui_module/components/inventory';
+import { LootUI } from './modules/ui_module/components/loot_ui';
 
 export const UIComponent = () => {
   const { setMenuState } = useMenuActions();
@@ -33,6 +34,7 @@ export const UIComponent = () => {
       </div>
       <div className="flex-1"></div>
       <InventoryComponent />
+      <LootUI />
       <MenuModal />
     </div>
   );

@@ -7,6 +7,10 @@
     "player_sheet": {
       "url": "assets/Tileset.png",
       "tileSize": 16
+    },
+    "chests_sheet": {
+      "url": "assets/chestsAll.png",
+      "tileSize": 16
     }
   },
   "sprites": {
@@ -41,6 +45,13 @@
       "sheet": "player_sheet",
       "coords": {
         "row": 6,
+        "col": 0
+      }
+    },
+    "chest": {
+      "sheet": "chests_sheet",
+      "coords": {
+        "row": 0,
         "col": 0
       }
     }
