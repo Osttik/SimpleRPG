@@ -1,6 +1,4 @@
-import { WebSocketServer, WebSocket } from 'ws';
 import * as dotenv from 'dotenv';
-import { IncomingMessage } from 'http';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
@@ -11,11 +9,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 
+import type { TemplatedApp, WebSocket, WebSocketBehavior } from 'uWebSockets.js';
+const uWS: typeof import('uWebSockets.js') = require('uWebSockets.js');
+
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
-const host = process.env.HOST || 'localhost';
+const bindHost = process.env.BIND_HOST || '0.0.0.0';
+const publicHost = process.env.HOST || bindHost;
 
-const wss = new WebSocketServer({ port });
-
+// ─── Load C++ Physics Engine ───
 let gamecore: any;
 try {
   const gamecorePath = path.resolve(__dirname, '../..', 'build', 'Release', 'gamecore.node');
@@ -23,12 +24,9 @@ try {
   console.log('✓ Loaded C++ physics engine (gamecore.node)');
 } catch (e) {
   console.error('Failed to load gamecore.node addon:', e);
-  console.info('Make sure to build the C++ addon with: npm run build:addon');
   process.exit(1);
 }
 
-const PLAYER_RADIUS = 20;
-const MOVEMENT_SPEED = 5;
 const GAME_TICK_RATE = 1000 / 60;
 
 const physics = new gamecore.GameWorld();
@@ -46,21 +44,19 @@ try {
 physics.spawnTestChest();
 console.log('Spawned test chest at (0,0).');
 
-interface PlayerMetadata {
-  color: number[];
-  ws: WebSocket;
+// ─── Per-Socket UserData ───
+interface SocketData {
+  id: number;
 }
-
-const playerMetadata: Record<string, PlayerMetadata> = {};
-let nextColorId = 0;
 
 const TILE_SIZE = 40;
 const CHUNK_PIXEL_SIZE = 16 * TILE_SIZE;
+const GAME_TOPIC = 'game';
 
-function sendChunk(ws: WebSocket, cx: number, cy: number, cz: number) {
+function sendChunk(ws: WebSocket<SocketData>, cx: number, cy: number, cz: number) {
   try {
-    const chunkBuffer = physics.getChunk(cx, cy, cz);
-    const chunkVisuals = physics.getChunkVisuals(cx, cy, cz);
+    const chunkBuffer: Buffer = physics.getChunk(cx, cy, cz);
+    const chunkVisuals: Buffer = physics.getChunkVisuals(cx, cy, cz);
     if (!chunkBuffer || !chunkVisuals) return;
 
     const header = Buffer.alloc(13);
@@ -70,193 +66,152 @@ function sendChunk(ws: WebSocket, cx: number, cy: number, cz: number) {
     header.writeInt32LE(cz, 9);
 
     const message = Buffer.concat([header, chunkBuffer, chunkVisuals]);
-    ws.send(message);
+    ws.send(message, true); // isBinary = true
   } catch (e) {
     console.error(`Failed to send chunk ${cx},${cy},${cz}:`, e);
   }
 }
 
-function getRandomColor(): string {
-  const h = (nextColorId * 137.5) % 360;
-  nextColorId++;
-  return `hsl(${h}, 80%, 60%)`;
-}
+// ─── uWebSockets.js App ───
+const app: TemplatedApp = uWS.App();
 
-function hslToRgbFloat(h: number, s: number, l: number): number[] {
-  h /= 360;
-  let r, g, b;
-  if (s === 0) {
-    r = g = b = l;
-  } else {
-    const hue2rgb = (p: number, q: number, t: number) => {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
-      if (t < 1 / 6) return p + (q - p) * 6 * t;
-      if (t < 1 / 2) return q;
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-      return p;
-    };
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1 / 3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1 / 3);
-  }
-  return [r, g, b, 1.0];
-}
+app.ws<SocketData>('/*', {
+  /* Settings */
+  maxPayloadLength: 64 * 1024,
+  maxBackpressure: 1024 * 1024,
+  idleTimeout: 120,
+  sendPingsAutomatically: true,
+  compression: uWS.DISABLED, // Binary protocol — no need for WS compression
 
-wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
-  const id = Math.random().toString(36).substring(2, 9);
-  console.log(`[+] Player connected: ${id} from ${req.socket.remoteAddress}`);
+  /* ─── Connection Opened ─── */
+  open: (ws) => {
+    const initialX = Math.random() * 800;
+    const initialY = Math.random() * 600;
 
-  const colorStr = getRandomColor();
-  const hMatch = colorStr.match(/hsl\((\d+(?:\.\d+)?)/);
-  const hue = hMatch ? parseFloat(hMatch[1]) : Math.random() * 360;
-  const color = hslToRgbFloat(hue, 0.8, 0.6);
+    // addPlayer returns the auto-generated numeric entity ID from C++
+    const numericId: number = physics.addPlayer(initialX, initialY);
 
-  playerMetadata[id] = { color, ws };
+    // Store per-socket data
+    const userData = ws.getUserData();
+    userData.id = numericId;
+    // Subscribe to game broadcast topic
+    ws.subscribe(GAME_TOPIC);
 
-  const initialX = Math.random() * 800;
-  const initialY = Math.random() * 600;
-  physics.addPlayer(id, initialX, initialY, PLAYER_RADIUS);
+    console.log(`[+] Player connected: ${numericId}`);
 
-  try {
-    const { players: physicsPlayers } = physics.getState();
-    const playersData = Object.entries(physicsPlayers).reduce(
-      (acc: Record<string, any>, [pid, data]: [string, any]) => {
-        const type = data.type || 'player';
-        if (type === 'player') {
+    try {
+      const { players: physicsPlayers } = physics.getState();
+      const playersData = Object.entries(physicsPlayers).reduce(
+        (acc: Record<string, any>, [pid, data]: [string, any]) => {
+          const type = data.type || 'player';
+          if (type === 'player') {
+            // We need to find the color for this player — check all connected sockets
+            // For init, we use the color stored in userData
             acc[pid] = {
               x: data.x,
               y: data.y,
-              color: playerMetadata[pid]?.color || [1, 1, 1, 1],
               focusedId: data.focusedId,
               type: 'player'
             };
-        } else {
+          } else {
             acc[pid] = {
               x: data.x,
               y: data.y,
-              color: [0.8, 0.5, 0.2, 1.0], // Default color for props
+              color: [0.8, 0.5, 0.2, 1.0],
               type: type
             };
+          }
+          return acc;
+        },
+        {}
+      );
+
+      // Update entity ID map for the init message
+      const initMsg = JSON.stringify({
+        type: 'init',
+        id: numericId,
+        players: playersData,
+        tileRegistry: physics.getTileRegistry(),
+      });
+      ws.send(initMsg, false); // isBinary = false for JSON
+    } catch (e) {
+      console.error(`Failed to send init to ${numericId}:`, e);
+    }
+
+    // Send surrounding chunks
+    const centerCX = Math.floor(initialX / CHUNK_PIXEL_SIZE);
+    const centerCY = Math.floor(initialY / CHUNK_PIXEL_SIZE);
+    const centerCZ = 0;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dz = -1; dz <= 0; dz++) {
+          sendChunk(ws, centerCX + dx, centerCY + dy, centerCZ + dz);
         }
-        return acc;
-      },
-      {}
-    );
-
-    ws.send(JSON.stringify({
-      type: 'init',
-      id,
-      players: playersData,
-      tileRegistry: physics.getTileRegistry(),
-    }));
-  } catch (e) {
-    console.error(`Failed to send init to ${id}:`, e);
-  }
-
-  const centerCX = Math.floor(initialX / CHUNK_PIXEL_SIZE);
-  const centerCY = Math.floor(initialY / CHUNK_PIXEL_SIZE);
-  const centerCZ = 0;
-
-  for (let dx = -1; dx <= 1; dx++) {
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dz = -1; dz <= 0; dz++) {
-        sendChunk(ws, centerCX + dx, centerCY + dy, centerCZ + dz);
       }
     }
-  }
+  },
 
-  ws.on('message', (message: Buffer) => {
+  /* ─── Message Received ─── */
+  message: (ws, message, isBinary) => {
+    const { id } = ws.getUserData();
+
     try {
-      const data = JSON.parse(message.toString());
+      if (isBinary) {
+        // Binary input handling — uWS gives us ArrayBuffer, C++ core needs Buffer
+        const buf = Buffer.from(message);
 
-      if (data.type === 'move') {
-        let dx = data.dx || 0;
-        let dy = data.dy || 0;
-
-        if (dx !== 0 && dy !== 0) {
-          const length = Math.sqrt(dx * dx + dy * dy);
-          dx /= length;
-          dy /= length;
-        }
-
-        physics.applyMovement(id, dx, dy, MOVEMENT_SPEED);
-      } else if (data.type === 'ping') {
-        ws.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
-      } else if (data.type === 'interact') {
-        const result = physics.interact(id);
-        if (result && result.length > 0) {
-          ws.send(result); // Already JSON string
-        }
-      } else if (data.type === 'transfer_item') {
-        const success = physics.transferItem(id, data.targetId, data.fromContainer, data.toContainer, data.itemIndex);
-        if (success) {
-          const result = physics.interact(id);
-          if (result && result.length > 0) ws.send(result);
+        if (buf.length > 0 && buf[0] <= 0x03) {
+          const result = physics.processInput(id, buf);
+          if (result && typeof result === 'string' && result.length > 0) {
+            ws.send(result, false); // JSON response
+          }
+          return;
         }
       }
+
+      // JSON fallback for text messages
+      const decoder = new TextDecoder();
+      const jsonStr = isBinary ? decoder.decode(message) : decoder.decode(message);
+      const data = JSON.parse(jsonStr);
+
+      if (data.type === 'ping') {
+        ws.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }), false);
+      }
+      // All other input goes through the binary path above
     } catch (e) {
       console.error('Failed to parse message:', e);
     }
-  });
+  },
 
-  ws.on('close', () => {
+  /* ─── Connection Closed ─── */
+  close: (ws, code, message) => {
+    const { id } = ws.getUserData();
     console.log(`[-] Player disconnected: ${id}`);
     physics.removePlayer(id);
-    delete playerMetadata[id];
-  });
-
-  ws.on('error', (error) => {
-    console.error(`[!] WebSocket error for ${id}:`, error);
-  });
+  },
 });
 
-console.log(`WebSocket server running on ws://${host}:${port}`);
+// ─── Start Server ───
+app.listen(bindHost, port, (listenSocket) => {
+  if (listenSocket) {
+    console.log(`✓ uWebSockets.js server running on ws://${publicHost}:${port}`);
+  } else {
+    console.error(`✗ Failed to listen on ${bindHost}:${port}`);
+    process.exit(1);
+  }
+});
 
+// ─── 60fps Game Loop ───
 setInterval(() => {
   try {
     physics.tick();
 
-    const { players: physicsPlayers, destroyed: destroyedIds } = physics.getState();
-
-    const playersData: Record<string, any> = {};
-    for (const [id, data] of Object.entries(physicsPlayers)) {
-      const type = (data as any).type || 'player';
-      
-      if (type === 'player') {
-          const metadata = playerMetadata[id as string];
-          if (metadata) {
-            playersData[id] = {
-              x: (data as any).x,
-              y: (data as any).y,
-              color: metadata.color,
-              focusedId: (data as any).focusedId,
-              type: 'player'
-            };
-          }
-      } else {
-        playersData[id] = {
-          x: (data as any).x,
-          y: (data as any).y,
-          color: [0.8, 0.5, 0.2, 1.0], // Default color for props (like chests)
-          type: type
-        };
-      }
+    // Binary State Broadcast via pub/sub (zero-copy to all subscribers)
+    const binaryState: ArrayBuffer = physics.getBinaryState();
+    if (binaryState && binaryState.byteLength > 0) {
+      app.publish(GAME_TOPIC, Buffer.from(binaryState), true); // isBinary = true
     }
-
-    const stateMessage = JSON.stringify({
-      type: 'state',
-      players: playersData,
-      destroyed: destroyedIds,
-    });
-
-    wss.clients.forEach((client: WebSocket) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(stateMessage);
-      }
-    });
   } catch (e) {
     console.error('Error in game loop:', e);
   }

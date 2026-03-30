@@ -1,0 +1,177 @@
+#include "core/game-object-physics.h"
+#include "core/world.h"
+#include "math/rect.h"
+
+void GameObjectPhysics::GetWorldBounds(GameObject* obj, std::vector<float32>& lower, std::vector<float32>& upper) {
+    Point topLeft = obj->BoundingBox->GetCornerPoint(CornerType::TopLeft);
+    Point bottomRight = obj->BoundingBox->GetCornerPoint(CornerType::BottomRight);
+
+    lower = {(std::min)(topLeft.X, bottomRight.X), (std::min)(topLeft.Y, bottomRight.Y)};
+    upper = {(std::max)(topLeft.X, bottomRight.X), (std::max)(topLeft.Y, bottomRight.Y)};
+}
+
+unsigned int GameObjectPhysics::AddObject(GameObject* obj) {
+    unsigned int id = nextId++;
+    objects[id] = obj;
+
+    std::vector<float32> lower, upper;
+    GetWorldBounds(obj, lower, upper);
+
+    tree.insertParticle(id, lower, upper);
+    return id;
+}
+
+void GameObjectPhysics::RemoveObject(unsigned int id) {
+    auto it = objects.find(id);
+    if (it == objects.end()) return;
+
+    tree.removeParticle(id);
+    objects.erase(it);
+}
+
+void GameObjectPhysics::UpdateObject(unsigned int id) {
+    if (objects.find(id) == objects.end()) return;
+
+    GameObject* obj = objects[id];
+    std::vector<float32> lower, upper;
+    GetWorldBounds(obj, lower, upper);
+
+    tree.updateParticle(id, lower, upper);
+}
+
+void GameObjectPhysics::Tick(WorldManager* world, const std::unordered_set<uint32_t>& dirtyEntityIds) {
+    // 1. Update AABB tree ONLY for dirty entities (O(D log N) instead of O(N))
+    for (auto const& [physId, obj] : objects) {
+        if (obj->IsPendingDestruction) continue;
+
+        // Only update tree bounds if the entity's numeric ID is in the dirty set
+        if (dirtyEntityIds.count(obj->Id) > 0) {
+            UpdateObject(physId);
+        }
+    }
+
+    // 2. Collision resolution — still checks all dynamic objects
+    for (auto const& [id, obj] : objects) {
+        if (obj->IsPendingDestruction || obj->IsStaticProp)
+            continue;
+
+        // A. Query tree for entities
+        std::vector<float32> lower, upper;
+        GetWorldBounds(obj, lower, upper);
+        aabb::AABB queryBox(lower, upper);
+        std::vector<unsigned int> hits = tree.query(id, queryBox);
+
+        for (unsigned int hitId : hits) {
+            GameObject* other = objects[hitId];
+            if (other->IsPendingDestruction) continue;
+            if (other->Transform.Position().Z != obj->Transform.Position().Z) continue;
+
+            // Circle-Circle Resolution
+            Circle* circleA = dynamic_cast<Circle*>(obj->BoundingBox.get());
+            Circle* circleB = dynamic_cast<Circle*>(other->BoundingBox.get());
+            Rectangle* rectB = dynamic_cast<Rectangle*>(other->BoundingBox.get());
+
+            if (circleA && circleB) {
+                float32 dx = circleB->Center.X - circleA->Center.X;
+                float32 dy = circleB->Center.Y - circleA->Center.Y;
+                float32 minDist = circleA->Radius + circleB->Radius;
+
+                float32 distSquared = dx * dx + dy * dy;
+                if (distSquared < minDist * minDist) {
+                    float32 dist = fpm::sqrt(distSquared);
+                    if (dist == float32(0)) dist = float32(0.0001);
+
+                    float32 normalX = dx / dist;
+                    float32 normalY = dy / dist;
+                    float32 overlap = minDist - dist;
+                    float32 pushDistance = overlap / float32(2);
+
+                    if (other->IsStaticProp) {
+                        // Push only the moving object by full overlap
+                        Point newPos(
+                            obj->Transform.Position().X - normalX * overlap,
+                            obj->Transform.Position().Y - normalY * overlap
+                        );
+                        obj->Transform.SetPosition(newPos);
+                    } else {
+                        // Push both by half
+                        Point newPosA(
+                            obj->Transform.Position().X - normalX * pushDistance,
+                            obj->Transform.Position().Y - normalY * pushDistance
+                        );
+                        Point newPosB(
+                            other->Transform.Position().X + normalX * pushDistance,
+                            other->Transform.Position().Y + normalY * pushDistance
+                        );
+                        obj->Transform.SetPosition(newPosA);
+                        other->Transform.SetPosition(newPosB);
+
+                        circleB->Center = other->Transform.Position();
+                    }
+                    circleA->Center = obj->Transform.Position();
+                }
+            }
+            else if (circleA && rectB) {
+                float32 closestX = (std::max)(rectB->TopLeft.X, (std::min)(circleA->Center.X, rectB->BottomRight.X));
+                float32 closestY = (std::max)(rectB->TopLeft.Y, (std::min)(circleA->Center.Y, rectB->BottomRight.Y));
+
+                float32 dx = closestX - circleA->Center.X;
+                float32 dy = closestY - circleA->Center.Y;
+                float32 distSq = dx * dx + dy * dy;
+
+                if (distSq < circleA->Radius * circleA->Radius) {
+                    float32 dist = fpm::sqrt(distSq);
+                    if (dist == float32(0)) dist = float32(0.0001);
+                    float32 overlap = circleA->Radius - dist;
+                    float32 nx = dx / dist;
+                    float32 ny = dy / dist;
+
+                    Point newPos(
+                        obj->Transform.Position().X - nx * overlap,
+                        obj->Transform.Position().Y - ny * overlap
+                    );
+                    obj->Transform.SetPosition(newPos);
+                    circleA->Center = obj->Transform.Position();
+                }
+            }
+        }
+
+        // B. Grid Collision (Environment)
+        Point resolution;
+        std::vector<float32> lower2, upper2;
+        GetWorldBounds(obj, lower2, upper2);
+        aabb::AABB finalBox(lower2, upper2);
+        if (world->CheckTileCollision(finalBox, obj->Transform.Position().Z, resolution)) {
+            Point newPos(
+                obj->Transform.Position().X + resolution.X,
+                obj->Transform.Position().Y + resolution.Y
+            );
+            obj->Transform.SetPosition(newPos);
+
+            Circle* circle = dynamic_cast<Circle*>(obj->BoundingBox.get());
+            if (circle) {
+                circle->Center = obj->Transform.Position();
+            }
+        }
+    }
+}
+
+std::vector<GameObject*> GameObjectPhysics::GetObjectsInArea(Point areaTopLeft, Point areaBottomRight) {
+    std::vector<float32> lower = {
+        (std::min)(areaTopLeft.X, areaBottomRight.X),
+        (std::min)(areaTopLeft.Y, areaBottomRight.Y)};
+    std::vector<float32> upper = {
+        (std::max)(areaTopLeft.X, areaBottomRight.X),
+        (std::max)(areaTopLeft.Y, areaBottomRight.Y)};
+
+    aabb::AABB queryBox(lower, upper);
+
+    std::vector<unsigned int> hitIds = tree.query(queryBox);
+
+    std::vector<GameObject*> hitObjects;
+    for (unsigned int id : hitIds) {
+        hitObjects.push_back(objects[id]);
+    }
+
+    return hitObjects;
+}

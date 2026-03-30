@@ -34,7 +34,6 @@ npm run dev
 ### Build
 - **Frontend/Vite**: `npm run build`
 - **C++ Core Build**: `npm run build:cpp` (Outputs `build/Release/gamecore.node`)
-- **C++ Node.js Addon**: `npm run build:addon` (Outputs `build-nodejs/Release/gamecore.node`)
 
 ### Other
 - **Frontend/NW.js only**: `npm run nw`

@@ -7,23 +7,33 @@ import {
 } from '../../game_module/shaders';
 import { SpriteSystem } from '../../game_module/utils/SpriteSystem';
 import { RegistryManager } from '../../game_module/utils/RegistryManager';
+import { SnapshotInterpolator } from '../protocol/SnapshotInterpolator';
+import { EntityType } from '../protocol/StateParser';
+import { loadWasm } from '../../../services/wasm-loader';
+
+// ─── State ───
 
 interface RenderGameState {
-  players: Record<string, any>;
   chunks: Map<string, { raw: Uint16Array, visual: Uint8Array }>;
   tileRegistry: Record<number, string>;
   myId?: string;
+  myNumericId?: number;
 }
 
 const gameState: RenderGameState = {
-  players: {}, // This acts as the interpolated active state
   chunks: new Map(),
   tileRegistry: {},
 };
 
-let previousPlayers: Record<string, any> = {};
-let targetPlayers: Record<string, any> = {};
-let lastStateTime = performance.now();
+const interpolator = new SnapshotInterpolator();
+
+// Entity type to string mapping for RegistryManager lookups
+const ENTITY_TYPE_NAMES: Record<number, string> = {
+  [EntityType.Player]:  'player',
+  [EntityType.Chest]:   'chest',
+  [EntityType.NPC]:     'npc',
+  [EntityType.Unknown]: 'prop',
+};
 
 let canvas: OffscreenCanvas | null = null;
 let gl: WebGL2RenderingContext | null = null;
@@ -78,37 +88,17 @@ function initWebGL() {
 
   const pointSize = 40.0;
   const tileSize = 40.0;
-  const SERVER_TICK_RATE = 1000 / 60;
 
   const render = () => {
     if (!gl || !canvas) return;
 
-    // Linear Interpolation (Lerp) Smoothing Logic
-    const now = performance.now();
-    const timeSinceLastState = now - lastStateTime;
-    const lerpFactor = Math.min(timeSinceLastState / SERVER_TICK_RATE, 1.0);
-
-    // Update interpolated players
-    for (const id in targetPlayers) {
-      const target = targetPlayers[id];
-      const prev = previousPlayers[id] || target;
-      
-      if (!gameState.players[id]) gameState.players[id] = { ...target };
-      
-      gameState.players[id].x = prev.x + (target.x - prev.x) * lerpFactor;
-      gameState.players[id].y = prev.y + (target.y - prev.y) * lerpFactor;
-      gameState.players[id].color = target.color;
-    }
-    
-    // Remove decoupled entities
-    const activeIds = Object.keys(gameState.players);
-    for (const id of activeIds) {
-      if (!targetPlayers[id]) delete gameState.players[id];
-    }
+    // ─── Get interpolated entities from snapshot buffer ───
+    const entities = interpolator.getInterpolatedState();
 
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
+    // ─── Tile Rendering (unchanged) ───
     gl.useProgram(tileProgram);
     gl.uniform2f(tileResLoc, canvas.width, canvas.height);
     gl.uniform1f(tileSizeLoc, tileSize);
@@ -186,76 +176,94 @@ function initWebGL() {
       gl.vertexAttribDivisor(tileCzLoc, 0);
     }
 
+    // ─── Entity Rendering (from binary interpolated state) ───
     gl.useProgram(playerProgram);
     gl.enableVertexAttribArray(playerPosLoc);
     gl.bindBuffer(gl.ARRAY_BUFFER, playerPosBuffer);
     gl.vertexAttribPointer(playerPosLoc, 2, gl.FLOAT, false, 0, 0);
     gl.uniform2f(playerResLoc, canvas.width, canvas.height);
 
-    gl.uniform2f(playerResLoc, canvas.width, canvas.height);
+    if (entities) {
+      // Find my player's focused entity for highlight rendering
+      let focusedEntityId = 0;
+      if (gameState.myNumericId) {
+        const myEntity = entities.get(gameState.myNumericId);
+        if (myEntity) {
+          focusedEntityId = myEntity.focusedId;
 
-    const myPlayer = gameState.myId ? gameState.players[gameState.myId] : null;
-    const focusedId = myPlayer?.focusedId;
+          self.postMessage({
+            type: 'my_position',
+            x: myEntity.x,
+            y: myEntity.y,
+            focusedNumericId: myEntity.focusedId,
+          });
+        }
+      }
 
-    for (const [id, player] of Object.entries(gameState.players)) {
-      const type = player.type || 'player';
-      const playerVisual = RegistryManager.getEntityVisual(type) || RegistryManager.getEntityVisual("player");
-      const playerLogic = RegistryManager.getEntityLogic(type) || RegistryManager.getEntityLogic("player");
-      const pSize = playerLogic?.width || pointSize;
+      for (const [_id, entity] of entities) {
+        const typeName = ENTITY_TYPE_NAMES[entity.type] || 'prop';
+        const playerVisual = RegistryManager.getEntityVisual(typeName) || RegistryManager.getEntityVisual("player");
+        const playerLogic = RegistryManager.getEntityLogic(typeName) || RegistryManager.getEntityLogic("player");
+        const pSize = playerLogic?.width || pointSize;
 
-      if (id === focusedId) {
+        // Highlight focused entity
+        if (focusedEntityId !== 0 && entity.id === focusedEntityId) {
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+            entity.x, entity.y
+          ]), gl.STATIC_DRAW);
+          gl.uniform1f(playerSizeLoc, pSize + 10.0);
+          gl.uniform1i(playerUseTexLoc, 0); 
+          gl.uniform4f(playerColorLoc, 1, 1, 1, 0.4); 
+          gl.drawArrays(gl.POINTS, 0, 1);
+        }
+
+        gl.uniform1f(playerSizeLoc, pSize);
+        
+        if (playerVisual) {
+            const tex = SpriteSystem.entityTextures.get(playerVisual.sheet);
+            const dims = SpriteSystem.entityDimensions.get(playerVisual.sheet);
+            if (tex && dims) {
+                gl.activeTexture(gl.TEXTURE1);
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.uniform1i(playerTexLoc, 1);
+                gl.uniform1i(playerUseTexLoc, 1);
+                
+                const sheets: any = RegistryManager.rawSpritesData.sheets;
+                const sheetInfo = sheets[playerVisual.sheet];
+                const tSize = sheetInfo ? (sheetInfo.tileSize || 16) : 16;
+                
+                const cols = dims.width / tSize;
+                const rows = dims.height / tSize;
+
+                const row = playerVisual.coords?.row || 0;
+                const col = playerVisual.coords?.col || 0;
+
+                const uScale = 1.0 / cols;
+                const vScale = 1.0 / rows;
+                const uOffset = col * uScale;
+                const vOffset = row * vScale;
+                
+                gl.uniform2f(playerUvOffsetLoc, uOffset, vOffset);
+                gl.uniform2f(playerUvScaleLoc, uScale, vScale);
+            } else {
+                SpriteSystem.getEntityTexture(playerVisual.sheet).catch(console.error);
+                gl.uniform1i(playerUseTexLoc, 0);
+            }
+        } else {
+            gl.uniform1i(playerUseTexLoc, 0);
+        }
+
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-          player.x, player.y
+          entity.x, entity.y
         ]), gl.STATIC_DRAW);
-        gl.uniform1f(playerSizeLoc, pSize + 10.0);
-        gl.uniform1i(playerUseTexLoc, 0); 
-        gl.uniform4f(playerColorLoc, 1, 1, 1, 0.4); 
+
+        // Use packed color from entity or fallback
+        const color = entity.color !== 0
+          ? unpackColor(entity.color)
+          : getDefaultColor(entity.type);
+        gl.uniform4f(playerColorLoc, color[0], color[1], color[2], color[3]);
         gl.drawArrays(gl.POINTS, 0, 1);
       }
-
-      gl.uniform1f(playerSizeLoc, pSize);
-      
-      if (playerVisual) {
-          const tex = SpriteSystem.entityTextures.get(playerVisual.sheet);
-          const dims = SpriteSystem.entityDimensions.get(playerVisual.sheet);
-          if (tex && dims) {
-              gl.activeTexture(gl.TEXTURE1);
-              gl.bindTexture(gl.TEXTURE_2D, tex);
-              gl.uniform1i(playerTexLoc, 1);
-              gl.uniform1i(playerUseTexLoc, 1);
-              
-              const sheets: any = RegistryManager.rawSpritesData.sheets;
-              const sheetInfo = sheets[playerVisual.sheet];
-              const tSize = sheetInfo ? (sheetInfo.tileSize || 16) : 16;
-              
-              const cols = dims.width / tSize;
-              const rows = dims.height / tSize;
-
-              const row = playerVisual.coords?.row || 0;
-              const col = playerVisual.coords?.col || 0;
-
-              const uScale = 1.0 / cols;
-              const vScale = 1.0 / rows;
-              const uOffset = col * uScale;
-              const vOffset = row * vScale;
-              
-              gl.uniform2f(playerUvOffsetLoc, uOffset, vOffset);
-              gl.uniform2f(playerUvScaleLoc, uScale, vScale);
-          } else {
-              SpriteSystem.getEntityTexture(playerVisual.sheet).catch(console.error);
-              gl.uniform1i(playerUseTexLoc, 0);
-          }
-      } else {
-          gl.uniform1i(playerUseTexLoc, 0);
-      }
-
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        player.x, player.y
-      ]), gl.STATIC_DRAW);
-
-      const color = player.color || [1, 0, 0, 1];
-      gl.uniform4f(playerColorLoc, color[0], color[1], color[2], color[3]);
-      gl.drawArrays(gl.POINTS, 0, 1);
     }
 
     requestAnimationFrame(render);
@@ -264,13 +272,35 @@ function initWebGL() {
   render();
 }
 
+// Unpack RGBA8888 uint32 to [r, g, b, a] floats
+function unpackColor(packed: number): number[] {
+  return [
+    ((packed >> 24) & 0xFF) / 255,
+    ((packed >> 16) & 0xFF) / 255,
+    ((packed >> 8) & 0xFF) / 255,
+    (packed & 0xFF) / 255,
+  ];
+}
+
+// Default colors by entity type
+function getDefaultColor(type: number): number[] {
+  switch (type) {
+    case EntityType.Player:  return [1.0, 1.0, 1.0, 1.0];
+    case EntityType.Chest:   return [0.8, 0.5, 0.2, 1.0];
+    case EntityType.NPC:     return [0.2, 0.8, 0.5, 1.0];
+    default:                 return [1.0, 0.0, 0.0, 1.0];
+  }
+}
+
 self.onmessage = (event) => {
   const data = event.data;
 
   if (data.type === 'initCanvas') {
-    canvas = data.canvas;
-    gl = canvas?.getContext('webgl2') || null;
-    if (gl) initWebGL();
+    loadWasm().then(() => {
+      canvas = data.canvas;
+      gl = canvas?.getContext('webgl2') || null;
+      if (gl) initWebGL();
+    });
   } else if (data.type === 'resize') {
     if (canvas && gl) {
       canvas.width = data.width;
@@ -281,8 +311,13 @@ self.onmessage = (event) => {
     const port = data.port;
     port.onmessage = (portEvent: MessageEvent) => {
       const portData = portEvent.data;
-      if (portData.type === 'chunk') {
-        // Unpack binary chunk
+
+      if (portData.type === 'binary_state') {
+        // Binary snapshot → push to interpolator (no JSON, no deep clone)
+        interpolator.pushSnapshot(portData.buffer);
+
+      } else if (portData.type === 'chunk') {
+        // Unpack binary chunk (unchanged)
         const buffer = portData.buffer;
         const view = new DataView(buffer);
         const cx = view.getInt32(1, true);
@@ -302,18 +337,11 @@ self.onmessage = (event) => {
         
         const chunkKey = `${cx},${cy},${cz}`;
         gameState.chunks.set(chunkKey, { raw: tiles, visual: visuals });
+
       } else if (portData.type === 'init') {
+        // JSON init — still needed for registry and myId
         gameState.myId = portData.id;
-        targetPlayers = portData.players || {};
-        // Deep copy target players to previous players
-        previousPlayers = JSON.parse(JSON.stringify(targetPlayers)); 
         gameState.tileRegistry = portData.tileRegistry || {};
-        lastStateTime = performance.now();
-      } else if (portData.type === 'state') {
-        // Save current interpolated positions as the start for the next Lerp
-        previousPlayers = JSON.parse(JSON.stringify(gameState.players));
-        targetPlayers = portData.players || {};
-        lastStateTime = performance.now();
       }
     };
   }

@@ -1,3 +1,7 @@
+import { isSnapshotBuffer } from '../protocol/StateParser';
+import { encodeMovement, encodeInteract, resetInputSequence } from '../protocol/InputEncoder';
+import { loadWasm } from '../../../services/wasm-loader';
+
 let socket: WebSocket | null = null;
 let renderPort: MessagePort | null = null;
 
@@ -15,24 +19,31 @@ const wsUrl = import.meta.env.VITE_WS_URL || `ws://${getHostname()}:3001`;
 function connect() {
   socket = new WebSocket(wsUrl);
   socket.binaryType = 'arraybuffer';
+  resetInputSequence();
 
   socket.onmessage = (event) => {
     if (event.data instanceof ArrayBuffer) {
       if (renderPort) {
-        // Transfer the array buffer directly to RenderWorker for maximum performance
-        renderPort.postMessage({ type: 'chunk', buffer: event.data }, [event.data]);
+        if (isSnapshotBuffer(event.data)) {
+          // Binary state snapshot → transfer to RenderWorker
+          renderPort.postMessage({ type: 'binary_state', buffer: event.data }, [event.data]);
+        } else {
+          // Chunk data (existing binary path)
+          renderPort.postMessage({ type: 'chunk', buffer: event.data }, [event.data]);
+        }
       }
       return;
     }
 
+    // JSON fallback for low-frequency messages (init, interact results, pong)
     const data = JSON.parse(event.data);
     
-    // Forward full game state updates to render port
-    if (renderPort && (data.type === 'init' || data.type === 'state')) {
+    // Forward init to render port (still JSON — contains registry + metadata)
+    if (renderPort && data.type === 'init') {
       renderPort.postMessage(data);
     }
     
-    // Forward to Main Thread (for ping, myId, UI updates)
+    // Forward to Main Thread (for ping, myId, UI updates, loot results)
     self.postMessage(data);
   };
 
@@ -50,20 +61,26 @@ function connect() {
 
 self.onmessage = (event) => {
   if (event.data.type === 'initPort') {
-    renderPort = event.data.port;
-    connect();
+    loadWasm().then(() => {
+      renderPort = event.data.port;
+      connect();
+    });
   } else if (event.data.type === 'move') {
+    // Phase D: Send binary movement instead of JSON
     if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: 'move', dx: event.data.dx, dy: event.data.dy }));
+      const buf = encodeMovement(event.data.dx, event.data.dy);
+      socket.send(buf);
     }
   } else if (event.data.type === 'interact') {
+    // Phase D: Send binary interact
     if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: 'interact' }));
+      const buf = encodeInteract();
+      socket.send(buf);
     }
   } else if (event.data.type === 'transfer_item') {
+    // Keep JSON for transfer_item until UI sends numeric IDs
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(event.data));
     }
   }
 };
-

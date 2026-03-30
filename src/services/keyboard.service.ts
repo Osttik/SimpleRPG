@@ -31,12 +31,15 @@ class KeyboardService {
   private _sinksMouseDown: SinkArray<MouseEvent> = [];
   private _sinksMouseUp: SinkArray<MouseEvent> = [];
 
-  constructor() {    
+  constructor() {
     window.addEventListener('keydown', e => this.handleOnKeyDown(e as unknown as KeyboardServiceEvent));
     window.addEventListener('keyup', e => this.handleOnKeyUp(e as unknown as KeyboardServiceEvent));
     window.addEventListener('mousedown', e => this.handleOnMouseDown(e as unknown as MouseServiceEvent));
     window.addEventListener('mouseup', e => this.handleOnMouseUp(e as unknown as MouseServiceEvent));
     window.addEventListener('mousemove', e => this.handleOnMouseMove(e as unknown as MouseEvent));
+    window.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+    });
   }
 
   private handleOnMouseDown = (e: MouseServiceEvent) => {
@@ -46,7 +49,7 @@ class KeyboardService {
   private handleOnMouseUp = (e: MouseServiceEvent) => {
     this._sinksMouseUp.forEach(sink => sink(e));
   };
-  
+
   private handleOnMouseMove = (e: MouseEvent) => {
     gameState.mousePosition = { x: e.clientX, y: e.clientY };
   };
@@ -71,7 +74,7 @@ class KeyboardService {
     const runningStream = keyStream.run({
       event: (_, e) => callback(e),
       error: (_, err) => console.error(err),
-      end: () => {}
+      end: () => { }
     }, this._scheduler);
 
     return {

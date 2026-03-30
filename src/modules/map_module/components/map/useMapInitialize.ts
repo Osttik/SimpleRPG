@@ -24,6 +24,20 @@ export const useMapInitialize = () => {
     const offscreen = canvas.transferControlToOffscreen();
     renderWorker.postMessage({ type: 'initCanvas', canvas: offscreen }, [offscreen]);
 
+    renderWorker.onmessage = (event) => {
+      if (event.data.type === 'my_position') {
+        if (gameState.myId) {
+          if (!gameState.players[gameState.myId]) {
+            gameState.players[gameState.myId] = { x: event.data.x, y: event.data.y, type: 'player', color: [1, 1, 1, 1], focusedId: '' };
+          } else {
+            gameState.players[gameState.myId].x = event.data.x;
+            gameState.players[gameState.myId].y = event.data.y;
+            gameState.players[gameState.myId].focusedId =  '';
+          }
+        }
+      }
+    };
+
     // Setup direct message channel between socket and render workers
     const channel = new MessageChannel();
     renderWorker.postMessage({ type: 'initPort', port: channel.port1 }, [channel.port1]);
