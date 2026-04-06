@@ -4,17 +4,8 @@
 #include "managable.h"
 #include "core/game-object/component-manager.h"
 
-// Forward declarations only — no includes to avoid circular chains through game-object.h
-class MoveComponentManager;
-class InteractableComponentManager;
-class InventoryComponentManager;
-
-class GameContext {
-public:
-    MoveComponentManager*         MoveComponentManagerRef         = nullptr;
-    InteractableComponentManager* InteractableComponentManagerRef = nullptr;
-    InventoryComponentManager*    InventoryComponentManagerRef    = nullptr;
-};
+class GameObjectManager;
+class PhysicsSystem;
 
 class ComponentsManagersRegistry
 {
@@ -23,7 +14,8 @@ private:
 
 public:
     template <typename T>
-    inline void Register(std::unique_ptr<T> system) {
+    inline void Register(std::unique_ptr<T> system)
+    {
         uint32_t id = SystemID::Get<T>();
         if (id >= _systems.size())
             _systems.resize(id + 1);
@@ -31,17 +23,30 @@ public:
     }
 
     template <typename T>
-    inline T* Get() {
+    inline T *Get()
+    {
         uint32_t id = SystemID::Get<T>();
         if (id >= _systems.size() || !_systems[id])
             return nullptr;
-        return static_cast<T*>(_systems[id].get());
+        return static_cast<T *>(_systems[id].get());
+    }
+
+    void RemoveFromAll(uint32_t entityId)
+    {
+        for (auto &sys : _systems)
+        {
+            if (sys)
+                sys->RemoveComponent(entityId);
+        }
     }
 };
 
-class ComponentManagerTypes {
-public:
-    uint32_t MoveManager      = 0;
-    uint32_t InteractManager  = 0;
-    uint32_t InventoryManager = 0;
+struct GameContext
+{
+    ComponentsManagersRegistry *Managers = nullptr;
+    GameObjectManager *Objects = nullptr;
+    PhysicsSystem *Physics = nullptr;
+
+    template <typename T>
+    T *GetManager() { return Managers ? Managers->Get<T>() : nullptr; }
 };

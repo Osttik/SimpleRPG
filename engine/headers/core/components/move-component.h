@@ -5,15 +5,17 @@
 
 const float32 SPEED(5);
 
-class MoveComponentManager : public ComponentManager
+class GameWorldEngine;
+
+struct MoveComponent : public Component
 {
-public:
-  void AddComponentTo(GameObject *obj) override;
+  float32 Speed = SPEED;
+
+  MoveComponent(GameObject *owner) : Component(owner) {}
 };
 
-class MoveComponent : public Component
+class MoveComponentManager : public TypedComponentManager<MoveComponent>
 {
 public:
-  MoveComponent(GameObject* owner) : Component(owner) {}
-  void Move(float32 dx, float32 dy);
+  void Move(uint32_t entityId, float32 dx, float32 dy, GameWorldEngine &ctx);
 };

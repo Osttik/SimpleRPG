@@ -1,25 +1,23 @@
 #include "core/components/move-component.h"
 #include "core/game-world-engine.h"
 
-void MoveComponentManager::AddComponentTo(GameObject *obj)
+void MoveComponentManager::Move(uint32_t entityId, float32 dx, float32 dy, GameWorldEngine &ctx)
 {
-  ComponentManager::AddComponentTo(obj);
-  obj->AddComponent<MoveComponent>(obj);  // pass owner explicitly
-}
+  auto *comp = Get(entityId);
+  if (!comp || !comp->Owner)
+    return;
 
-void MoveComponent::Move(float32 dx, float32 dy)
-{
-  auto prevPos = Owner->Transform.Position();
-  auto dPoint = Point(dx * SPEED, dy * SPEED, prevPos.Z);
-  Owner->Transform.SetPosition(PointOperations::Add(prevPos, dPoint));
+  GameObject *obj = comp->Owner;
+  auto prevPos = obj->Transform.Position();
+  auto dPoint = Point(dx * comp->Speed, dy * comp->Speed, prevPos.Z);
+  obj->Transform.SetPosition(PointOperations::Add(prevPos, dPoint));
 
   if (dx != float32(0) || dy != float32(0))
   {
-    Owner->Transform.SetFacing(dPoint);
+    obj->Transform.SetFacing(dPoint);
   }
 
-  Owner->BoundingBox.get()->MoveBy(dPoint);
+  obj->BoundingBox->MoveBy(dPoint);
 
-  // Keep AABB tree in sync after position change
-  Owner->Context->Physics.UpdateObject(Owner->PhysicsId);
+  ctx.Physics.UpdateObject(obj->PhysicsId);
 }

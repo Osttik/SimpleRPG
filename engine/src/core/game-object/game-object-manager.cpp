@@ -14,27 +14,9 @@ void GameObjectManager::BindEntity(GameObject *obj)
     MarkDirty(numId);
 }
 
-GameObject *GameObjectManager::Instatiate(Point position, std::unique_ptr<Shape> shape)
+GameObject *GameObjectManager::Instantiate(Point position, std::unique_ptr<Shape> shape)
 {
     auto obj = std::make_unique<GameObject>(position, std::move(shape));
-
-    uint32_t numId = obj->Id;
-    GameObject *ptr = obj.get();
-    _entities[numId] = std::move(obj);
-
-    BindEntity(ptr);
-    return ptr;
-}
-
-GameObject *GameObjectManager::CreateChest(Point position,
-                                           std::unique_ptr<Shape> shape, float32 radius,
-                                           int32_t chunkZ)
-{
-    auto obj = std::make_unique<Chest>(position, std::move(shape));
-    obj->IsStaticProp = true;
-    obj->Radius = radius;
-
-    obj->Transform.SetZPosition(chunkZ);
 
     uint32_t numId = obj->Id;
     GameObject *ptr = obj.get();
@@ -64,6 +46,9 @@ void GameObjectManager::CleanupDestroyed()
             uint32_t numId = it->first;
 
             _ctx->Physics.RemoveObject(it->second->PhysicsId);
+
+            // Remove all components from all managers
+            _ctx->Managers.RemoveFromAll(numId);
 
             _dirtyIds.erase(numId);
 

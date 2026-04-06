@@ -1,5 +1,6 @@
 #pragma once
 #include "math/point.h"
+
 class GameWorldEngine;
 
 class TransformData

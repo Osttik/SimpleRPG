@@ -1,19 +1,28 @@
 #include "core/components/interactable-component.h"
 
-void InteractableComponentManager::AddComponentTo(GameObject* obj)
+InteractableComponent *InteractableComponentManager::Add(
+    uint32_t entityId, GameObject *owner,
+    InteractionType type, const std::string &label)
 {
-    ComponentManager::AddComponentTo(obj);
-    obj->AddComponent<InteractableComponent>(obj);
+  auto *comp = TypedComponentManager<InteractableComponent>::Add(entityId, owner);
+  comp->Type = type;
+  comp->Label = label;
 
-    // Initialize Interaction data if not already present
-    if (!obj->Interaction)
-        obj->Interaction = std::make_unique<InteractionData>();
+  if (entityId >= _interactableBitset.size())
+    _interactableBitset.resize(entityId + 1, false);
+  _interactableBitset[entityId] = true;
+
+  return comp;
 }
 
-void InteractableComponent::Setup(InteractionType type, const std::string& label)
+void InteractableComponentManager::RemoveComponent(uint32_t entityId)
 {
-    if (!Owner->Interaction)
-        Owner->Interaction = std::make_unique<InteractionData>();
-    Owner->Interaction->Type  = type;
-    Owner->Interaction->Label = label;
+  TypedComponentManager<InteractableComponent>::RemoveComponent(entityId);
+  if (entityId < _interactableBitset.size())
+    _interactableBitset[entityId] = false;
+}
+
+bool InteractableComponentManager::IsInteractable(uint32_t entityId) const
+{
+  return entityId < _interactableBitset.size() && _interactableBitset[entityId];
 }

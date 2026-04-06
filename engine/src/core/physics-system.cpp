@@ -1,32 +1,40 @@
 #include "core/physics-system.h"
 #include "math/point.h"
 #include "core/game-object-physics.h"
+#include "core/components/interactable-component.h"
 
-PhysicsSystem::PhysicsSystem() {
+PhysicsSystem::PhysicsSystem()
+{
     _aabbTree = std::make_unique<GameObjectPhysics>();
 }
 
-unsigned int PhysicsSystem::AddObject(GameObject* obj) {
+unsigned int PhysicsSystem::AddObject(GameObject *obj)
+{
     return _aabbTree->AddObject(obj);
 }
 
-void PhysicsSystem::UpdateObject(unsigned int physicsId) {
+void PhysicsSystem::UpdateObject(unsigned int physicsId)
+{
     _aabbTree->UpdateObject(physicsId);
 }
 
-void PhysicsSystem::RemoveObject(unsigned int physicsId) {
+void PhysicsSystem::RemoveObject(unsigned int physicsId)
+{
     _aabbTree->RemoveObject(physicsId);
 }
 
-void PhysicsSystem::Tick(WorldManager* chunkManager, const std::unordered_set<uint32_t>& dirtyEntityIds) {
+void PhysicsSystem::Tick(WorldManager *chunkManager, const std::unordered_set<uint32_t> &dirtyEntityIds)
+{
     _aabbTree->Tick(chunkManager, dirtyEntityIds);
 }
 
-void PhysicsSystem::ResolveCircleCollision(GameObject* objA, GameObject* objB) {
-    Circle* circleA = dynamic_cast<Circle*>(const_cast<Shape*>(objA->BoundingBox.get()));
-    Circle* circleB = dynamic_cast<Circle*>(const_cast<Shape*>(objB->BoundingBox.get()));
+void PhysicsSystem::ResolveCircleCollision(GameObject *objA, GameObject *objB)
+{
+    if (objA->BoundingBox->Type != ShapeType::Circle || objB->BoundingBox->Type != ShapeType::Circle)
+        return;
 
-    if (!circleA || !circleB) return;
+    Circle *circleA = static_cast<Circle *>(objA->BoundingBox.get());
+    Circle *circleB = static_cast<Circle *>(objB->BoundingBox.get());
 
     float32 dx = circleB->Center.X - circleA->Center.X;
     float32 dy = circleB->Center.Y - circleA->Center.Y;
@@ -34,12 +42,14 @@ void PhysicsSystem::ResolveCircleCollision(GameObject* objA, GameObject* objB) {
 
     float32 absDx = dx < float32(0) ? float32(0) - dx : dx;
     float32 absDy = dy < float32(0) ? float32(0) - dy : dy;
-    if (absDx > minDist || absDy > minDist) return;
+    if (absDx > minDist || absDy > minDist)
+        return;
 
     float32 distSquared = dx * dx + dy * dy;
     float32 dist = fpm::sqrt(distSquared);
 
-    if (dist == float32(0)) dist = float32(0.0001);
+    if (dist == float32(0))
+        dist = float32(0.0001);
 
     float32 normalX = dx / dist;
     float32 normalY = dy / dist;
@@ -53,8 +63,11 @@ void PhysicsSystem::ResolveCircleCollision(GameObject* objA, GameObject* objB) {
     circleB->Center = objB->Transform.Position();
 }
 
-void PhysicsSystem::UpdateFocus(GameObject* source, const Point& mousePosition) {
-    if (!source) return;
+void PhysicsSystem::UpdateFocus(GameObject *source, const Point &mousePosition,
+                                const InteractableComponentManager *interactMgr)
+{
+    if (!source)
+        return;
 
     source->FocusedObjectId = 0; // reset
 
@@ -64,35 +77,46 @@ void PhysicsSystem::UpdateFocus(GameObject* source, const Point& mousePosition) 
 
     auto candidates = _aabbTree->GetObjectsInArea(topleft, bottomright);
 
-    GameObject* bestTarget = nullptr;
+    GameObject *bestTarget = nullptr;
     float32 bestScore(-1000000);
     float32 bestMouseDist(1000000);
-    GameObject* mouseTarget = nullptr;
+    GameObject *mouseTarget = nullptr;
 
-    for (GameObject* obj : candidates) {
-        if (obj == source) continue;
-        if (!obj->Interaction) continue;
+    for (GameObject *obj : candidates)
+    {
+        if (obj == source)
+            continue;
+        // O(1) bitset check replaces obj->Interaction != nullptr
+        if (!interactMgr || !interactMgr->IsInteractable(obj->Id))
+            continue;
 
         float32 dx = obj->Transform.Position().X - source->Transform.Position().X;
         float32 dy = obj->Transform.Position().Y - source->Transform.Position().Y;
         float32 distSq = dx * dx + dy * dy;
 
-        if (distSq > reachLimit * reachLimit) continue;
+        if (distSq > reachLimit * reachLimit)
+            continue;
 
         float32 dist = fpm::sqrt(distSq);
-        if (dist == float32(0)) dist = float32(0.0001);
+        if (dist == float32(0))
+            dist = float32(0.0001);
 
         // Mouse Focus
         float32 mdx = obj->Transform.Position().X - mousePosition.X;
         float32 mdy = obj->Transform.Position().Y - mousePosition.Y;
         float32 mDistSq = mdx * mdx + mdy * mdy;
 
-        Circle* circle = dynamic_cast<Circle*>(const_cast<Shape*>(obj->BoundingBox.get()));
-        float32 radius = circle ? circle->Radius : float32(20);
+        float32 radius = float32(20);
+        if (obj->BoundingBox->Type == ShapeType::Circle)
+        {
+            radius = static_cast<Circle *>(obj->BoundingBox.get())->Radius;
+        }
         float32 minMouseDistSq = radius * radius;
 
-        if (mDistSq <= minMouseDistSq * float32(1.5)) {
-            if (mDistSq < bestMouseDist) {
+        if (mDistSq <= minMouseDistSq * float32(1.5))
+        {
+            if (mDistSq < bestMouseDist)
+            {
                 bestMouseDist = mDistSq;
                 mouseTarget = obj;
             }
@@ -102,16 +126,20 @@ void PhysicsSystem::UpdateFocus(GameObject* source, const Point& mousePosition) 
         float32 distanceScore = reachLimit - dist;
         float32 score = distanceScore;
 
-        if (score > bestScore) {
+        if (score > bestScore)
+        {
             bestScore = score;
             bestTarget = obj;
         }
     }
 
     // Store the numeric entity ID (WithId), not the physics ID
-    if (mouseTarget) {
+    if (mouseTarget)
+    {
         source->FocusedObjectId = mouseTarget->Id;
-    } else if (bestTarget) {
+    }
+    else if (bestTarget)
+    {
         source->FocusedObjectId = bestTarget->Id;
     }
 }

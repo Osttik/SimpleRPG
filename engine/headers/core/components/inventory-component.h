@@ -1,17 +1,18 @@
 #pragma once
 #include "core/game-object/component.h"
 #include "core/game-object/component-manager.h"
-#include "core/game-object/game-object.h"
 #include "core/inventory.h"
 
-class InventoryComponentManager : public ComponentManager {
-public:
-    void AddComponentTo(GameObject* obj) override;
+struct InventoryComponent : public Component
+{
+  std::unique_ptr<InventoryManager> Inventories = std::make_unique<InventoryManager>();
+
+  InventoryComponent(GameObject *owner) : Component(owner) {}
 };
 
-class InventoryComponent : public Component {
+class InventoryComponentManager : public TypedComponentManager<InventoryComponent>
+{
 public:
-    InventoryComponent(GameObject* owner) : Component(owner) {}
-    Inventory* GetBackpack();
-    Inventory* GetStorage();
+  Inventory *GetBackpack(uint32_t entityId);
+  Inventory *GetStorage(uint32_t entityId);
 };

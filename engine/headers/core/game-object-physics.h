@@ -4,10 +4,9 @@
 #include <vector>
 #include <algorithm>
 #include "math/aabb.h"
-#include "core/game-object/game-object.h"
 #include "math/number.h"
-
-class WorldManager;
+#include "core/game-object/game-object.h"
+#include "core/world.h"
 
 class GameObjectPhysics
 {

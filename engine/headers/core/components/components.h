@@ -1,8 +1,5 @@
 #pragma once
-#include <stdint.h>
-
-class ComponentManagerTypes {
-public:
-  uint32_t MoveManager = 0;
-  uint32_t InteractManager = 0;
-};
+// Components aggregate header — individual component headers
+#include "core/components/interactable-component.h"
+#include "core/components/inventory-component.h"
+#include "core/components/move-component.h"

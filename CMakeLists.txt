@@ -69,14 +69,43 @@ if(NOT boost_POPULATED)
   add_subdirectory(${boost_SOURCE_DIR} ${boost_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 
-add_library(game_logic STATIC ${CORE_SOURCES})
+# - Protobuf (for low-frequency messages only; 60Hz snapshot uses hand-tuned binary)
+# Set SIMPLERPG_USE_PROTOBUF=ON to enable protobuf (requires initial download)
+option(SIMPLERPG_USE_PROTOBUF "Enable protobuf for low-frequency messages" OFF)
+
+if(SIMPLERPG_USE_PROTOBUF)
+  fetchcontent_declare(
+    protobuf
+    GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
+    GIT_TAG v25.3
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  )
+  set(protobuf_BUILD_TESTS OFF CACHE INTERNAL "")
+  set(protobuf_BUILD_PROTOC_BINARIES ON CACHE INTERNAL "")
+  set(protobuf_INSTALL OFF CACHE INTERNAL "")
+  fetchcontent_makeavailable(protobuf)
+endif()
+
+# Collect generated protobuf sources if they exist
+file(GLOB PROTO_GENERATED_SOURCES "engine/generated/*.pb.cc")
+
+add_library(game_logic STATIC ${CORE_SOURCES} ${PROTO_GENERATED_SOURCES})
 target_include_directories(game_logic PUBLIC "engine/headers")
+
+# Add generated protobuf headers to include path
+if(EXISTS "${CMAKE_SOURCE_DIR}/engine/generated")
+  target_include_directories(game_logic PUBLIC "engine/generated")
+endif()
 
 target_link_libraries(game_logic PUBLIC
   fpm
   robin_hood
   Boost::headers
 )
+
+if(SIMPLERPG_USE_PROTOBUF)
+  target_link_libraries(game_logic PUBLIC protobuf::libprotobuf)
+endif()
 
 if(NOT EMSCRIPTEN)
   target_link_libraries(game_logic PUBLIC Boost::container)

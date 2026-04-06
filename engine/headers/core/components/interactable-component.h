@@ -1,16 +1,35 @@
 #pragma once
 #include <string>
+#include <vector>
 #include "core/game-object/component.h"
 #include "core/game-object/component-manager.h"
-#include "core/game-object/game-object.h"  // InteractionType, InteractionData
 
-class InteractableComponentManager : public ComponentManager {
-public:
-    void AddComponentTo(GameObject* obj) override;
+enum class InteractionType
+{
+  None,
+  Talk,
+  Loot,
+  Mine
 };
 
-class InteractableComponent : public Component {
+struct InteractableComponent : public Component
+{
+  InteractionType Type = InteractionType::None;
+  std::string Label;
+
+  InteractableComponent(GameObject *owner) : Component(owner) {}
+};
+
+class InteractableComponentManager : public TypedComponentManager<InteractableComponent>
+{
+private:
+  std::vector<bool> _interactableBitset;
+
 public:
-    InteractableComponent(GameObject* owner) : Component(owner) {}
-    void Setup(InteractionType type, const std::string& label);
+  InteractableComponent *Add(uint32_t entityId, GameObject *owner,
+                             InteractionType type, const std::string &label);
+
+  void RemoveComponent(uint32_t entityId) override;
+
+  bool IsInteractable(uint32_t entityId) const;
 };

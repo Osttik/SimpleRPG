@@ -107,6 +107,7 @@ namespace aabb
     {
       lowerBound[i] = std::min(aabb1.lowerBound[i], aabb2.lowerBound[i]);
       upperBound[i] = std::max(aabb1.upperBound[i], aabb2.upperBound[i]);
+
     }
 
     surfaceArea = computeSurfaceArea();

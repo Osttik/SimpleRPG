@@ -8,14 +8,14 @@ const float32 NPC_RADIUS(18);
 class NPCBuilder
 {
 public:
-  static uint32_t BuildNPC(GameWorldEngine &manager, const Point &position)
+  static uint32_t Build(GameWorldEngine &engine, const Point &position)
   {
-    auto npc = manager.ObjectManager.Instatiate(position, std::make_unique<Circle>(position, NPC_RADIUS));
+    auto npc = engine.ObjectManager.Instantiate(position, std::make_unique<Circle>(position, NPC_RADIUS));
 
-    npc->Type   = "npc";
+    npc->Type = "npc";
     npc->Radius = NPC_RADIUS;
 
-    manager.ComponentsManagers.Get<MoveComponentManager>()->AddComponentTo(npc);
+    engine.Ctx.GetManager<MoveComponentManager>()->Add(npc->Id, npc);
 
     return npc->Id;
   }

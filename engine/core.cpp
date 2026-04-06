@@ -47,7 +47,7 @@ private:
         }
 
         auto spawnPosition = Point(float32(info[0].As<Napi::Number>().DoubleValue()), float32(info[1].As<Napi::Number>().DoubleValue()), 1);
-        auto result = PlayerBuilder::BuildPlayer(*core_, spawnPosition);
+        auto result = PlayerBuilder::Build(*core_, spawnPosition);
 
         return Napi::Number::New(info.Env(), result);
     }

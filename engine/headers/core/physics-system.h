@@ -3,11 +3,13 @@
 #include <fpm/fixed.hpp>
 #include <memory>
 #include <unordered_set>
-class GameObjectPhysics;
-class GameObject;
 #include "math/number.h"
+#include "math/point.h"
+#include "core/game-object/game-object.h"
+#include "core/game-object-physics.h"
+#include "core/world.h"
 
-class WorldManager;
+class InteractableComponentManager;
 
 class PhysicsSystem
 {
@@ -16,6 +18,7 @@ private:
 
 public:
   PhysicsSystem();
+  ~PhysicsSystem() = default;
 
   unsigned int AddObject(GameObject *obj);
   void UpdateObject(unsigned int physicsId);
@@ -23,7 +26,8 @@ public:
 
   void Tick(WorldManager *chunkManager, const std::unordered_set<uint32_t> &dirtyEntityIds);
 
-  void UpdateFocus(GameObject *source, const Point &mousePosition);
+  void UpdateFocus(GameObject *source, const Point &mousePosition,
+                   const InteractableComponentManager *interactMgr);
 
 private:
   void ResolveCircleCollision(GameObject *objA, GameObject *objB);

@@ -22,9 +22,16 @@ console.log(`   Auto-generated compile_flags.txt for Node v${nodeVersion}`);
 
 console.log('\n--- Building C++ core for Node.js server ---');
 try {
-  const cmd = 'npx cmake-js compile --runtime=node';
-  execSync(cmd, { stdio: 'inherit', cwd });
-  console.log('Node.js addon built successfully.');
+  const nodeBuildDir = path.join(cwd, 'build');
+  const isNodeConfigured = fs.existsSync(path.join(nodeBuildDir, 'CMakeCache.txt'));
+
+  if (!isNodeConfigured) {
+    console.log('Configuring Node Addon (First time)...');
+    execSync('npx cmake-js compile --runtime=node', { stdio: 'inherit', cwd });
+  } else {
+    console.log('Node Addon already configured. Running fast incremental build...');
+    execSync('npx cmake-js build --runtime=node', { stdio: 'inherit', cwd });
+  }
 } catch (error) {
   console.error('Node.js build failed.');
   process.exit(1);
@@ -42,25 +49,25 @@ function isEmscriptenAvailable() {
 }
 
 if (!isEmscriptenAvailable()) {
-  console.warn('   Emscripten (emcc) not found in PATH. Skipping WASM build.');
-  console.info('   To fix: Run "emsdk activate latest" in your terminal.');
+  console.warn('   Emscripten not found. Skipping WASM build.');
 } else {
   try {
     const wasmBuildDir = path.join(cwd, 'build_wasm');
+    if (!fs.existsSync(wasmBuildDir)) fs.mkdirSync(wasmBuildDir);
 
-    if (!fs.existsSync(wasmBuildDir)) {
-      fs.mkdirSync(wasmBuildDir);
+    const isWasmConfigured = fs.existsSync(path.join(wasmBuildDir, 'CMakeCache.txt'));
+
+    if (!isWasmConfigured) {
+      console.log('Configuring WASM (First time)... This will take ~140s.');
+      const generator = os.platform() === 'win32' ? '-G Ninja' : '';
+      execSync(`emcmake cmake -B build_wasm . ${generator} -DCMAKE_BUILD_TYPE=Release`, { stdio: 'inherit', cwd });
+    } else {
+      console.log('WASM already configured. Running fast incremental build...');
     }
 
-    console.log('Configuring Emscripten CMake...');
-    const generator = os.platform() === 'win32' ? '-G Ninja' : '';
-    execSync(`emcmake cmake -B build_wasm . ${generator} -DCMAKE_BUILD_TYPE=Release`, { stdio: 'inherit', cwd });
-
-    console.log('Compiling WASM...');
     execSync('cmake --build build_wasm', { stdio: 'inherit', cwd });
-
-    console.log('+++++++++WebAssembly built successfully to build_wasm/gamecore_wasm.js');
+    console.log('WebAssembly built successfully.');
   } catch (error) {
-    console.error('----------WebAssembly build failed.');
+    console.error('WebAssembly build failed.');
   }
 }
