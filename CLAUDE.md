@@ -5,220 +5,231 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # SimpleRPG — Project Reference
 **Zero-Copy Binary Architecture & Source of Truth**
 
-Multiplayer 2D RPG: React/WebGL frontend, Node.js WebSocket server, deterministic C++ physics engine via N-API + WASM.
+Multiplayer 2D RPG: React/WebGL frontend, Node.js WebSocket server, deterministic C++ physics engine via N-API.
 
 ## Build Commands
 * **Full Stack** (Server + Web + NW.js): `npm run dev`
 * **Frontend/NW.js only**: `npm run nw`
-* **Build C++ core**: `npm run build:cpp` — runs `node build_scripts/build-core.js`, which:
-  1. Compiles `engine/core.cpp` → `build/Release/gamecore.node` (Node.js N-API addon)
-  2. Compiles `engine/frontend.cpp` → `build_wasm/gamecore_wasm.js` + `.wasm` (Emscripten, **only if `emcc` is in PATH**)
+* **Build C++ core**: `npm run build:cpp` (Uses `node build_scripts/build-core.js`, outputs to `build/Release/gamecore.node`)
 * **Install deps**: `npm install` (custom script bypasses broken node-gyp auto-builds)
 * **Server only**: `npm --prefix server run dev`
-* **Lint**: `npm run lint`
-
-> WASM build requires Emscripten activated (`emsdk activate latest`). If `emcc` is missing, the Node addon still builds and the WASM step is skipped with a warning.
+* **Generate Protos**: `powershell ./schema/generate.ps1` (Generates C++ and TS from schema)
 
 ## File Layout
 ```
 SimpleRPG/
-├── engine/                          # C++ core engine (deterministic, fixed-point)
-│   ├── core.cpp                     # N-API wrapper: GameWorldWrapper (Facade over GameWorldEngine)
-│   ├── frontend.cpp                 # WASM export: protocol encoders/decoders via Emscripten bindings
+├── engine/                        # C++ core engine (deterministic, fixed-point)
+│   ├── core.cpp                   # N-API wrapper: GameWorldWrapper (Facade for GameInstance)
+│   ├── frontend.cpp               # WASM export: decodeSnapshot and state parsing
+│   ├── generated/                 # Generated Protobuf C++ classes
 │   ├── headers/
-│   │   ├── managable.h              # WithId (auto ID + free list), SystemID (compile-time type IDs)
-│   │   ├── macros.h                 # READ_ONLY_COMPONENT / READ_ONLY_COMPONENT_WITH_DEFAULT_VALUE macros
-│   │   ├── net/
-│   │   │   ├── protocol.hpp         # Shared binary protocol structs (MovePacket, EntityState, SnapshotHeader…)
-│   │   │   └── user-connection.h    # UserConnection: links a WebSocket connection to a GameWorldEngine
 │   │   ├── core/
-│   │   │   ├── game-manager.h       # GameManager: routes players to GameInstances
-│   │   │   ├── game-instance.h      # GameInstance: logical group of zones
-│   │   │   ├── game-world-engine.h  # GameWorldEngine: top-level zone container (owns all systems)
-│   │   │   ├── game-world.h         # GameWorld: chunk/tile logic
-│   │   │   ├── physics-system.h     # PhysicsSystem: AABB broadphase + collision resolution
-│   │   │   ├── inventory.h          # Inventory / ItemData / InventoryOperator
-│   │   │   ├── snapshot-buffer.h    # SnapshotBuffer: double-buffered binary state
-│   │   │   ├── game-context.h       # GameContext: DI container; ComponentsManagersRegistry; ComponentManagerTypes
-│   │   │   ├── entity-type.h        # EntityType numeric enum
-│   │   │   ├── chunk.h              # Chunk: 16³ uint16_t tiles + visual masks
-│   │   │   ├── tile-registry.h      # TileRegistry: id ↔ string mapping
-│   │   │   ├── world.h              # WorldManager: chunk map + procedural gen
-│   │   │   ├── constants.h          # TILE_SIZE and other shared constants
-│   │   │   ├── game-object-physics.h# GameObjectPhysics: AABB tree wrapper per entity
+│   │   │   ├── game-manager.h     # GameManager: Manages multiple GameInstances
+│   │   │   ├── game-instance.h    # GameInstance: Logical group of maps/zones
+│   │   │   ├── game-world-engine.h # GameWorldEngine: The Zone/Container for systems
+│   │   │   ├── game-world.h       # GameWorld: Logic management (entities, chunks)
+│   │   │   ├── physics-system.h   # PhysicsSystem: Spatial partitioning and collision logic
+│   │   │   ├── inventory.h        # Inventory/Item system: Container and ItemData classes
+│   │   │   ├── snapshot-buffer.h  # SnapshotBuffer: Double-buffered binary state layout
+│   │   │   ├── game-context.h     # GameContext: Lightweight DI aggregate (Managers, Objects, Physics)
+│   │   │   ├── game-object/
+│   │   │   │   ├── game-object.h  # GameObject: Data-only entity (Transform, BoundingBox)
+│   │   │   │   ├── game-object-manager.h # GameObjectManager: Entity storage and IDs
+│   │   │   │   ├── component.h    # Base Component class: holds GameObject* Owner
+│   │   │   │   ├── component-manager.h # TypedComponentManager: Dense vector pools
+│   │   │   │   └── transform.h    # Transform state (Position, Rotation)
 │   │   │   ├── components/
-│   │   │   │   ├── components.h     # ComponentManagerTypes (type IDs for registered managers)
-│   │   │   │   └── move-component.h # MoveComponent + MoveComponentManager
-│   │   │   └── game-object/
-│   │   │       ├── game-object.h    # GameObject: entity with Transform, Radius, Inventory ref
-│   │   │       ├── game-object-manager.h # GameObjectManager: entity storage, Instantiate/Destroy
-│   │   │       ├── component-manager.h   # ComponentManager base class
-│   │   │       ├── component.h      # Component base class (attached to GameObjects)
-│   │   │       └── transform.h      # Transform: Position (Point), Rotation
+│   │   │   │   ├── components.h     # Component registry and type IDs
+│   │   │   │   ├── move-component.h # MoveComponentManager: Handles movement logic
+│   │   │   │   ├── inventory-component.h # Pool-based inventory storage
+│   │   │   │   └── interactable-component.h # Pool-based + Bitset for O(1) filtering
+│   │   │   ├── game-object-physics.h # GameObjectPhysics: AABB tree wrapper
+│   │   │   ├── chunk.h            # Chunk: 16x16x16 uint16_t tiles + visual masks
+│   │   │   ├── tile-registry.h    # TileRegistry: numeric ID to string mapping
+│   │   │   ├── entity-type.h      # EntityType: Numeric IDs for Entity classes
+│   │   │   ├── world.h            # WorldManager: Chunk mapping + procedural gen
+│   │   │   └── constants.h        # Shared physics constants (TILE_SIZE, etc.)
+│   │   ├── game/
+│   │   │   └── entities/
+│   │   │       ├── player-builder.h # Builder for player composition
+│   │   │       ├── chest-builder.h  # Builder for chest composition
+│   │   │       └── npc-builder.h    # Builder for NPC composition
 │   │   └── math/
-│   │       ├── number.h             # float32 = fpm::fixed_16_16
-│   │       ├── aabb.h               # AABB tree (Box2D-derived)
-│   │       ├── point.h              # Point: fixed-point X, Y, Z
-│   │       └── rect.h               # Shape hierarchy (Circle, Rect…)
-│   └── src/                         # .cpp implementations mirroring headers/
-│       └── (game-manager, game-world-engine, physics-system, inventory, etc.)
-├── engine/headers/game/             # Game-logic layer (above core systems)
-│   └── entities/
-│       └── player-builder.h         # PlayerBuilder: factory that wires a GameObject + MoveComponent
-├── server/
-│   └── src/index.ts                 # uWebSockets.js server: 60fps loop, binary broadcast
-├── src/                             # React frontend (Vite + NW.js)
-│   ├── main.tsx                     # Entry: React + Redux + PrimeReact
-│   ├── GameScene.tsx                # Orchestrates Map + UI layers
-│   ├── gameState.ts                 # Singleton: canvasRef, myId, inventories, map data
-│   ├── services/
-│   │   ├── keyboard.service.ts      # Reactive input (@most/core)
-│   │   └── wasm-loader.ts           # Singleton WASM loader + useGameNetwork hook
+│   │       ├── aabb.h             # AABB tree (Box2D-derived)
+│   │       ├── point.h            # Point: fixed-point float32 X, Y
+│   │       ├── rect.h             # Shape hierarchy
+│   │       └── number.h           # float32 = fpm::fixed_16_16
+│   └── src/                       # Source files mirroring headers
+├── server/                        # Node.js WebSocket server (authoritative)
+│   └── src/
+│       └── index.ts               # WebSocket server: 60fps game loop, binary chunk streaming
+├── src/                           # React frontend (Vite + NW.js)
+│   ├── generated/                 # Generated Protobuf TS interfaces
+│   ├── assets/                    # Bundled assets (tilesets, configs, sprite sheets)
+│   ├── main.tsx                   # Entry: React + Redux + PrimeReact
+│   ├── GameScene.tsx              # Component: Orchestrates Map + UI layers
+│   ├── gameState.ts               # Singleton: canvasRef, myId, inventories, map data
 │   ├── modules/
-│   │   ├── game_module/             # Rendering & Asset management (SpriteSystem, AssetManager)
-│   │   ├── map_module/
-│   │   │   ├── workers/
-│   │   │   │   ├── RenderWorker.ts  # WebGL2 rendering, SnapshotInterpolator
-│   │   │   │   └── SocketWorker.ts  # Network I/O, binary decode, forwards to RenderWorker
-│   │   │   ├── protocol/
-│   │   │   │   ├── InputEncoder.ts  # Binary packet builders (move, interact, transfer)
-│   │   │   │   ├── StateParser.ts   # Binary snapshot parser
-│   │   │   │   └── SnapshotInterpolator.ts # T-100ms ring buffer interpolation
-│   │   │   └── components/map/controls/
-│   │   │       ├── subscribeToMovement.ts
-│   │   │       └── subscribeToSelection.ts
-│   │   └── ui_module/components/
-│   │       ├── loot_ui/             # Dual-inventory looting interface
-│   │       ├── inventory_view/      # Reusable inventory grid
-│   │       ├── interaction-ui-modal/# "E to Interact" contextual tooltip
-│   │       └── progress_bar/        # Volume/Weight status bars
-│   ├── store/
-│   │   ├── index.ts                 # Valtio proxies (interactionsState, etc.)
-│   │   └── hooks/useInteractions.ts # useSnapshot wrapper for interactions
-│   └── styles/interaction.scss
-├── build_scripts/build-core.js      # Drives cmake-js (Node addon) + emcmake (WASM)
-├── build/Release/gamecore.node      # Compiled N-API output
-├── build_wasm/                      # Emscripten output (gamecore_wasm.js + .wasm)
-└── CMakeLists.txt                   # cmake-js config; shared game_logic static lib
+│   │   ├── game_module/           # Rendering & Asset management (SpriteSystem, AssetManager)
+│   │   ├── map_module/            # Workers (Render/Socket) & Input handling
+│   │   │   └── protocol/          # Binary encoders (InputEncoder.ts) & parsers (StateParser.ts)
+│   │   └── ui_module/             # HUD, Inventory, Looting, and Interaction UIs
+│   │       ├── components/
+│   │       │   ├── loot_ui/       # Dual-inventory looting interface
+│   │       │   ├── inventory_view/# Reusable inventory grid component
+│   │       │   ├── interaction-ui-modal/ # Contextual interaction prompts
+│   │       │   └── progress_bar/  # Volume/Weight status bars
+│   └── services/
+│       └── keyboard.service.ts    # Reactive input handling (@most/core)
+├── schema/                        # Protobuf schemas and generation scripts
+│   ├── messages.proto             # Shared schema for RPCs (Init, Inventory, Interaction)
+│   └── generate.ps1               # Cross-stack code generation script
+└── CMakeLists.txt                 # C++ build config (cmake-js + protobuf)
 ```
 
 ## Tech Stack
-* **Frontend**: React 19 + Vite 8 + TypeScript 5.9 + Redux Toolkit (Valtio for reactive bridges)
-* **Rendering**: WebGL2 via **OffscreenCanvas** (Worker-isolated)
-* **Server**: Node.js + `uWebSockets.js` + C++ N-API Addon (`gamecore.node`)
-* **Physics**: deterministic `fpm` fixed-point math, AABB tree broadphase, circle-circle narrowphase
-* **UI**: PrimeReact 10 + Tailwind CSS 4 + SCSS
+* **Frontend**: React 19 + Vite 8 + TypeScript 5.9 + Redux Toolkit (Valtio used for reactive bridges).
+* **Rendering**: WebGL2 via **OffscreenCanvas** (Native performance in Workers).
+* **Server**: Node.js + `uWebSockets.js` (pub/sub binary broadcast) + C++ Addon (N-API).
+* **Protobuf**: For low-frequency, type-safe RPCs (Init, Inventory, Dialog).
+* **Physics**: deterministic `fpm` fixed-point math, AABB tree broadphase, circle-circle narrowphase.
+* **UI**: PrimeReact 10 + Tailwind CSS 4 + SCSS.
 
 ---
 
 ## Core Architecture & Systems
 
 ### 1. Core Mathematical Foundation
-* **Fixed-Point Math Only**: All positional/physics calculations use `fpm::fixed_16_16` (aliased `float32`). No IEEE 754 anywhere in C++ core logic.
-* **Wire Encoding**: `.raw_value()` yields a deterministic `int32_t` sent directly across the wire; the frontend decodes it by dividing by `65536.0` (`2^16`).
-* **Determinism**: The C++ core is the authoritative ground truth — identical inputs always produce identical outputs regardless of OS or hardware.
+* **Fixed-Point Math Only**: The C++ core strictly enforces deterministic physics by entirely avoiding IEEE 754 floating-point operations. All positional and physics calculations use `fpm::fixed_16_16` (aliased as `float32`).
+  * **Binary Transmission**: To completely avoid float conversion overhead across the N-API bridge, the physical state is transmitted by calling `.raw_value()` on the fixed-point numbers. This yields a deterministic `int32_t` that is sent directly across the wire and converted back to a float on the frontend by simply dividing by `65536.0` (`2^16`).
+* **Determinism**: The C++ core **must** produce identical, completely predictable results regardless of the target machine, OS, or compiler environment. Server logic is the authoritative ground truth; because the mathematical foundation contains no floating-point inconsistencies, the engine guarantees identical replayability and verification of state if identically seeded inputs are provided.
 
-### 2. ECS-Lite Engine Architecture
-The engine has moved from a monolithic design to a **Delegated ECS-Lite Architecture**:
-
-**Hierarchy:**
-```
-GameWorldEngine (The Zone — owns all systems)
-├── GameObjectManager  — entity lifecycle, Instantiate/Destroy, numeric ID map
-├── PhysicsSystem      — AABB tree broadphase, circle-circle narrowphase
-├── SnapshotBuffer     — double-buffered binary state
-├── GameWorld          — chunk/tile storage + WorldManager procedural gen
-├── ComponentsManagersRegistry — typed registry for ComponentManagers
-└── GameContext        — DI struct: holds refs to registered ComponentManagers
-```
-
-**Entity Creation Pattern (`engine/headers/game/entities/`):**
-Entity factories live in the `game/entities/` layer, above core systems. They call `ObjectManager.Instatiate(position, collider)` then wire up components via typed `ComponentsManagers.Get<T>()`.
-
-**Component System:**
-- `ComponentManager` (base) holds a list of member entity IDs and an `AddComponentTo(GameObject*)` virtual.
-- Concrete managers (e.g. `MoveComponentManager`) are registered into `ComponentsManagersRegistry` during `GameWorldEngine` construction.
-- `GameContext` provides cross-system DI: objects reference the `GameContext` struct (injected via `WorldContext`) to talk to systems without going through `ObjectManager`.
-
-**Key utility classes (`engine/headers/managable.h`):**
-- `WithId`: base for any resource with an auto-allocated `uint32_t Id` (pool-based free list).
-- `SystemID<T>`: compile-time type tag; used by `ComponentsManagersRegistry::Get<T>()`.
-
-**Macros (`engine/headers/macros.h`):**
-- `READ_ONLY_COMPONENT(Type, Name)` — exposes a public reference alias to a protected storage field (prevents replacement while allowing mutation).
-
-**Shared Binary Protocol (`engine/headers/net/protocol.hpp`):**
-`#pragma pack(push, 1)` structs — used by **both** `core.cpp` (N-API) and `frontend.cpp` (WASM Emscripten) to guarantee identical memory layout. Never add padding or change struct order without updating both targets.
-
-### 3. The Zero-Copy Memory Bridge
-* **Double-Buffering** (`SnapshotBuffer`): Write buffer for the active tick; Read buffer exposed to Node.js. `Swap()` after each tick.
-* **N-API Transfer**: `GetBinaryState` calls `SerializeSnapshot()` then `Swap()`, then wraps the read buffer in a `napi_create_external_arraybuffer` (no-op release callback — C++ owns memory). Node.js publishes this directly down the WebSocket.
+### 2. The Zero-Copy Memory Bridge
+To eliminate the "Bridge Tax" between Node.js and C++ (e.g., thousands of V8 objects and string conversions per tick), state is serialized into a continuous, flat memory chunk in C++, which Node.js reads without copying.
+* **Double-Buffering**: The C++ core maintains two mirrored binary buffers (`SnapshotBuffer`).
+  * **Write Buffer**: The active buffer where the physics engine calculates and updates the current tick's state.
+  * **Read Buffer**: The static chunk of memory exposed to the Node.js event loop representing the completed previous tick.
+  * **`Swap()` Logic**: Upon completing a physics tick, the Engine performs an atomic-style `Swap()`, exposing the finalized buffer to Node.js via `napi_create_external_arraybuffer`. Node.js owns a reference to this ArrayBuffer and transmits it directly down the WebSocket stream without touching its contents.
 * **SnapshotBuffer Layout**:
-  * **Header (16 B)**: `[Magic 0x53525047 (4)] [Tick (4)] [PlayerCount (2)] [PropCount (2)] [DestroyedCount (2)] [Pad (2)]`
-  * **Entity Stride (32 B)**: `id(4) x(4) y(4) radius(4) focusedId(4) type(1) chunkZ(1) flags(1) animState(1) colorPacked(4) pad(4)`
-* **Numeric IDs**: `uint32_t` IDs fit the stride. String UUIDs are isolated to low-frequency init/sync JSON events.
+  * **Header (16 Bytes)**: `[Magic: 0x53525047 (4B)] [Tick (4B)] [PlayerCount (2B)] [PropCount (2B)] [DestroyedCount (2B)] [Pad (2B)]`
+  * **Entity Stride (32 Bytes)**:
+    - Offset `+00`: `id` (uint32_t)
+    - Offset `+04`: `x` (int32_t raw fixed-point)
+    - Offset `+08`: `y` (int32_t raw fixed-point)
+    - Offset `+12`: `radius` (int32_t raw fixed-point)
+    - Offset `+16`: `focusedId` (uint32_t)
+    - Offset `+20`: `type` (uint8_t)
+    - Offset `+21`: `chunkZ` (int8_t)
+    - Offset `+22`: `flags` (uint8_t)
+    - Offset `+23`: `animState` (uint8_t)
+    - Offset `+24`: `color` (uint32_t, RGBA8888)
+    - Offset `+28`: Padding (4 Bytes)
+* **Numeric ID Mapping**: To facilitate high-performance binary transmission, string-based UUIDs are not transmitted at 60Hz. The C++ Core maintains a bidirectional map correlating sequential `uint32_t` IDs to the original `std::string` IDs (`NumericToString` / `StringToNumeric`). The numeric ID fits within the 32-byte stride, while strings are isolated from the high-frequency game loop entirely. The frontend receives this id map specifically in low-frequency init/sync events.
+* **Shared Protocol Logic**: Both the Node.js Addon (`core.cpp`) and the WASM Frontend (`frontend.cpp`) leverage the SAME `protocol.hpp` structs. 
+    - **N-API**: `GameCore::ProcessInput` takes a raw `napi_value` (Buffer/ArrayBuffer) and casts it to struct pointers for zero-overhead routing.
+    - **WASM**: `decodeSnapshot` parses the binary buffer into a JavaScript object with schema: `{ tick, players: { "id": { x, y, radius, typeId, ... } }, destroyed: [ids] }`. 
 
-### 4. WASM Frontend Module (`engine/frontend.cpp`)
-Compiled with Emscripten. Exports via `EMSCRIPTEN_BINDINGS`:
-- `encodeMove` / `encodeInteract` / `encodeTransfer` — write into a static 64-byte buffer, return `typed_memory_view`.
-- `decodeSnapshot(ptr, length)` — parses binary snapshot into a JS object: `{ tick, players: { id: { x, y, radius, typeId, … } }, destroyed: [ids] }`.
-- `allocateBuffer` / `freeBuffer` / `getBufferView` — explicit WASM heap management for zero-copy socket data ingestion.
+### 3. Networking Protocol (Hybrid Model)
+SimpleRPG uses a dual-protocol strategy to balance performance and developer sanity:
+* **High-Frequency (Hand-Tuned Binary)**: 60Hz snapshots use a fixed 32-byte stride zero-copy protocol (`protocol.hpp`). This is optimal for position/rotation firehoses.
+* **Low-Frequency (Protobuf)**: Complex or infrequent data (Inventory updates, Interaction responses, World Init) use **Protocol Buffers**. This provides a shared type-safe schema (`messages.proto`) for both C++ and TS without manual byte-shifting.
+* **uWebSockets.js Integration**: The server is designed for `uWebSockets.js` to maximize throughput. Binary ArrayBuffers are transmitted using the native `publish()` mechanics for the most efficient broadcast possible. By piping the C++ N-API ArrayBuffer directly into publishing, Node.js never parses the runtime game state.
+* **Protocol Messages (Binary)**:
+  * **Server → Client**: 
+    - `Snapshot State`: The `ArrayBuffer` generated by the C++ engine (starts with Magic `0x53525047`).
+    - `Binary Chunk`: `[1b Type][4b cx][4b cy][4b cz][8KiB tiles][4KiB visual masks]`.
+  * **Client → Server**: 
+    - `Movement` (5 Bytes): `[0x01, dx:int8, dy:int8, seq:uint16LE]`
+    - `Interact` (1 Byte): `[0x02]`
+    - `Transfer` (10 Bytes): `[0x03, targetId:uint32LE, from:uint8, to:uint8, idx:uint16LE, pad:uint8]`
 
-Loaded by `src/services/wasm-loader.ts` as a singleton. Workers receive the WASM module via `MessageChannel` before handling any network data.
+### 4. Frontend Worker Architecture
+To guarantee stutter-free 60fps+ rendering over dynamic networks, the frontend splits tasks strictly across segregated threads.
+* **Thread Isolation**:
+  * **SocketWorker**: Listens for network I/O, parses the DataView, decodes binary data frames, buffers raw messages, and sends binary inputs. It forwards High-Frequency buffer payloads immediately via `MessagePort` to the RenderWorker, sidestepping the main JS thread entirely.
+  * **RenderWorker**: Dedicated to WebGL2 contexts. Maintains a standalone environment managing sprites, draw calls, and interpolation routines independent of the DOM. 
+* **Interpolation (`SnapshotInterpolator`)**:
+  * The `RenderWorker` maintains a Ring Buffer capping the last 10 snapshots (`T-100ms Ring-Buffer`).
+  * To absorb network jitter asynchronously, the interpolator steps backwards exactly `100ms` from `performance.now()`.
+  * It identifies the two server snapshots encompassing `renderTime` (SnapA and SnapB). 
+  * Positional parameters are smoothly tweened (`bracketed`) simulating 60fps visual delivery seamlessly over sparse or jittery 30Hz/60Hz data packets.
+* **State Management**:
+  * **Valtio**: Serves as the UI's reactive backbone. While raw binary data streams continuously to WebGL, discrete state updates relevant strictly to the HUD components (health bars, inventories, notifications) update `proxy` objects in Valtio. This bridges the high-performance WebGL state layer to the React DOM layer without triggering ubiquitous re-renders unnecessarily across the codebase.
+* **WASM Memory Management**: To circumvent Emscripten symbol stripping and ensure safe zero-copy access from Workers:
+  * **`allocateBuffer(size)`**: Explicit C++/WASM `malloc` wrapper for allocating communication buffers.
+  * **`freeBuffer(ptr)`**: Explicit C++/WASM `free` wrapper.
+  * **`getBufferView(ptr, size)`**: Returns a `typed_memory_view` (Uint8Array) directly peering into the WASM heap at a specific address, allowing `Uint8Array.set(buffer)` to write socket data into WASM memory without intermediate allocations.
 
-### 5. Networking Protocol (Binary-First)
-JSON is banned for high-frequency runtime sync.
+### 5. Interaction & Inventory Flow
+1. **Focus Scoring**: `PhysicsSystem::UpdateFocus` performs a proximity check. It uses the `InteractableComponentManager` bitset for $O(1)$ filtering.
+2. **Contextual UI**: The object registering the highest context score yields the active `focusedId` propagated natively to the frontend over binary state. The client displays an "E to Interact" tooltip.
+3. **On-Demand Looting**: Submitting an `Interact (0x02)` packet targets the specific `focusedId`. The server processes the request and replies with a **Protobuf** `InteractionResponse` containing the full inventory state.
+4. **"Hover + R" Shortcut**: With Dual-Inventory UI activated, mousing over a discrete item slot and triggering the secondary keybind automatically fires a binary `Transfer (0x03)` packet, bypassing tedious drag-and-drop operations entirely to quickly cycle items between containers.
 
-**Server → Client:**
-- Snapshot state: raw `ArrayBuffer` from C++ (magic `0x53525047`)
-- Binary Chunk: `[1b type][4b cx][4b cy][4b cz][8 KiB tiles][4 KiB visual masks]`
+### 6. Sprite & Asset System
+* **Asset Manager**: Handles asynchronous `ImageBitmap` caching. Uses explicit Vite imports to resolve asset URLs safely within Worker contexts.
+* **Registry Manager**: Unified bridge for `tiles_registry.json` and `entities_registry.json`. Matches logic metadata to sprite visual keys.
+* **Tile Data Manager**: Uses `RegistryManager` to generate a flat `Float32Array` lookup table indexed by `(id * 256) + mask` for O(1) tile rendering.
+* **Sprite System**: Manages WebGL `TEXTURE_2D_ARRAY` for tiles and `TEXTURE_2D` for entities.
+* **Layer Tinting**: Lower Z-levels are rendered with a darker tint in `tileFragment.glsl`.
 
-**Client → Server:**
-- Movement (5 B): `[0x01, dx:int8, dy:int8, seq:uint16LE]`
-- Interact (1 B): `[0x02]`
-- Transfer (10 B): `[0x03, targetId:uint32LE, from:uint8, to:uint8, idx:uint16LE, pad:uint8]`
+---
 
-**JSON** is only used for: session init, tile registry payloads, on-demand inventory data, chat.
+## ECS-Lite Component Pool Architecture
+The engine has moved from a monolithic design to a **Delegated ECS-Lite Architecture** with optimized component pools.
 
-### 6. Frontend Worker Architecture
-* **SocketWorker**: Network I/O only. Decodes binary frames, forwards snapshot `ArrayBuffer` directly to RenderWorker via `MessagePort` (bypasses main thread).
-* **RenderWorker**: WebGL2 context. Runs `SnapshotInterpolator` — a ring buffer of last 10 snapshots; renders at `performance.now() - 100ms` by tweening between the two bracketing snapshots.
-* **Valtio proxies** bridge the high-frequency WebGL state to React DOM (inventory, HUD) without global re-renders. Hook: `useSnapshot(interactionsState)` from `src/store/hooks/useInteractions.ts`.
+### 1. Hierarchy Structure
+* **`GameManager` (Global):** Routes players to the right `GameInstance`.
+* **`GameInstance` (Logical Group):** A collection of maps/zones (e.g., "The Dungeon").
+* **`GameWorldEngine` (The Zone):** A container that owns the systems.
+    * **`GameObjectManager`:** Owns the memory and lifecycle of entities.
+    * **`PhysicsSystem`:** Owns spatial partitioning (Grid/Quadtree) and collision logic.
+    * **`SnapshotBuffer`:** Owns the networking state.
+    * **`ComponentsManagersRegistry`:** Typed registry for `TypedComponentManager` pools.
 
-### 7. Interaction & Inventory Flow
-1. `PhysicsSystem::UpdateFocus` scores nearby entities by distance + dot-product (player orientation vs entity offset). Best score → `focusedId` in binary state.
-2. Client shows "E to Interact" tooltip from `interaction-ui-modal` when `focusedId` is non-zero.
-3. `Interact (0x02)` → server replies with JSON inventory payload → `LootUI` shows dual-pane view.
-4. Hover + R fires `Transfer (0x03)` binary packet to move items without drag-and-drop.
+### 2. Component System
+* **`GameObject`**: A lightweight data container holding only `Transform` and `BoundingBox`.
+* **Component Pools**: `TypedComponentManager<T>` maintains a **Dense Vector** of components indexed by the entity's numeric ID. This ensures $O(1)$ access and better cache locality.
+* **Automatic Cleanup**: When an entity is destroyed via `GameObjectManager`, `Managers.RemoveFromAll(id)` is called to instantly purge components from all registered pools.
+* **Builders**: Entity composition (Player, Chest, NPC) is handled by `Builder` classes that instantiate a bare `GameObject` and wire it up with components.
 
-### 8. Sprite & Asset System
-* **Asset Manager**: Async `ImageBitmap` caching; uses explicit Vite imports to resolve URLs in Worker contexts.
-* **Registry Manager**: Unifies `tiles_registry.json` + `entities_registry.json`.
-* **Tile Data Manager**: `Float32Array` lookup at `(id * 256) + mask` → O(1) tile rendering.
-* **Sprite System**: `TEXTURE_2D_ARRAY` for tiles, `TEXTURE_2D` for entities.
-* **Layer Tinting**: Lower Z-levels rendered darker via `tileFragment.glsl`.
+### 3. Physics & Collider Integration
+Physics lives inside `GameWorldEngine` and is decoupled from `GameObject` logic.
+1. **Creation**: `GameObjectManager` creates a Player and notifies `PhysicsSystem` to create a Collider.
+2. **Systemic Filtering**: `PhysicsSystem::UpdateFocus` now accepts `InteractableComponentManager*` to perform interaction filtering directly within the physics tick using bitsets.
+3. **Zero-RTTI Casting**: All `dynamic_cast` calls have been replaced with `ShapeType` enum tags + `static_cast` for zero runtime overhead.
+
+### 4. GameContext (O(1) DI)
+Systems and managers talk to each other through a `GameContext` aggregate. It uses a `SystemID<T>` template pattern to provide compile-time type IDs for managers, allowing $O(1)$ retrieval of systems without string lookups.
 
 ---
 
 ## Architecture Rules
 
-### C++ Engine
-* **Fixed-Point Only**: NO `float`/`double` in core logic. Use `fpm::fixed_16_16` (`float32`).
-* **Protocol Structs**: Never change `protocol.hpp` layout without updating both N-API (`core.cpp`) and WASM (`frontend.cpp`) consumers.
-* **Component Wiring**: New entity types go in `engine/headers/game/entities/` as Builder classes. Do not wire components directly in `GameWorldEngine`.
-* **Inventory**: Items owned by `Inventory` classes. `InventoryOperator` handles atomic transfers.
+### 1. C++ Engine (Strictly Deterministic)
+* **Fixed-Point Math Only:** NO `float`/`double` in core logic. Use `fpm::fixed_16_16` (`float32`).
+* **Component Pools**: Components MUST be stored in `TypedComponentManager` pools. Do not add functional fields to `GameObject`.
+* **Builders Only**: Never instantiate components directly in `GameWorldEngine`. Use a `Builder` class.
+* **PhysicsSystem Decoupling**: Physics logic (AABB tree, collisions) is separated from World storage.
+* **Hybrid Collision**: 
+    - **Environment**: O(1) grid lookup in `WorldManager`.
+    - **Entities**: AABB tree + circle-circle resolution.
+* **Inventory**: Items are owned by `Inventory` classes. `InventoryOperator` handles atomic transfers.
 
-### Networking & State
-* **Authoritative Server**: All positions and inventory changes are authoritative on the C++ server.
-* **Binary Only** at 60Hz; JSON only for low-frequency RPCs.
+### 2. Networking & State
+* **Authoritative Server**: All positions and inventory changes are decided by the C++ core on the server.
+* **Hybrid Protocol**: Snapshots = fixed 32-byte binary protocol (`protocol.hpp`). RPCs = Protocol Buffers (`messages.proto`).
+* **Binary Streaming**: Grid data and Entity states are raw binary buffers. JSON is strictly for low-frequency session/registry data.
+* **Lerp Smoothing**: Clients interpolate entity positions between server states.
 
-### Frontend
-* **Workers**: Networking and Rendering MUST stay off the main thread.
-* **gameState**: Single source of truth for frontend logic; synced with workers via `MessageChannel`.
+### 3. Frontend Modularization
+* **Workers**: Networking and Rendering MUST stay off the main thread to prevent UI jank.
+* **gameState**: The single source of truth for the frontend logic, synchronized with workers via `MessageChannel`.
+* **PrimeReact**: Use for complex UI components (Modals, Buttons) while maintaining custom WebGL overlays.
 * **StrictMode**: Must be OFF.
-* **PrimeReact**: Use for complex UI (Modals, Buttons); custom WebGL for rendering.
 
-### Build
-* `cmake-js` required for C++ Node addon.
-* `emcmake` / `cmake --build build_wasm` required for WASM. WASM build is optional (skipped if `emcc` absent).
-* **Testing Policy**: AI agent may only perform build tests. Runtime functional testing is performed by the USER.
+### 4. Build System
+* `cmake-js` is required for C++ addon compilation.
+* **Protobuf Generation**: Run `powershell ./schema/generate.ps1` after any `.proto` change.
+* `npm run build:cpp` targets standalone native environment.
+* **Testing Policy**: The AI agent could only perform build tests. Runtime functional testing is performed by the USER.
