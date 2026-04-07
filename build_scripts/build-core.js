@@ -3,6 +3,19 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+function ensureProtoc() {
+  try {
+    execSync('protoc --version', { stdio: 'ignore' });
+    return 'protoc';
+  } catch (e) {
+    console.error('\nInstalling ProtoBug ;)');
+    execSync('choco install protoc -y', { stdio: 'inherit' }); 
+    return 'protoc';
+  }
+}
+
+ensureProtoc();
+
 const nodeVersion = process.versions.node;
 const homeDir = os.homedir();
 const cwd = process.cwd();
@@ -13,12 +26,29 @@ const nodeIncludePath = path.join(cmakeJsPath, 'include', 'node').replace(/\\/g,
 const compileFlagsContent = [
   '-I./node_modules/node-addon-api',
   `-I${nodeIncludePath}`,
+  '-I./engine/generated',
   '-DNAPI_DISABLE_CPP_EXCEPTIONS',
   '-std=c++20'
 ].join('\n');
 
 fs.writeFileSync(path.join(cwd, 'compile_flags.txt'), compileFlagsContent);
 console.log(`   Auto-generated compile_flags.txt for Node v${nodeVersion}`);
+
+console.log('\n--- Generating Protobuf Schemas (C++ & TS) ---');
+try {
+  const protoDir = path.join(cwd, 'schema');
+  const cppOut = path.join(cwd, 'engine', 'generated');
+  const tsOut = path.join(cwd, 'src', 'generated');
+
+  if (!fs.existsSync(cppOut)) fs.mkdirSync(cppOut, { recursive: true });
+  if (!fs.existsSync(tsOut)) fs.mkdirSync(tsOut, { recursive: true });
+
+  execSync(`protoc --proto_path=${protoDir} --cpp_out=${cppOut} --ts_proto_out=${tsOut} ${path.join(protoDir, '*.proto')}`, { stdio: 'inherit' });
+  console.log('Protobuf generation successful.');
+} catch (error) {
+  console.error('Protobuf generation failed. Ensure protoc is installed.');
+  process.exit(1);
+}
 
 console.log('\n--- Building C++ core for Node.js server ---');
 try {
@@ -38,36 +68,3 @@ try {
 }
 
 console.log('\n--- Building WebAssembly for Frontend ---');
-
-function isEmscriptenAvailable() {
-  try {
-    execSync(os.platform() === 'win32' ? 'where emcc' : 'which emcc', { stdio: 'ignore' });
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-if (!isEmscriptenAvailable()) {
-  console.warn('   Emscripten not found. Skipping WASM build.');
-} else {
-  try {
-    const wasmBuildDir = path.join(cwd, 'build_wasm');
-    if (!fs.existsSync(wasmBuildDir)) fs.mkdirSync(wasmBuildDir);
-
-    const isWasmConfigured = fs.existsSync(path.join(wasmBuildDir, 'CMakeCache.txt'));
-
-    if (!isWasmConfigured) {
-      console.log('Configuring WASM (First time)... This will take ~140s.');
-      const generator = os.platform() === 'win32' ? '-G Ninja' : '';
-      execSync(`emcmake cmake -B build_wasm . ${generator} -DCMAKE_BUILD_TYPE=Release`, { stdio: 'inherit', cwd });
-    } else {
-      console.log('WASM already configured. Running fast incremental build...');
-    }
-
-    execSync('cmake --build build_wasm', { stdio: 'inherit', cwd });
-    console.log('WebAssembly built successfully.');
-  } catch (error) {
-    console.error('WebAssembly build failed.');
-  }
-}

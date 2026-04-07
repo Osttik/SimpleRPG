@@ -11,6 +11,14 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    allowedHosts: true
+    allowedHosts: true,
+    watch: {
+      ignored: [
+        '**/build/**',
+        '**/build_wasm/**',
+        '**/engine/**',
+        '**/_deps/**'
+      ],
+    },
   }
 });
