@@ -1,7 +1,15 @@
-cmake_minimum_required(VERSION 3.15)
-project(SimpleRPG)
+cmake_minimum_required(VERSION 3.28)
 
-set(CMAKE_MESSAGE_LOG_LEVEL STATUS)
+set(CMAKE_MESSAGE_LOG_LEVEL NOTICE)
+set(FETCHCONTENT_QUIET ON)
+
+set(CMAKE_THREAD_LIBS_INIT "-lpthread")
+set(CMAKE_HAVE_THREADS_LIBRARY 1)
+set(CMAKE_USE_WIN32_THREADS_INIT 1)
+set(CMAKE_HP_PTHREADS_INIT 0)
+set(CMAKE_USE_PTHREADS_INIT 1)
+
+project(SimpleRPG)
 
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
@@ -11,62 +19,52 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(BUILD_TESTING OFF CACHE BOOL "Disable tests" FORCE)
-set(FPM_BUILD_TESTS OFF CACHE BOOL "Disable FPM tests" FORCE)
-set(FPM_BUILD_BENCHMARKS OFF CACHE BOOL "Disable FPM benchmarks" FORCE)
-set(FPM_BUILD_EXAMPLES OFF CACHE BOOL "Disable FPM examples" FORCE)
-set(BOOST_BUILD_TESTS OFF CACHE BOOL "Disable Boost tests" FORCE)
-set(BOOST_ENABLE_CMAKE ON CACHE BOOL "Enable Boost CMake" FORCE)
-set(protobuf_BUILD_TESTS OFF CACHE BOOL "Disable Protobuf tests" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(FPM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(FPM_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(FPM_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BOOST_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(BOOST_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
+set(BOOST_ENABLE_CMAKE ON CACHE BOOL "" FORCE)
+
+set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
+set(protobuf_DISABLE_RTTI OFF CACHE BOOL "" FORCE)
+set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)
+
+if(MSVC)
+  add_compile_options(/W0 /wd4996)
+else()
+  add_compile_options(-w -Wno-deprecated-builtins -Wno-deprecated-declarations)
+  add_compile_definitions(ABSL_FORCE_ALIGNED_ACCESS)
+endif()
 
 include(FetchContent)
 
-# - FPM (Fixed Point Math)
-fetchcontent_declare(
-  fpm
-  GIT_REPOSITORY https://github.com/MikeLankamp/fpm.git
-  GIT_TAG v1.0.1
-)
+fetchcontent_declare(fpm GIT_REPOSITORY https://github.com/MikeLankamp/fpm.git GIT_TAG v1.0.1 EXCLUDE_FROM_ALL)
+fetchcontent_declare(robin_hood GIT_REPOSITORY https://github.com/martinus/robin-hood-hashing.git GIT_TAG 3.11.5 EXCLUDE_FROM_ALL)
+fetchcontent_declare(Boost URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0.tar.gz URL_HASH SHA256=4d27e9efed0f6f152dc28db6430b9d3dfb40c0345da7342eaa5a987dde57bd95 EXCLUDE_FROM_ALL)
 
-# - Robin-Hood (Hashing)
-fetchcontent_declare(
-  robin_hood
-  GIT_REPOSITORY https://github.com/martinus/robin-hood-hashing.git
-  GIT_TAG 3.11.5
-)
-
-# - BOOST
-fetchcontent_declare(
-  Boost
-  URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0.tar.gz
-  URL_HASH SHA256=4d27e9efed0f6f152dc28db6430b9d3dfb40c0345da7342eaa5a987dde57bd95
-)
-
-# - PROTOBUF
-option(SIMPLERPG_USE_PROTOBUF "Enable protobuf" ON)
+# Protobuf is only for the Node.js backend (RPCs). The WASM frontend uses
+# the binary snapshot protocol only (protocol.hpp) — no protobuf needed.
+if(NOT EMSCRIPTEN)
+  option(SIMPLERPG_USE_PROTOBUF "Enable protobuf" ON)
+else()
+  set(SIMPLERPG_USE_PROTOBUF OFF)
+endif()
 if(SIMPLERPG_USE_PROTOBUF)
-  fetchcontent_declare(
-    protobuf
+  fetchcontent_declare(protobuf
     GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
     GIT_TAG v25.3
+    EXCLUDE_FROM_ALL
   )
-  set(protobuf_BUILD_PROTOC_BINARIES ON CACHE BOOL "" FORCE)
-  set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
+endif()
+
+fetchcontent_makeavailable(fpm robin_hood Boost)
+
+if(SIMPLERPG_USE_PROTOBUF)
+  set(protobuf_BUILD_LITE_RUNTIME OFF CACHE BOOL "" FORCE)
   fetchcontent_makeavailable(protobuf)
-endif()
-
-fetchcontent_makeavailable(robin_hood)
-
-fetchcontent_getproperties(fpm)
-if(NOT fpm_POPULATED)
-  fetchcontent_populate(fpm)
-  add_subdirectory(${fpm_SOURCE_DIR} ${fpm_BINARY_DIR} EXCLUDE_FROM_ALL)
-endif()
-
-fetchcontent_getproperties(Boost)
-if(NOT boost_POPULATED)
-  fetchcontent_populate(Boost)
-  add_subdirectory(${boost_SOURCE_DIR} ${boost_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 
 file(GLOB_RECURSE CORE_SOURCES "engine/src/*.cpp")
@@ -75,24 +73,29 @@ list(REMOVE_ITEM CORE_SOURCES "${CMAKE_SOURCE_DIR}/engine/frontend.cpp")
 
 if(SIMPLERPG_USE_PROTOBUF)
   file(GLOB PROTO_GENERATED_SOURCES "engine/generated/*.pb.cc")
+
+  set_source_files_properties(${PROTO_GENERATED_SOURCES} PROPERTIES
+    GENERATED TRUE
+    SKIP_AUTOGEN ON
+    CXX_SCAN_FOR_MODULES OFF
+  )
 endif()
 
 add_library(game_logic STATIC ${CORE_SOURCES} ${PROTO_GENERATED_SOURCES})
-target_include_directories(game_logic PUBLIC "engine/headers")
 
-if(EXISTS "${CMAKE_SOURCE_DIR}/engine/generated")
-  target_include_directories(game_logic PUBLIC "engine/generated")
-endif()
-
-target_link_libraries(game_logic PUBLIC
-  fpm
-  robin_hood
-  Boost::headers
-)
+target_include_directories(game_logic PUBLIC "engine/headers" "engine/generated")
 
 if(SIMPLERPG_USE_PROTOBUF)
+  target_include_directories(game_logic PUBLIC
+    "${protobuf_SOURCE_DIR}/src"
+    "${protobuf_BINARY_DIR}"
+    "${protobuf_BINARY_DIR}/src" # <--- THIS IS THE MISSING PATH FOR RUNTIME_VERSION.H
+  )
   target_link_libraries(game_logic PUBLIC protobuf::libprotobuf)
+  add_dependencies(game_logic libprotobuf)
 endif()
+
+target_link_libraries(game_logic PUBLIC fpm robin_hood Boost::headers)
 
 if(NOT EMSCRIPTEN)
   target_link_libraries(game_logic PUBLIC Boost::container)
@@ -107,5 +110,10 @@ if(EMSCRIPTEN)
   add_executable(gamecore_wasm "engine/frontend.cpp")
   target_link_libraries(gamecore_wasm PRIVATE game_logic)
   set_target_properties(gamecore_wasm PROPERTIES OUTPUT_NAME "gamecore_wasm" SUFFIX ".js")
-  target_link_options(gamecore_wasm PRIVATE "--bind" "-sWASM_BIGINT" "-sMODULARIZE=1" "-sEXPORT_ES6=1" "-sALLOW_MEMORY_GROWTH=1")
+
+  target_compile_options(gamecore_wasm PRIVATE -fexceptions -frtti)
+  target_link_options(gamecore_wasm PRIVATE
+    "--bind" "-sWASM_BIGINT" "-sMODULARIZE=1" "-sEXPORT_ES6=1"
+    "-sALLOW_MEMORY_GROWTH=1" "-sFILESYSTEM=0" "-fexceptions" "-frtti"
+  )
 endif()
