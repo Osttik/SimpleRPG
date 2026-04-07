@@ -16,6 +16,12 @@ export const useControls = (socketWorker: Worker | null) => {
       ...subscribeToSelection(socketWorker),
     ];
 
+    const resetPressedKeys = () => {
+      controlsContext.pressedKeys.x = 0;
+      controlsContext.pressedKeys.y = 0;
+    };
+    window.addEventListener('blur', resetPressedKeys);
+
     let wasMoving = false;
 
     const moveInterval = setInterval(() => {
@@ -85,6 +91,7 @@ export const useControls = (socketWorker: Worker | null) => {
     }, 1000 / 30);
 
     return () => {
+      window.removeEventListener('blur', resetPressedKeys);
       dispose.forEach(e => e.dispose());
       clearInterval(moveInterval);
     };

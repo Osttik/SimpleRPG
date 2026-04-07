@@ -7,6 +7,7 @@ export const subscribeToMovement = () => {
   return [...keyboardService.subscribeToKey(
     Object.keys(controlsContext.keyValue),
     (e) => {
+      if (e.repeat) return; // browser key-repeat fires extra keydowns; skip them to prevent drift
       const val = controlsContext.keyValue[e.key];
       controlsContext.isMousePressed = false;
       controlsContext.targetMousePosition = null;
@@ -27,7 +28,7 @@ export const subscribeToMovement = () => {
       controlsContext.isMousePressed = true;
     }, () => {
       controlsContext.isMousePressed = false;
-      controlsContext.targetMousePosition = { ...gameState.mousePosition };
+      controlsContext.targetMousePosition = null; // stop on release, not continue to release point
     })
   ];
 }
