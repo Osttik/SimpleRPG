@@ -341,6 +341,7 @@ self.onmessage = (event) => {
       } else if (portData.type === 'init') {
         // JSON init — still needed for registry and myId
         gameState.myId = portData.id;
+        gameState.myNumericId = typeof portData.id === 'number' ? portData.id : parseInt(portData.id);
         gameState.tileRegistry = portData.tileRegistry || {};
       }
     };

@@ -16,6 +16,9 @@ interface IGameState {
   tileRegistry: Record<number, string>;
   ping: number;
   mousePosition: { x: number; y: number };
+  /** Current OffscreenCanvas resolution — updated on resize, used for mouse coord conversion */
+  canvasWidth: number;
+  canvasHeight: number;
   lootingTargetId?: string | null;
   playerInventory?: any[];
   chestInventory?: any[];
@@ -36,6 +39,8 @@ export const gameState: IGameState = {
   tileRegistry: {},
   ping: 0,
   mousePosition: { x: 0, y: 0 },
+  canvasWidth: 300,
+  canvasHeight: 150,
   lootingTargetId: null,
   playerInventory: [],
   chestInventory: [],

@@ -3,22 +3,73 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+const FLATC_VERSION = '24.3.25';
+
 /**
- * Ensures protoc is installed globally via Chocolatey if not found.
+ * Ensures flatc is available. Resolution order:
+ *   1. Already in PATH
+ *   2. Local build_tools/flatc(.exe)
+ *   3. Auto-download from GitHub releases into build_tools/
  */
-function ensureProtoc() {
+function ensureFlatc() {
+  const isWindows = os.platform() === 'win32';
+  const ext = isWindows ? '.exe' : '';
+  const toolsDir = path.join(process.cwd(), 'build_tools');
+  const localBin = path.join(toolsDir, `flatc${ext}`);
+
+  // 1. Check PATH
   try {
-    execSync('protoc --version', { stdio: 'ignore' });
-    return 'protoc';
-  } catch (e) {
-    console.error('\nInstalling ProtoBug ;)');
-    // Added -y and inherit to see progress and auto-confirm
-    execSync('choco install protoc -y', { stdio: 'inherit' });
-    return 'protoc';
+    execSync('flatc --version', { stdio: 'ignore' });
+    console.log('   flatc found in PATH.');
+    return 'flatc';
+  } catch { /* not in PATH */ }
+
+  // 2. Check local build_tools/
+  if (fs.existsSync(localBin)) {
+    console.log(`   flatc found at ${localBin}`);
+    return `"${localBin}"`;
   }
+
+  // 3. Download from GitHub releases
+  console.log(`\n   flatc not found — downloading v${FLATC_VERSION} from GitHub releases...`);
+  if (!fs.existsSync(toolsDir)) fs.mkdirSync(toolsDir, { recursive: true });
+
+  let zipName;
+  if (isWindows) {
+    zipName = 'Windows.flatc.binary.zip';
+  } else if (os.platform() === 'darwin') {
+    zipName = 'Mac.flatc.binary.zip';
+  } else {
+    zipName = 'Linux.flatc.binary.clang++-17.zip';
+  }
+
+  const url = `https://github.com/google/flatbuffers/releases/download/v${FLATC_VERSION}/${zipName}`;
+  const zipPath = path.join(toolsDir, zipName);
+
+  // Download (curl ships with Windows 10+, Linux, macOS)
+  execSync(`curl -L -o "${zipPath}" "${url}"`, { stdio: 'inherit' });
+
+  // Extract
+  if (isWindows) {
+    execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${toolsDir}' -Force"`, { stdio: 'inherit' });
+  } else {
+    execSync(`unzip -o "${zipPath}" -d "${toolsDir}"`, { stdio: 'inherit' });
+    execSync(`chmod +x "${localBin}"`, { stdio: 'inherit' });
+  }
+
+  // Cleanup zip
+  fs.unlinkSync(zipPath);
+
+  if (!fs.existsSync(localBin)) {
+    console.error(`ERROR: flatc binary not found at ${localBin} after extraction.`);
+    process.exit(1);
+  }
+
+  console.log(`   flatc v${FLATC_VERSION} installed to ${localBin}`);
+  return `"${localBin}"`;
 }
 
-const protocPath = ensureProtoc();
+const flatcPath = ensureFlatc();
 
 const nodeVersion = process.versions.node;
 const homeDir = os.homedir();
@@ -39,20 +90,32 @@ const compileFlagsContent = [
 fs.writeFileSync(path.join(cwd, 'compile_flags.txt'), compileFlagsContent);
 console.log(`   Auto-generated compile_flags.txt for Node v${nodeVersion}`);
 
-// --- 2. GENERATE PROTOBUF ---
-console.log('\n--- Generating Protobuf Schemas (C++ & TS) ---');
+// --- 2. GENERATE FLATBUFFERS ---
+console.log('\n--- Generating FlatBuffers Schemas (C++ & TS) ---');
 try {
-  const protoDir = path.join(cwd, 'schema');
+  const schemaDir = path.join(cwd, 'schema');
   const cppOut = path.join(cwd, 'engine', 'generated');
   const tsOut = path.join(cwd, 'src', 'generated');
+  const schema = path.join(schemaDir, 'messages.fbs');
 
   if (!fs.existsSync(cppOut)) fs.mkdirSync(cppOut, { recursive: true });
   if (!fs.existsSync(tsOut)) fs.mkdirSync(tsOut, { recursive: true });
 
-  execSync(`${protocPath} --proto_path=${protoDir} --cpp_out=${cppOut} --ts_proto_out=${tsOut} ${path.join(protoDir, '*.proto')}`, { stdio: 'inherit' });
-  console.log('Protobuf generation successful.');
+  const serverTsOut = path.join(cwd, 'server', 'src', 'generated');
+  if (!fs.existsSync(serverTsOut)) fs.mkdirSync(serverTsOut, { recursive: true });
+
+  // C++ headers with Object API (enables ergonomic T-suffixed builder structs)
+  execSync(`${flatcPath} --cpp --gen-object-api -o "${cppOut}" "${schema}"`, { stdio: 'inherit' });
+  // TypeScript accessor classes for the frontend (Vite) and server (Node.js)
+  execSync(`${flatcPath} --ts -o "${tsOut}" "${schema}"`, { stdio: 'inherit' });
+  execSync(`${flatcPath} --ts -o "${serverTsOut}" "${schema}"`, { stdio: 'inherit' });
+
+  console.log('FlatBuffers generation successful.');
+  console.log(`  C++ → ${cppOut}\\messages_generated.h`);
+  console.log(`  TS  → ${tsOut}\\simple-rpg\\  (frontend)`);
+  console.log(`  TS  → ${serverTsOut}\\simple-rpg\\  (server)`);
 } catch (error) {
-  console.error('Protobuf generation failed. Ensure protoc is installed.');
+  console.error('FlatBuffers generation failed. Ensure flatc is available (re-run build to auto-download).');
   process.exit(1);
 }
 
@@ -62,7 +125,6 @@ try {
   const nodeBuildDir = path.join(cwd, 'build');
   const isNodeConfigured = fs.existsSync(path.join(nodeBuildDir, 'CMakeCache.txt'));
 
-  // Added --log-level=NOTICE to hide internal feature detection checks
   if (!isNodeConfigured) {
     console.log('Configuring Node Addon (First time)...');
     execSync('npx cmake-js compile --runtime=node --log-level=NOTICE', { stdio: 'inherit', cwd });

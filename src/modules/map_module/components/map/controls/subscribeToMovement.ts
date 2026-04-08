@@ -26,9 +26,9 @@ export const subscribeToMovement = () => {
   ...keyboardService.subscribeToMouse(MouseKeyEnum.MouseRight,
     () => {
       controlsContext.isMousePressed = true;
+      controlsContext.targetMousePosition = gameState.mousePosition;
     }, () => {
       controlsContext.isMousePressed = false;
-      controlsContext.targetMousePosition = null; // stop on release, not continue to release point
     })
   ];
 }

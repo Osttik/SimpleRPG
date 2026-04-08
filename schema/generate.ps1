@@ -1,30 +1,35 @@
-# SimpleRPG Proto Generation Script
-# Generates C++ classes and TypeScript interfaces from .proto schema
+# SimpleRPG FlatBuffers Generation Script
+# Generates C++ headers and TypeScript accessors from messages.fbs.
+#
+# Requires: flatc compiler (auto-installed by build_scripts/build-core.js)
+#
+# Output:
+#   engine/generated/messages_generated.h   — C++ zero-copy accessors + Object API
+#   src/generated/simple-rpg/*.ts         — TypeScript accessor classes
 
 $ErrorActionPreference = "Stop"
-$SchemaDir = "$PSScriptRoot"
+$SchemaDir   = "$PSScriptRoot"
 $ProjectRoot = Split-Path $SchemaDir -Parent
+$Schema      = Join-Path $SchemaDir "messages.fbs"
 
-# ─── C++ Generation ───
 $CppOutDir = Join-Path $ProjectRoot "engine\generated"
+$TsOutDir  = Join-Path $ProjectRoot "src\generated"
+
 if (-not (Test-Path $CppOutDir)) { New-Item -ItemType Directory -Path $CppOutDir -Force | Out-Null }
+if (-not (Test-Path $TsOutDir))  { New-Item -ItemType Directory -Path $TsOutDir  -Force | Out-Null }
 
-Write-Host "Generating C++ from .proto files..."
-protoc --cpp_out="$CppOutDir" --proto_path="$SchemaDir" "$SchemaDir\messages.proto"
-Write-Host "C++ generated in $CppOutDir"
+Write-Host "Generating C++ headers from messages.fbs..."
+flatc --cpp --gen-object-api -o "$CppOutDir" "$Schema"
+Write-Host "  -> $CppOutDir\messages_generated.h"
 
-# ─── TypeScript Generation (ts-proto) ───
-$TsOutDir = Join-Path $ProjectRoot "src\generated"
-if (-not (Test-Path $TsOutDir)) { New-Item -ItemType Directory -Path $TsOutDir -Force | Out-Null }
+$ServerTsOutDir = Join-Path $ProjectRoot "server\src\generated"
+if (-not (Test-Path $ServerTsOutDir)) { New-Item -ItemType Directory -Path $ServerTsOutDir -Force | Out-Null }
 
-$TsProtoPlugin = Join-Path $ProjectRoot "node_modules\.bin\protoc-gen-ts_proto.cmd"
+Write-Host "Generating TypeScript accessors from messages.fbs..."
+flatc --ts -o "$TsOutDir"       "$Schema"   # frontend (Vite)
+flatc --ts -o "$ServerTsOutDir" "$Schema"   # server (Node.js)
+Write-Host "  -> $TsOutDir\simple-rpg\  (frontend)"
+Write-Host "  -> $ServerTsOutDir\simple-rpg\  (server)"
 
-Write-Host "Generating TypeScript from .proto files..."
-protoc --plugin="protoc-gen-ts_proto=$TsProtoPlugin" `
-       --ts_proto_out="$TsOutDir" `
-       --ts_proto_opt=esModuleInterop=true `
-       --proto_path="$SchemaDir" `
-       "$SchemaDir\messages.proto"
-Write-Host "TypeScript generated in $TsOutDir"
-
-Write-Host "Proto generation complete!"
+Write-Host ""
+Write-Host "FlatBuffers generation complete!"

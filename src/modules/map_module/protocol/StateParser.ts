@@ -6,6 +6,13 @@ import { getWasm } from '../../../services/wasm-loader';
 
 const SNAPSHOT_MAGIC = 0x53525047; // "SRPG"
 
+// Binary message type prefix bytes (first byte of every non-snapshot binary frame)
+export const MSG = {
+  CHUNK:       0x01,
+  INIT:        0x10,
+  INTERACTION: 0x11,
+} as const;
+
 export const EntityType = {
     Player: 0,
     Chest:  1,

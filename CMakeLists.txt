@@ -27,16 +27,10 @@ set(BOOST_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(BOOST_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
 set(BOOST_ENABLE_CMAKE ON CACHE BOOL "" FORCE)
 
-set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
-set(protobuf_DISABLE_RTTI OFF CACHE BOOL "" FORCE)
-set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)
-
 if(MSVC)
   add_compile_options(/W0 /wd4996)
 else()
   add_compile_options(-w -Wno-deprecated-builtins -Wno-deprecated-declarations)
-  add_compile_definitions(ABSL_FORCE_ALIGNED_ACCESS)
 endif()
 
 include(FetchContent)
@@ -45,55 +39,33 @@ fetchcontent_declare(fpm GIT_REPOSITORY https://github.com/MikeLankamp/fpm.git G
 fetchcontent_declare(robin_hood GIT_REPOSITORY https://github.com/martinus/robin-hood-hashing.git GIT_TAG 3.11.5 EXCLUDE_FROM_ALL)
 fetchcontent_declare(Boost URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0.tar.gz URL_HASH SHA256=4d27e9efed0f6f152dc28db6430b9d3dfb40c0345da7342eaa5a987dde57bd95 EXCLUDE_FROM_ALL)
 
-# Protobuf is only for the Node.js backend (RPCs). The WASM frontend uses
-# the binary snapshot protocol only (protocol.hpp) — no protobuf needed.
-if(NOT EMSCRIPTEN)
-  option(SIMPLERPG_USE_PROTOBUF "Enable protobuf" ON)
-else()
-  set(SIMPLERPG_USE_PROTOBUF OFF)
-endif()
-if(SIMPLERPG_USE_PROTOBUF)
-  fetchcontent_declare(protobuf
-    GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
-    GIT_TAG v25.3
-    EXCLUDE_FROM_ALL
-  )
-endif()
+# FlatBuffers — header-only C++ library (flatbuffers/flatbuffers.h).
+# The flatc compiler is an external tool; see schema/generate.ps1.
+# We disable all build targets so only the source (headers) is fetched.
+set(FLATBUFFERS_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
+set(FLATBUFFERS_BUILD_FLATC     OFF CACHE BOOL "" FORCE)
+set(FLATBUFFERS_BUILD_FLATLIB   OFF CACHE BOOL "" FORCE)
+set(FLATBUFFERS_BUILD_SHAREDLIB OFF CACHE BOOL "" FORCE)
+set(FLATBUFFERS_INSTALL         OFF CACHE BOOL "" FORCE)
+fetchcontent_declare(flatbuffers
+  GIT_REPOSITORY https://github.com/google/flatbuffers.git
+  GIT_TAG v24.3.25
+  EXCLUDE_FROM_ALL
+)
 
-fetchcontent_makeavailable(fpm robin_hood Boost)
-
-if(SIMPLERPG_USE_PROTOBUF)
-  set(protobuf_BUILD_LITE_RUNTIME OFF CACHE BOOL "" FORCE)
-  fetchcontent_makeavailable(protobuf)
-endif()
+fetchcontent_makeavailable(fpm robin_hood Boost flatbuffers)
 
 file(GLOB_RECURSE CORE_SOURCES "engine/src/*.cpp")
 list(REMOVE_ITEM CORE_SOURCES "${CMAKE_SOURCE_DIR}/engine/core.cpp")
 list(REMOVE_ITEM CORE_SOURCES "${CMAKE_SOURCE_DIR}/engine/frontend.cpp")
 
-if(SIMPLERPG_USE_PROTOBUF)
-  file(GLOB PROTO_GENERATED_SOURCES "engine/generated/*.pb.cc")
+add_library(game_logic STATIC ${CORE_SOURCES})
 
-  set_source_files_properties(${PROTO_GENERATED_SOURCES} PROPERTIES
-    GENERATED TRUE
-    SKIP_AUTOGEN ON
-    CXX_SCAN_FOR_MODULES OFF
-  )
-endif()
-
-add_library(game_logic STATIC ${CORE_SOURCES} ${PROTO_GENERATED_SOURCES})
-
-target_include_directories(game_logic PUBLIC "engine/headers" "engine/generated")
-
-if(SIMPLERPG_USE_PROTOBUF)
-  target_include_directories(game_logic PUBLIC
-    "${protobuf_SOURCE_DIR}/src"
-    "${protobuf_BINARY_DIR}"
-    "${protobuf_BINARY_DIR}/src" # <--- THIS IS THE MISSING PATH FOR RUNTIME_VERSION.H
-  )
-  target_link_libraries(game_logic PUBLIC protobuf::libprotobuf)
-  add_dependencies(game_logic libprotobuf)
-endif()
+target_include_directories(game_logic PUBLIC
+  "engine/headers"
+  "engine/generated"
+  "${flatbuffers_SOURCE_DIR}/include"
+)
 
 target_link_libraries(game_logic PUBLIC fpm robin_hood Boost::headers)
 

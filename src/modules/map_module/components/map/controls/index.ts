@@ -21,10 +21,14 @@ export const controlsContext: IControlsContext = {
   keyValue,
 }
 
+import { gameState } from "@/modules/game_module/game_state";
+
 export const getRelativePositions = (canvas: HTMLCanvasElement | null | undefined, clientX: number, clientY: number) => {
   if (!canvas) return [0, 0];
   const rect = canvas.getBoundingClientRect();
-  const canvasX = (clientX - rect.left) * (canvas.width / rect.width);
-  const canvasY = (clientY - rect.top) * (canvas.height / rect.height);
+  // After transferControlToOffscreen(), canvas.width/height are frozen at pre-transfer values.
+  // Use gameState.canvasWidth/Height which tracks the actual OffscreenCanvas resolution.
+  const canvasX = (clientX - rect.left) * (gameState.canvasWidth / rect.width);
+  const canvasY = (clientY - rect.top) * (gameState.canvasHeight / rect.height);
   return [canvasX, canvasY];
 }

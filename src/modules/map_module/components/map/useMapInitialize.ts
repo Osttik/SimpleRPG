@@ -20,6 +20,14 @@ export const useMapInitialize = () => {
     const renderWorker = new Worker(new URL('../../workers/RenderWorker.ts', import.meta.url), { type: 'module' });
     const localSocketWorker = new Worker(new URL('../../workers/SocketWorker.ts', import.meta.url), { type: 'module' });
 
+    // Set canvas internal resolution BEFORE transferring to OffscreenCanvas.
+    // Without this, the OffscreenCanvas inherits the default 300×150, causing
+    // oversized sprites until the first window resize event.
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    gameState.canvasWidth = window.innerWidth;
+    gameState.canvasHeight = window.innerHeight;
+
     // Transfer canvas control
     const offscreen = canvas.transferControlToOffscreen();
     renderWorker.postMessage({ type: 'initCanvas', canvas: offscreen }, [offscreen]);
@@ -45,14 +53,13 @@ export const useMapInitialize = () => {
 
     // Handle window resize for offscreen canvas
     const handleResize = () => {
-      renderWorker.postMessage({
-        type: 'resize',
-        width: window.innerWidth,
-        height: window.innerHeight
-      });
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      gameState.canvasWidth = w;
+      gameState.canvasHeight = h;
+      renderWorker.postMessage({ type: 'resize', width: w, height: h });
     };
     window.addEventListener('resize', handleResize);
-    handleResize();
 
     // Handle JSON messages from SocketWorker to Main Thread
     localSocketWorker.onmessage = (event) => {

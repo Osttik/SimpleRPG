@@ -30,6 +30,7 @@
     "@most/scheduler": "^1.3.0",
     "@most/types": "^1.1.0",
     "@reduxjs/toolkit": "^2.11.2",
+    "flatbuffers": "^24.12.23",
     "most": "^1.9.0",
     "node-addon-api": "^8.6.0",
     "primeicons": "^7.0.0",
@@ -59,7 +60,6 @@
     "postcss": "^8.5.8",
     "sass": "^1.98.0",
     "tailwindcss": "^4.2.1",
-    "ts-proto": "^2.11.6",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.0"

@@ -1,0 +1,72 @@
+// SimpleRPG Message Schema — Single Source of Truth
+//
+// FlatBuffers gives zero-copy access: the serialized buffer IS the object.
+// No parsing step, no allocations, full type safety in both C++ and TypeScript.
+//
+// High-frequency (60Hz) snapshot state uses the hand-tuned binary protocol
+// (protocol.hpp / SnapshotBuffer) — that stays unchanged.
+//
+// Generation:
+//   C++  headers : flatc --cpp --gen-object-api -o engine/generated schema/messages.fbs
+//   TS accessors : flatc --ts              -o src/generated   schema/messages.fbs
+//
+// Or run: node build_scripts/build-core.js   /   powershell schema/generate.ps1
+
+namespace SimpleRPG;
+
+// ─── Entities ────────────────────────────────────────────────────────────────
+
+table EntityInit {
+  id:uint32;
+  x:float;
+  y:float;
+  entity_type:string;   // "player" | "chest" | "npc"
+  focused_id:uint32;
+}
+
+// ─── Tile Registry ───────────────────────────────────────────────────────────
+
+table TileEntry {
+  id:uint32;
+  name:string;
+}
+
+// ─── Server → Client: Session Initialization ─────────────────────────────────
+// Wire byte: 0x10
+
+table InitMessage {
+  player_id:uint32;
+  entities:[EntityInit];
+  tile_registry:[TileEntry];
+}
+
+// ─── Inventory ───────────────────────────────────────────────────────────────
+
+table ItemSlot {
+  name:string;
+  sprite_key:string;
+  volume:float;
+  weight:float;
+  stackable:bool = false;
+  quantity:int32 = 1;
+  max_stack:int32 = 1;
+}
+
+table InventoryContents {
+  items:[ItemSlot];
+  current_volume:float;
+  max_volume:float;
+  current_weight:float;
+}
+
+// ─── Server → Client: Interaction Response ───────────────────────────────────
+// Wire byte: 0x11
+
+table InteractionResponse {
+  target_id:uint32;
+  interaction_type:string;   // "loot" | "dialog"
+  player_inventory:InventoryContents;
+  target_inventory:InventoryContents;
+}
+
+root_type InitMessage;
