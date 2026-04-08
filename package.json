@@ -8,7 +8,7 @@
     "start": "vite",
     "start:nw": "nw .",
     "nw": "npm run build:cpp && concurrently \"npm run dev:web\" \"npm run start:nw\"",
-    "dev": "start_dev.bat npm run build:cpp && concurrently \"npm run dev:web\" \"npm run dev:server\" \"npm run start:nw\"",
+    "dev": "npm run build:cpp && concurrently \"npm run dev:web\" \"npm run dev:server\" \"npm run start:nw\"",
     "dev:web": "vite --port 3000",
     "dev:server": "npm --prefix server run dev",
     "build:cpp": "node build_scripts/build-core.js",

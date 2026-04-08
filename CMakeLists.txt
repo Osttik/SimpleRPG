@@ -11,6 +11,8 @@ set(CMAKE_USE_PTHREADS_INIT 1)
 
 project(SimpleRPG)
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()

@@ -18,6 +18,7 @@ dist-ssr
 *.local
 src/generated
 server/src/generated
+engine/generated
 
 # Editor directories and files
 .vscode/*

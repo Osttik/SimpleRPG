@@ -1,0 +1,20 @@
+sudo apt update
+sudo apt install build-essential cmake gdb
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.bashrc
+nvm install 20
+sudo apt-get install zstd
+curl -fsSL https://ollama.com/install.sh | sh
+npm install -g npm@11.12.1
+sudo apt install -y build-essential cmake unzip libatomic1 git curl
+sudo apt install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libgtk-3-0 libgbm1 libasound2
+sudo apt install -y build-essential cmake unzip curl
+sudo apt install -y flatbuffers-compiler unzip
+
+sudo apt update
+sudo apt install -y gpg wget lsb-release
+wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
+sudo apt update
+sudo apt install -y cmake
+sudo apt update && sudo apt install -y build-essential ninja-build unzip curl
