@@ -85,7 +85,7 @@ export function parseSnapshot(buffer: ArrayBuffer): GameSnapshot {
         tick: rawData.tick,
         timestamp: performance.now(),
         players: mapEntities(rawData.players),
-        props: [],
+        props: mapEntities(rawData.props),
         destroyedIds: rawData.destroyed || [],
     };
 }

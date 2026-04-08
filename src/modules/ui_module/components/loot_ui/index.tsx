@@ -1,80 +1,153 @@
-import { useEffect, useState } from 'react';
-import { gameState } from '../../../game_module/game_state';
-import { InventoryView } from '../inventory_view';
-import { ProgressBar } from '../progress_bar';
-import { keyboardService } from '../../../../services/keyboard.service';
+import { CoreOverlay } from '@/components/overlay';
+import { gameState } from '@/modules/game_module/game_state';
+import { interactionsState } from '@/store';
+import { Button } from 'primereact/button';
+import { ProgressBar } from 'primereact/progressbar';
+import { useEffect, useMemo, useState } from 'react';
+import { InventoryView, type InventoryItemView, type InventoryMetaView } from '../inventory_view';
+
+type SelectedItemRef =
+  | { source: 'chest'; itemId: string }
+  | { source: 'player'; itemId: string }
+  | null;
+
+const getDummyDescription = (item: InventoryItemView | null) => {
+  if (!item) {
+    return 'Select an item to inspect. Double-click to transfer between inventories.';
+  }
+  return `${item.name} is currently using placeholder lore text. This panel will later show backend-driven item stats and modifiers.`;
+};
+
+const canPlaceInInventory = (item: InventoryItemView, target: InventoryMetaView) => {
+  if (target.maxVolume <= 0) return true;
+  return target.currentVolume + item.volume * item.quantity <= target.maxVolume + 0.0001;
+};
 
 export const LootUI = () => {
-   const [isOpen, setIsOpen] = useState(false);
-   const [chestInv, setChestInv] = useState<any[]>([]);
-   const [playerInv, setPlayerInv] = useState<any[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [chestInv, setChestInv] = useState<InventoryItemView[]>([]);
+  const [playerInv, setPlayerInv] = useState<InventoryItemView[]>([]);
+  const [chestMeta, setChestMeta] = useState<InventoryMetaView>(gameState.chestInventoryMeta);
+  const [playerMeta, setPlayerMeta] = useState<InventoryMetaView>(gameState.playerInventoryMeta);
+  const [selected, setSelected] = useState<SelectedItemRef>(null);
 
-   const [hoveredIndex, setHoveredIndex] = useState<{ index: number, isPlayer: boolean } | null>(null);
+  useEffect(() => {
+    const handleUpdate = () => {
+      setIsOpen(!!gameState.lootingTargetId);
+      setChestInv([...(gameState.chestInventory ?? [])]);
+      setPlayerInv([...(gameState.playerInventory ?? [])]);
+      setChestMeta(gameState.chestInventoryMeta);
+      setPlayerMeta(gameState.playerInventoryMeta);
+    };
 
-   useEffect(() => {
-      const handleUpdate = () => {
-         setIsOpen(!!gameState.lootingTargetId);
-         setChestInv([...(gameState.chestInventory || [])]);
-         setPlayerInv([...(gameState.playerInventory || [])]);
-      };
+    handleUpdate();
+    window.addEventListener('gameStateUpdate', handleUpdate);
+    return () => window.removeEventListener('gameStateUpdate', handleUpdate);
+  }, []);
 
-      window.addEventListener('gameStateUpdate', handleUpdate);
+  useEffect(() => {
+    if (!selected) return;
+    const list = selected.source === 'chest' ? chestInv : playerInv;
+    if (!list.some(i => i.id === selected.itemId)) {
+      setSelected(null);
+    }
+  }, [selected, chestInv, playerInv]);
 
-      const sub = keyboardService.subscribeToKey(['r', 'R'], () => {
-         if (gameState.lootingTargetId && hoveredIndex !== null && gameState.socketWorker) {
-            gameState.socketWorker.postMessage({
-               type: 'transfer_item',
-               targetId: gameState.lootingTargetId,
-               fromContainer: hoveredIndex.isPlayer ? 0 : 1,
-               toContainer: hoveredIndex.isPlayer ? 1 : 0,
-               itemIndex: hoveredIndex.index
-            });
-         }
-      }, () => { });
+  const selectedItem = useMemo(() => {
+    if (!selected) return null;
+    const list = selected.source === 'chest' ? chestInv : playerInv;
+    return list.find(i => i.id === selected.itemId) ?? null;
+  }, [selected, chestInv, playerInv]);
 
-      return () => {
-         window.removeEventListener('gameStateUpdate', handleUpdate);
-         sub.forEach(e => e.dispose());
-      };
-   }, [hoveredIndex]);
+  const transfer = (source: 'chest' | 'player', item: InventoryItemView) => {
+    if (!gameState.lootingTargetId || !gameState.socketWorker) return;
+    const fromContainer = source === 'player' ? 0 : 1;
+    const toContainer = source === 'player' ? 1 : 0;
+    const index = source === 'player'
+      ? playerInv.findIndex(i => i.id === item.id)
+      : chestInv.findIndex(i => i.id === item.id);
+    if (index < 0) return;
 
-   if (!isOpen) return null;
+    gameState.socketWorker.postMessage({
+      type: 'transfer_item',
+      targetId: gameState.lootingTargetId,
+      fromContainer,
+      toContainer,
+      itemIndex: index,
+    });
+  };
 
-   let pVol = 0, pWeight = 0;
-   playerInv.forEach(item => {
-      pVol += (item.volume || 1) * item.quantity;
-      pWeight += (item.weight || 1) * item.quantity;
-   });
+  const closeLoot = () => {
+    gameState.lootingTargetId = null;
+    interactionsState.selectedTargetId = gameState.focusedId ?? null;
+    window.dispatchEvent(new Event('gameStateUpdate'));
+  };
 
-   return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-black/60 backdrop-blur-sm pointer-events-auto">
-         <div className="flex w-full max-w-6xl h-[80vh] gap-6">
-            <div className="w-1/3 h-full">
-               <InventoryView
-                  title="Player Backpack"
-                  items={playerInv}
-                  onHover={(idx) => setHoveredIndex(idx !== null ? { index: idx, isPlayer: true } : null)}
-               />
+  return (
+    <CoreOverlay
+      visible={isOpen}
+      setVisible={(v) => {
+        if (!v) closeLoot();
+        setIsOpen(v);
+      }}
+      maximized
+      content={(
+        <div className="flex h-full min-h-[70vh] w-full gap-4 p-5">
+          <div className="w-[36%]">
+            <InventoryView
+              title="Chest"
+              items={chestInv}
+              selectedItemId={selected?.source === 'chest' ? selected.itemId : null}
+              onSelectItem={(item) => setSelected(item ? { source: 'chest', itemId: item.id } : null)}
+              onDoubleClickItem={(item) => transfer('chest', item)}
+              canExchangeItem={(item) => canPlaceInInventory(item, playerMeta)}
+            />
+          </div>
+
+          <div className="flex w-[28%] flex-col gap-4">
+            <div className="rounded-xl border border-slate-600 bg-[#111827E6] p-4 text-slate-200 shadow-2xl">
+              <div className="mb-2 text-sm uppercase tracking-wider text-slate-400">Description</div>
+              <div className="text-lg font-semibold text-white">{selectedItem?.name ?? 'No item selected'}</div>
+              <div className="mt-3 text-sm leading-6 text-slate-300">{getDummyDescription(selectedItem)}</div>
+              <div className="mt-4 text-xs text-slate-400">
+                Qty: {selectedItem?.quantity ?? 0} | Price: {selectedItem?.price ?? 0}
+              </div>
             </div>
-            <div className="w-1/3 flex flex-col justify-center gap-4 bg-[#111827E6] p-6 rounded-xl border border-slate-600 shadow-2xl backdrop-blur-md">
-               <h2 className="text-3xl font-bold text-center text-white mb-6 uppercase tracking-wider">Transfer Stats</h2>
-               <ProgressBar label="Backpack Volume" current={pVol} max={100} colorClass="bg-green-500" />
-               <ProgressBar label="Backpack Weight" current={pWeight} max={50} colorClass="bg-blue-500" />
+
+            <div className="rounded-xl border border-slate-600 bg-[#111827E6] p-4 shadow-2xl">
+              <div className="mb-2 text-sm uppercase tracking-wider text-slate-400">Player Capacity</div>
+              <ProgressBar value={playerMeta.maxVolume > 0 ? (playerMeta.currentVolume / playerMeta.maxVolume) * 100 : 0} />
+              <div className="mt-2 text-xs text-slate-300">
+                Volume: {playerMeta.currentVolume.toFixed(2)} / {playerMeta.maxVolume.toFixed(2)}
+              </div>
+              <div className="mt-2 text-xs text-slate-300">Weight: {playerMeta.currentWeight.toFixed(2)}</div>
             </div>
-            <div className="w-1/3 h-full">
-               <InventoryView
-                  title="Chest Loot"
-                  items={chestInv}
-                  onHover={(idx) => setHoveredIndex(idx !== null ? { index: idx, isPlayer: false } : null)}
-               />
+
+            <div className="flex flex-1 items-center justify-center rounded-xl border border-slate-600 bg-[#111827E6] p-4 shadow-2xl">
+              <div className="flex h-44 w-44 items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-center">
+                <div className="px-3 text-sm text-slate-300">
+                  {selectedItem ? selectedItem.spriteKey || selectedItem.name : 'No sprite'}
+                </div>
+              </div>
             </div>
-         </div>
-         <button
-            className="absolute top-8 right-8 text-white text-4xl font-bold hover:text-red-400 transition-colors"
-            onClick={() => { gameState.lootingTargetId = null; window.dispatchEvent(new Event('gameStateUpdate')); }}
-         >
-            ✕
-         </button>
-      </div>
-   );
+          </div>
+
+          <div className="w-[36%]">
+            <InventoryView
+              title="Player Backpack"
+              items={playerInv}
+              selectedItemId={selected?.source === 'player' ? selected.itemId : null}
+              onSelectItem={(item) => setSelected(item ? { source: 'player', itemId: item.id } : null)}
+              onDoubleClickItem={(item) => transfer('player', item)}
+              canExchangeItem={(item) => canPlaceInInventory(item, chestMeta)}
+            />
+          </div>
+
+          <div className="flex w-[36%] items-end justify-end">
+            <Button label="Close" severity="secondary" outlined onClick={closeLoot} />
+          </div>
+        </div>
+      )}
+    />
+  );
 };

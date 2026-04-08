@@ -6,7 +6,6 @@
 #include "core/components/move-component.h"
 #include "core/components/interactable-component.h"
 #include "core/components/inventory-component.h"
-#include <iostream>
 
 GameWorldEngine::GameWorldEngine()
 {
@@ -24,39 +23,17 @@ GameWorldEngine::GameWorldEngine()
 // ─── Entity Management (delegates to ObjectManager) ───
 void GameWorldEngine::RemovePlayer(const uint32_t id)
 {
-  ObjectManager.MarkForDestruction(id);
+  Players.RemovePlayer(*this, id);
 }
 
 uint32_t GameWorldEngine::AddProp(double x, double y, double radius, int32_t z)
 {
-  float32 fx(x), fy(y), fradius(radius);
-  Point position(fx, fy);
-
-  float32 fwidth(32.0), fheight(32.0);
-  Point topLeft(fx - fwidth / float32(2.0), fy - fheight / float32(2.0));
-  Point bottomRight(fx + fwidth / float32(2.0), fy + fheight / float32(2.0));
-  auto rect = std::make_unique<Rectangle>(topLeft, bottomRight);
-
-  // Use ChestBuilder-like logic inline for generic props
-  auto *obj = ObjectManager.Instantiate(position, std::move(rect));
-  obj->Type = "chest";
-  obj->IsStaticProp = true;
-  obj->Radius = fradius;
-  obj->Transform.SetZPosition(z);
-
-  auto *inv = Ctx.GetManager<InventoryComponentManager>()->Add(obj->Id, obj);
-  auto storage = std::make_unique<Inventory>(float32(500.0), float32(0.0));
-  inv->Inventories->EquipContainer(ContainerSlot::MainStorage, std::move(storage));
-
-  Ctx.GetManager<InteractableComponentManager>()->Add(
-      obj->Id, obj, InteractionType::Loot, "Chest");
-
-  return obj->Id;
+  return Props.AddChest(*this, Point(float32(x), float32(y), z), float32(radius), z);
 }
 
 void GameWorldEngine::DestroyProp(const uint32_t id)
 {
-  ObjectManager.MarkForDestruction(id);
+  Props.DestroyProp(*this, id);
 }
 
 void GameWorldEngine::ProcessInput(const uint32_t id, const uint8_t *data, size_t length)
@@ -79,7 +56,7 @@ void GameWorldEngine::ProcessInput(const uint32_t id, const uint8_t *data, size_
     const MovePacket *pkt = reinterpret_cast<const MovePacket *>(data);
     auto *mc = Ctx.GetManager<MoveComponentManager>();
     if (mc)
-      mc->Move(id, float32(pkt->dx) / float32(127), float32(pkt->dy) / float32(127), *this);
+      mc->Move(id, float32(pkt->dx) / float32(127), float32(pkt->dy) / float32(127));
     break;
   }
   case NETMessageType::Interact:
@@ -109,17 +86,51 @@ void GameWorldEngine::SpawnTestChest()
 // ─── Stubbed Interact ───
 void GameWorldEngine::Interact(const uint32_t id)
 {
-  // Stub — wire route preserved, handler is no-op
-  // Will be filled in when InteractionManager is fully implemented
-  return;
+  auto *source = ObjectManager.GetById(id);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  if (!source || !interactMgr)
+    return;
+
+  const uint32_t targetId = source->FocusedObjectId;
+  if (targetId == 0)
+    return;
+
+  if (!interactMgr->CanInteract(id, targetId))
+    source->FocusedObjectId = 0;
 }
 
 // ─── Stubbed Item Transfer ───
 bool GameWorldEngine::TransferItem(const uint32_t playerId, const uint32_t targetId,
                                    int fromContainer, int toContainer, int itemIndex)
 {
-  // Stub — wire route preserved, handler is no-op
-  return false;
+  if (fromContainer < 0 || fromContainer >= static_cast<int>(ContainerSlot::Count) ||
+      toContainer < 0 || toContainer >= static_cast<int>(ContainerSlot::Count) ||
+      itemIndex < 0)
+  {
+    return false;
+  }
+
+  auto *player = ObjectManager.GetById(playerId);
+  auto *target = ObjectManager.GetById(targetId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  if (!player || !target || !interactMgr || !inventoryMgr)
+    return false;
+
+  if (!interactMgr->CanInteract(playerId, targetId))
+    return false;
+
+  const auto fromSlotEnum = static_cast<ContainerSlot>(fromContainer);
+  const auto toSlotEnum = static_cast<ContainerSlot>(toContainer);
+  const uint32_t fromEntityId = fromSlotEnum == ContainerSlot::Backpack ? playerId : targetId;
+  const uint32_t toEntityId = toSlotEnum == ContainerSlot::Backpack ? playerId : targetId;
+
+  return inventoryMgr->TransferItem(
+      fromEntityId,
+      toEntityId,
+      fromSlotEnum,
+      toSlotEnum,
+      static_cast<size_t>(itemIndex));
 }
 
 // ─── Tile Operations ───
@@ -214,9 +225,8 @@ void GameWorldEngine::WriteEntity(uint8_t *buf, size_t offset, const GameObject 
   auto *invMgr = Ctx.GetManager<InventoryComponentManager>();
   if (invMgr && invMgr->Has(obj.Id))
   {
-    auto *ic = invMgr->Get(obj.Id);
-    if (ic->Inventories->GetContainer(ContainerSlot::Backpack) ||
-        ic->Inventories->GetContainer(ContainerSlot::MainStorage))
+    if (invMgr->GetContainer(obj.Id, ContainerSlot::Backpack) ||
+        invMgr->GetContainer(obj.Id, ContainerSlot::MainStorage))
       flags |= 0x02;
   }
 

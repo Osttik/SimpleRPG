@@ -41,9 +41,10 @@ export const useControls = (socketWorker: Worker | null) => {
           const [x, y] = getRelativePositions(canvas, state.x, state.y);
           const vX = x - me.x;
           const vY = y - me.y;
-          const dist = vX * vX + vY * vY;
+          const distSq = vX * vX + vY * vY;
 
-          if (dist > distThreshold * distThreshold) {
+          if (distSq > distThreshold * distThreshold) {
+            const dist = Math.sqrt(distSq);
             moveX = vX / dist;
             moveY = vY / dist;
             

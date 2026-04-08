@@ -25,6 +25,8 @@ public:
     void SetContext(GameWorldEngine *ctx) { _ctx = ctx; }
 
     GameObject *Instantiate(Point position, std::unique_ptr<Shape> shape);
+    void OnTransformPositionChanged(uint32_t id, const Point &previous, const Point &current);
+    void OnTransformStateChanged(uint32_t id);
 
     void MarkForDestruction(uint32_t numericId);
 

@@ -70,10 +70,15 @@ void PhysicsSystem::UpdateFocus(GameObject *source, const Point &mousePosition,
         return;
 
     source->FocusedObjectId = 0; // reset
+    if (!interactMgr || !interactMgr->HasSensor(source->Id))
+        return;
 
-    float32 reachLimit(80);
-    Point topleft(source->Transform.Position().X - reachLimit, source->Transform.Position().Y - reachLimit);
-    Point bottomright(source->Transform.Position().X + reachLimit, source->Transform.Position().Y + reachLimit);
+    const Shape *sensorBounds = interactMgr->GetSensorBounds(source->Id);
+    if (!sensorBounds)
+        return;
+
+    Point topleft = sensorBounds->GetCornerPoint(CornerType::TopLeft);
+    Point bottomright = sensorBounds->GetCornerPoint(CornerType::BottomRight);
 
     auto candidates = _aabbTree->GetObjectsInArea(topleft, bottomright);
 
@@ -86,16 +91,14 @@ void PhysicsSystem::UpdateFocus(GameObject *source, const Point &mousePosition,
     {
         if (obj == source)
             continue;
-        // O(1) bitset check replaces obj->Interaction != nullptr
         if (!interactMgr || !interactMgr->IsInteractable(obj->Id))
+            continue;
+        if (!interactMgr->CanInteract(source->Id, obj->Id))
             continue;
 
         float32 dx = obj->Transform.Position().X - source->Transform.Position().X;
         float32 dy = obj->Transform.Position().Y - source->Transform.Position().Y;
         float32 distSq = dx * dx + dy * dy;
-
-        if (distSq > reachLimit * reachLimit)
-            continue;
 
         float32 dist = fpm::sqrt(distSq);
         if (dist == float32(0))
@@ -107,9 +110,10 @@ void PhysicsSystem::UpdateFocus(GameObject *source, const Point &mousePosition,
         float32 mDistSq = mdx * mdx + mdy * mdy;
 
         float32 radius = float32(20);
-        if (obj->BoundingBox->Type == ShapeType::Circle)
+        const Shape *targetBounds = interactMgr->GetTargetBounds(obj->Id);
+        if (targetBounds && targetBounds->Type == ShapeType::Circle)
         {
-            radius = static_cast<Circle *>(obj->BoundingBox.get())->Radius;
+            radius = static_cast<const Circle *>(targetBounds)->Radius;
         }
         float32 minMouseDistSq = radius * radius;
 
@@ -123,7 +127,7 @@ void PhysicsSystem::UpdateFocus(GameObject *source, const Point &mousePosition,
         }
 
         // Keyboard Focus
-        float32 distanceScore = reachLimit - dist;
+        float32 distanceScore = float32(1000) - dist;
         float32 score = distanceScore;
 
         if (score > bestScore)

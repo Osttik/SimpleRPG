@@ -17,13 +17,13 @@ public:
     obj->Transform.SetZPosition(chunkZ);
 
     // Add inventory with MainStorage
-    auto *inv = engine.Ctx.GetManager<InventoryComponentManager>()->Add(obj->Id, obj);
     auto storage = std::make_unique<Inventory>(float32(500.0), float32(0.0));
-    inv->Inventories->EquipContainer(ContainerSlot::MainStorage, std::move(storage));
+    engine.Ctx.GetManager<InventoryComponentManager>()->EquipContainer(
+        obj->Id, ContainerSlot::MainStorage, std::move(storage), obj);
 
-    // Add interactable
-    engine.Ctx.GetManager<InteractableComponentManager>()->Add(
-        obj->Id, obj, InteractionType::Loot, "Chest");
+    engine.Ctx.GetManager<InteractableComponentManager>()->AddTarget(
+        obj->Id, obj, InteractionType::Loot, "Chest",
+        std::make_unique<Circle>(position, radius));
 
     return obj->Id;
   }

@@ -1,7 +1,7 @@
 #include "core/components/move-component.h"
-#include "core/game-world-engine.h"
+#include "core/game-object/game-object.h"
 
-void MoveComponentManager::Move(uint32_t entityId, float32 dx, float32 dy, GameWorldEngine &ctx)
+void MoveComponentManager::Move(uint32_t entityId, float32 dx, float32 dy)
 {
   auto *comp = Get(entityId);
   if (!comp || !comp->Owner)
@@ -16,8 +16,4 @@ void MoveComponentManager::Move(uint32_t entityId, float32 dx, float32 dy, GameW
   {
     obj->Transform.SetFacing(dPoint);
   }
-
-  obj->BoundingBox->MoveBy(dPoint);
-
-  ctx.Physics.UpdateObject(obj->PhysicsId);
 }

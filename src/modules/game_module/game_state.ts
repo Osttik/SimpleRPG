@@ -1,4 +1,5 @@
 import { RefObject } from "react";
+import type { InventoryItemView, InventoryMetaView } from "../ui_module/components/inventory_view";
 
 interface IPlayer {
   x: number;
@@ -20,8 +21,10 @@ interface IGameState {
   canvasWidth: number;
   canvasHeight: number;
   lootingTargetId?: string | null;
-  playerInventory?: any[];
-  chestInventory?: any[];
+  playerInventory: InventoryItemView[];
+  chestInventory: InventoryItemView[];
+  playerInventoryMeta: InventoryMetaView;
+  chestInventoryMeta: InventoryMetaView;
   focusedId?: string | null;
   socketWorker?: Worker | null;
 }
@@ -44,5 +47,15 @@ export const gameState: IGameState = {
   lootingTargetId: null,
   playerInventory: [],
   chestInventory: [],
+  playerInventoryMeta: {
+    currentVolume: 0,
+    maxVolume: 0,
+    currentWeight: 0,
+  },
+  chestInventoryMeta: {
+    currentVolume: 0,
+    maxVolume: 0,
+    currentWeight: 0,
+  },
   focusedId: null,
 };

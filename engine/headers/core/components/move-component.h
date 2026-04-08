@@ -5,8 +5,6 @@
 
 const float32 SPEED(5);
 
-class GameWorldEngine;
-
 struct MoveComponent : public Component
 {
   float32 Speed = SPEED;
@@ -17,5 +15,5 @@ struct MoveComponent : public Component
 class MoveComponentManager : public TypedComponentManager<MoveComponent>
 {
 public:
-  void Move(uint32_t entityId, float32 dx, float32 dy, GameWorldEngine &ctx);
+  void Move(uint32_t entityId, float32 dx, float32 dy);
 };

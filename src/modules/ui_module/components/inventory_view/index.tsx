@@ -1,51 +1,80 @@
-export interface InventoryItem {
+import { DataTable, type DataTableRowClickEvent } from 'primereact/datatable';
+import { Column } from 'primereact/column';
+
+export interface InventoryItemView {
+  id: string;
   name: string;
   spriteKey: string;
   quantity: number;
+  volume: number;
+  weight: number;
   stackable: boolean;
+  maxStack: number;
+  price: number;
+}
+
+export interface InventoryMetaView {
+  currentVolume: number;
+  maxVolume: number;
+  currentWeight: number;
 }
 
 interface InventoryViewProps {
   title: string;
-  items: InventoryItem[];
-  onHover: (index: number | null) => void;
+  items: InventoryItemView[];
+  selectedItemId: string | null;
+  onSelectItem: (item: InventoryItemView | null) => void;
+  onDoubleClickItem?: (item: InventoryItemView) => void;
+  canExchangeItem?: (item: InventoryItemView) => boolean;
 }
 
-export const InventoryView = ({ title, items, onHover }: InventoryViewProps) => {
+export const InventoryView = ({
+  title,
+  items,
+  selectedItemId,
+  onSelectItem,
+  onDoubleClickItem,
+  canExchangeItem,
+}: InventoryViewProps) => {
+  const selectedItem = selectedItemId ? items.find(i => i.id === selectedItemId) ?? null : null;
+
+  const rowClassName = (data: InventoryItemView) => {
+    if (!canExchangeItem) return {};
+    return canExchangeItem(data) ? {} : { 'opacity-40': true, 'grayscale': true };
+  };
+
+  const handleRowDoubleClick = (e: DataTableRowClickEvent) => {
+    if (!onDoubleClickItem) return;
+    const item = e.data as InventoryItemView;
+    if (canExchangeItem && !canExchangeItem(item)) return;
+    onDoubleClickItem(item);
+  };
+
   return (
-    <div className="flex flex-col h-full bg-[#111827E6] backdrop-blur-md border border-slate-600 rounded-xl p-3 shadow-2xl">
-      <h3 className="text-xl font-bold text-white mb-3 tracking-wide">{title}</h3>
-      <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-        {items.length === 0 && <div className="text-gray-400 italic text-center py-4">Empty</div>}
-        {items.map((item, i) => (
-          <div 
-            key={i} 
-            className="group flex flex-row items-center justify-between bg-slate-800/80 hover:bg-slate-700/80 p-2 rounded-lg cursor-pointer border-2 border-transparent hover:border-slate-400 transition-all duration-150"
-            onMouseEnter={() => onHover(i)}
-            onMouseLeave={() => onHover(null)}
-          >
-            <div className="flex items-center gap-3">
-               <div className="w-10 h-10 bg-black/60 rounded border border-slate-600 flex items-center justify-center shadow-inner overflow-hidden">
-                 <div style={{
-                     backgroundImage: `url('src/assets/chestsAll.png')`,
-                     backgroundPosition: `0px 0px`,
-                     width: '16px',
-                     height: '16px',
-                     transform: 'scale(1.8)',
-                     imageRendering: 'pixelated'
-                 }} />
-               </div>
-               <div className="flex flex-col">
-                  <span className="text-gray-100 font-medium">{item.name}</span>
-                  {item.quantity > 1 && <span className="text-xs text-yellow-500 font-bold tracking-wider">x{item.quantity}</span>}
-               </div>
-            </div>
-            <div className="text-xs text-slate-500 group-hover:text-blue-400 font-bold transition-colors">
-               Hover + R to Transfer
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="flex h-full flex-col rounded-xl border border-slate-600 bg-[#111827E6] p-3 shadow-2xl backdrop-blur-md">
+      <h3 className="mb-3 text-xl font-bold tracking-wide text-white">{title}</h3>
+      <DataTable
+        className="inventory-table flex-1"
+        value={items}
+        dataKey="id"
+        size="small"
+        emptyMessage="No items"
+        stripedRows
+        rowHover={false}
+        selectionMode="single"
+        selection={selectedItem}
+        onSelectionChange={(e) => onSelectItem((e.value as InventoryItemView | null) ?? null)}
+        onRowDoubleClick={handleRowDoubleClick}
+        rowClassName={rowClassName}
+        scrollable
+        scrollHeight="flex"
+      >
+        <Column field="name" header="Name" sortable />
+        <Column field="price" header="Price" sortable />
+        <Column field="quantity" header="Qty" sortable />
+        <Column field="weight" header="Weight" sortable body={(row: InventoryItemView) => row.weight.toFixed(2)} />
+        <Column field="volume" header="Volume" sortable body={(row: InventoryItemView) => row.volume.toFixed(2)} />
+      </DataTable>
     </div>
   );
 };

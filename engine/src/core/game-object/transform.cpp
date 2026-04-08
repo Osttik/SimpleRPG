@@ -4,12 +4,15 @@
 #include "core/game-world-engine.h"
 
 void TransformData::NotifyDirty() {
-    _ctx->ObjectManager.MarkDirty(_ownerId);
+    if (_ctx)
+        _ctx->ObjectManager.OnTransformStateChanged(_ownerId);
 }
 
 void TransformData::SetPosition(Point newPosition) {
+    Point previous = _position;
     _position = newPosition;
-    NotifyDirty();
+    if (_ctx)
+        _ctx->ObjectManager.OnTransformPositionChanged(_ownerId, previous, newPosition);
 }
 
 void TransformData::SetFacing(Point dir) {
@@ -18,6 +21,5 @@ void TransformData::SetFacing(Point dir) {
 }
 
 void TransformData::SetZPosition(int32_t positionZ) {
-    _position = Point(_position.X, _position.Y, positionZ);
-    NotifyDirty();
+    SetPosition(Point(_position.X, _position.Y, positionZ));
 }

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "core/game-object/component.h"
 #include "core/game-object/manager.h"
+#include "math/point.h"
 
 class GameObject;
 
@@ -11,6 +12,7 @@ class ComponentManager : public Manager
 {
 public:
   virtual void RemoveComponent(uint32_t entityId) {}
+  virtual void OnTransformChanged(uint32_t entityId, const Point &previous, const Point &current) {}
 };
 
 /**

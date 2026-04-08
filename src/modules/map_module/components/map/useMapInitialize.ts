@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { useControls } from './useControls';
+import { interactionsState } from '@/store';
 
 export const useMapInitialize = () => {
   const [socketWorker, setSocketWorker] = useState<Worker | null>(null);
@@ -40,8 +41,13 @@ export const useMapInitialize = () => {
           } else {
             gameState.players[gameState.myId].x = event.data.x;
             gameState.players[gameState.myId].y = event.data.y;
-            gameState.players[gameState.myId].focusedId =  '';
+            gameState.players[gameState.myId].focusedId = event.data.focusedNumericId?.toString?.() ?? '';
           }
+
+          const focusedId = event.data.focusedNumericId && event.data.focusedNumericId !== 0
+            ? event.data.focusedNumericId.toString()
+            : null;
+          gameState.focusedId = focusedId;
         }
       }
     };
@@ -65,25 +71,36 @@ export const useMapInitialize = () => {
     localSocketWorker.onmessage = (event) => {
       const data = event.data;
       if (data.type === 'init') {
-        gameState.myId = data.id;
+        gameState.myId = data.id.toString();
         gameState.players = data.players;
         if (data.tileRegistry) gameState.tileRegistry = data.tileRegistry;
       } else if (data.type === 'state') {
         gameState.players = data.players;
       } else if (data.type === 'pong') {
         gameState.ping = Date.now() - data.timestamp;
+      } else if (data.type === 'interaction_options') {
+        interactionsState.targets = data.targets ?? [];
+        interactionsState.selectedTargetId = data.selectedTargetId && data.selectedTargetId !== '0'
+          ? data.selectedTargetId
+          : null;
       } else if (data.type === 'open_loot') {
         gameState.lootingTargetId = data.chestId;
         gameState.chestInventory = data.chestInventory;
         gameState.playerInventory = data.playerInventory;
+        gameState.chestInventoryMeta = data.chestInventoryMeta ?? gameState.chestInventoryMeta;
+        gameState.playerInventoryMeta = data.playerInventoryMeta ?? gameState.playerInventoryMeta;
         window.dispatchEvent(new Event('gameStateUpdate'));
       }
     };
 
     setSocketWorker(localSocketWorker);
+    gameState.socketWorker = localSocketWorker;
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      gameState.socketWorker = null;
+      interactionsState.targets = [];
+      interactionsState.selectedTargetId = null;
       renderWorker.terminate();
       localSocketWorker.terminate();
     };

@@ -50,10 +50,13 @@ SimpleRPG/
 │   │   │   ├── world.h            # WorldManager: Chunk mapping + procedural gen
 │   │   │   └── constants.h        # Shared physics constants (TILE_SIZE, etc.)
 │   │   ├── game/
-│   │   │   └── entities/
-│   │   │       ├── player-builder.h # Builder for player composition
-│   │   │       ├── chest-builder.h  # Builder for chest composition
-│   │   │       └── npc-builder.h    # Builder for NPC composition
+│   │   │   ├── entities/
+│   │   │   │   ├── player-builder.h # Builder for player composition
+│   │   │   │   ├── chest-builder.h  # Builder for chest composition
+│   │   │   │   └── npc-builder.h    # Builder for NPC composition
+│   │   │   └── managers/
+│   │   │       ├── player-manager.h   # High-level player lifecycle & tick management
+│   │   │       └── prop-manager.h     # High-level prop/chest lifecycle management
 │   │   └── math/
 │   │       ├── aabb.h             # AABB tree (Box2D-derived)
 │   │       ├── point.h            # Point: fixed-point float32 X, Y
@@ -161,10 +164,14 @@ To guarantee stutter-free 60fps+ rendering over dynamic networks, the frontend s
   * **`getBufferView(ptr, size)`**: Returns a `typed_memory_view` (Uint8Array) directly peering into the WASM heap at a specific address, allowing `Uint8Array.set(buffer)` to write socket data into WASM memory without intermediate allocations.
 
 ### 5. Interaction & Inventory Flow
-1. **Focus Scoring**: `PhysicsSystem::UpdateFocus` performs a proximity check. It uses the `InteractableComponentManager` bitset for $O(1)$ filtering.
-2. **Contextual UI**: The object registering the highest context score yields the active `focusedId` propagated natively to the frontend over binary state. The client displays an "E to Interact" tooltip.
-3. **On-Demand Looting**: Submitting an `Interact (0x02)` packet targets the specific `focusedId`. The server processes the request and replies with a **Protobuf** `InteractionResponse` containing the full inventory state.
-4. **"Hover + R" Shortcut**: With Dual-Inventory UI activated, mousing over a discrete item slot and triggering the secondary keybind automatically fires a binary `Transfer (0x03)` packet, bypassing tedious drag-and-drop operations entirely to quickly cycle items between containers.
+1. **Interaction Discovery**: `InteractableComponentManager` performs $O(1)$ discovery using bitsets. It distinguishes between **Sensor Bounds** (player interaction area) and **Target Bounds** (interactable area).
+2. **Range Validation**: `CanInteract(...)` uses deterministic circle-center distance logic with fixed-point safety guards to prevent overflow during squaring of large deltas.
+3. **Continuous Options**: The server continuously pushes `interaction_options` (JSON) to clients each tick. This payload includes available targets and their contextual actions (e.g., "Loot").
+4. **Target-Centric UI**: The frontend maintains `interactionsState` with a `targets[]` array and a `selectedTargetId`. If multiple interactables are in range, the user selects the target first, then the action.
+5. **On-Demand Looting**: Submitting an `interact_target` (JSON) message targets a specific `focusedId`. The server responds with `open_loot` containing the full inventory state.
+6. **Loot/Inventory UX**: Rebuilt with PrimeReact table-based views (item details, price, quantity).
+    - **Double-Click Transfer**: Quickly move items between player and container.
+    - **"Hover + R" Shortcut**: Binary `Transfer (0x03)` packet for high-speed cycling.
 
 ### 6. Sprite & Asset System
 * **Asset Manager**: Handles asynchronous `ImageBitmap` caching. Uses explicit Vite imports to resolve asset URLs safely within Worker contexts.
@@ -233,3 +240,16 @@ Systems and managers talk to each other through a `GameContext` aggregate. It us
 * **Protobuf Generation**: Run `powershell ./schema/generate.ps1` after any `.proto` change.
 * `npm run build:cpp` targets standalone native environment.
 * **Testing Policy**: The AI agent could only perform build tests. Runtime functional testing is performed by the USER.
+
+---
+
+## Persistent Engineering Preferences
+
+1. **Manager-Centric Architecture**: Prefer dedicated manager classes for gameplay features:
+   - Tick orchestration (registration/removal of objects).
+   - Interaction discovery and range validation.
+   - Inventory transfer logic (should stay in engine via `InventoryOperator`).
+2. **Component-Driven Logic**: Functional state belongs in components; lifecycle management belongs in managers.
+3. **Automation over Plumbing**: Avoid manual dirty-state plumbing in gameplay scripts; engine tick/managers handle propagation via established callbacks.
+4. **Explicit Contracts**: Keep frontend and backend contracts (Protobuf/JSON) stable and well-documented.
+5. **UI Consistency**: Reuse existing PrimeReact/Tailwind patterns. Do not regress interaction UX (e.g., maintain keyboard/wheel navigation support).

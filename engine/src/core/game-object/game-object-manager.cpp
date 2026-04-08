@@ -26,6 +26,26 @@ GameObject *GameObjectManager::Instantiate(Point position, std::unique_ptr<Shape
     return ptr;
 }
 
+void GameObjectManager::OnTransformPositionChanged(uint32_t id, const Point &previous, const Point &current)
+{
+    auto *obj = GetById(id);
+    if (!obj)
+        return;
+
+    Point delta(current.X - previous.X, current.Y - previous.Y, current.Z - previous.Z);
+    obj->BoundingBox->MoveBy(delta);
+
+    if (_ctx)
+        _ctx->Managers.OnTransformChanged(id, previous, current);
+
+    MarkDirty(id);
+}
+
+void GameObjectManager::OnTransformStateChanged(uint32_t id)
+{
+    MarkDirty(id);
+}
+
 void GameObjectManager::MarkForDestruction(uint32_t numericId)
 {
     auto it = _entities.find(numericId);
@@ -44,6 +64,7 @@ void GameObjectManager::CleanupDestroyed()
         if (it->second->IsPendingDestruction)
         {
             uint32_t numId = it->first;
+            _recentlyDestroyed.push_back(numId);
 
             _ctx->Physics.RemoveObject(it->second->PhysicsId);
 

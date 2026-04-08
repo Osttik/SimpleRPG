@@ -8,12 +8,20 @@ export interface IInteractionOption {
   interactionId: string;
 }
 
+export interface IInteractionTarget {
+  targetId: string;
+  nameKey: string;
+  interactions: IInteractionOption[];
+}
+
 export interface IInteractionsState {
-  options: IInteractionOption[];
+  targets: IInteractionTarget[];
+  selectedTargetId: string | null;
 }
 
 export const interactionsState = proxy({
-  options: [],
+  targets: [],
+  selectedTargetId: null,
 } as IInteractionsState);
 
 export const store = configureStore({

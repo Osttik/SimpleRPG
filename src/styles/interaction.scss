@@ -1,12 +1,11 @@
-/* CarouselContainer.css */
 .carousel-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 300px; /* Adjust based on item size */
   overflow: hidden;
   gap: 10px;
+  pointer-events: auto;
 }
 
 .menu-item {
@@ -15,22 +14,33 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.6);
   color: #ccc;
-  width: 200px;
+  width: 220px;
   text-align: center;
+  cursor: pointer;
 }
 
-/* The item in the middle */
 .menu-item.active {
   transform: scale(1.2);
-  border-color: #f3ae1a; /* Gold-ish Souls color */
+  border-color: #f3ae1a;
   color: #fff;
   box-shadow: 0 0 15px rgba(243, 174, 26, 0.3);
   z-index: 2;
 }
 
-/* Items above and below */
 .menu-item.side {
   transform: scale(0.8);
   opacity: 0.5;
   filter: blur(1px);
+}
+
+.menu-mode-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #d4af37;
+}
+
+.menu-hint {
+  font-size: 10px;
+  color: rgba(203, 213, 225, 0.85);
 }

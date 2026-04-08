@@ -39,6 +39,15 @@ public:
                 sys->RemoveComponent(entityId);
         }
     }
+
+    void OnTransformChanged(uint32_t entityId, const Point &previous, const Point &current)
+    {
+        for (auto &sys : _systems)
+        {
+            if (sys)
+                sys->OnTransformChanged(entityId, previous, current);
+        }
+    }
 };
 
 struct GameContext

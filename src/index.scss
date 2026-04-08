@@ -194,6 +194,11 @@ html, body, #root {
   animation: sandDeplete 2s ease-in 0s infinite;
 }
 
+.inventory-table .p-datatable-tbody > tr:hover {
+  background: inherit !important;
+  color: inherit !important;
+}
+
 @keyframes sandFillup {
   0% { opacity: 0; height: 0; }
   60% { opacity: 1; height: 0; }

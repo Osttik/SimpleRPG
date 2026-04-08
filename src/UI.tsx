@@ -39,7 +39,7 @@ export const UIComponent = () => {
           />
         </div>
       </div>
-      <div className="flex-1">WHere?</div>
+      <div className="flex-1" />
       <div className='flex flex-row gap-2 w-full'>
         <div className='flex flex-row gap-2 flex-1 justify-start'>
 

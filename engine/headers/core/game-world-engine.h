@@ -8,6 +8,8 @@
 #include "core/physics-system.h"
 #include "core/snapshot-buffer.h"
 #include "core/entity-type.h"
+#include "game/managers/player-manager.h"
+#include "game/managers/prop-manager.h"
 
 struct TileDef
 {
@@ -25,6 +27,8 @@ public:
   GameObjectManager ObjectManager;
   ComponentsManagersRegistry Managers;
   GameContext Ctx;
+  PlayerManager Players;
+  PropManager Props;
 
   uint32_t TickCount = 0;
 
