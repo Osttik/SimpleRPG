@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 #include <stdint.h>
+#include "core/gameplay-constants.h"
 #include "math/number.h"
 
 enum class ContainerSlot : size_t
@@ -209,7 +210,7 @@ public:
   float32 MaxCarryWeight;
   float32 Weight;
 
-  Inventory(float32 maxVolume, float32 weight, float32 maxWeight = float32(500.0))
+  Inventory(float32 maxVolume, float32 weight, float32 maxWeight = DEFAULT_INVENTORY_MAX_WEIGHT)
       : MaxCarryVolume(maxVolume), MaxCarryWeight(maxWeight), Weight(weight) {}
 
   const Item *operator[](size_t index) const

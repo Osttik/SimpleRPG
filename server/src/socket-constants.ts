@@ -1,0 +1,14 @@
+export const CHUNK_MESSAGE_TYPE = 0x01;
+export const INPUT_MESSAGE_MAX_TYPE = 0x03;
+export const TRANSFER_MESSAGE_TYPE = 0x03;
+export const TRANSFER_MESSAGE_MIN_LENGTH = 10;
+
+export const UWS_MAX_PAYLOAD_LENGTH = 64 * 1024;
+export const UWS_MAX_BACKPRESSURE = 1024 * 1024;
+export const UWS_IDLE_TIMEOUT = 120;
+
+export const INITIAL_SPAWN_AREA_WIDTH = 800;
+export const INITIAL_SPAWN_AREA_HEIGHT = 600;
+export const INITIAL_CHUNK_RADIUS = 1;
+export const INITIAL_CHUNK_MIN_Z_OFFSET = -1;
+export const INITIAL_CHUNK_MAX_Z_OFFSET = 0;

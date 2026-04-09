@@ -12,6 +12,8 @@ type SelectedItemRef =
   | { source: 'chest'; itemId: string }
   | { source: 'player'; itemId: string }
   | null;
+const LOOT_LAYOUT_CLASS = 'grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.9fr)_minmax(0,1.2fr)]';
+const LOOT_SPRITE_PREVIEW_SIZE_CLASS = 'h-44 w-44';
 
 const getDummyDescription = (item: InventoryItemView | null) => {
   if (!item) {
@@ -109,7 +111,7 @@ export const LootUI = () => {
       }}
       maximized
       content={(
-        <div className="grid h-full w-full grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.9fr)_minmax(0,1.2fr)] gap-4 p-5">
+        <div className={`grid h-full w-full ${LOOT_LAYOUT_CLASS} gap-4 p-5`}>
           <div className="min-w-0">
             <InventoryView
               title="Chest"
@@ -141,7 +143,7 @@ export const LootUI = () => {
             </div>
 
             <div className="flex flex-1 items-center justify-center rounded-xl border border-slate-600 bg-[#111827E6] p-4 shadow-2xl">
-              <div className="flex h-44 w-44 items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-center">
+              <div className={`flex ${LOOT_SPRITE_PREVIEW_SIZE_CLASS} items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-center`}>
                 <div className="px-3 text-sm text-slate-300">
                   {selectedItem ? selectedItem.spriteKey || selectedItem.name : 'No sprite'}
                 </div>

@@ -1,4 +1,5 @@
 #include "core/test-spawns.h"
+#include "core/gameplay-constants.h"
 #include "core/inventory.h"
 #include "core/components/inventory-component.h"
 
@@ -7,7 +8,7 @@ void SpawnTestChests(GameWorldEngine &core)
     auto spawnChest = [&](float32 fx, float32 fy)
     {
         Point position(fx, fy);
-        uint32_t id = core.Props.AddChest(core, position, float32(32.0), 1);
+        uint32_t id = core.Props.AddChest(core, position, TEST_CHEST_RADIUS, 1);
 
         auto *invMgr = core.Ctx.GetManager<InventoryComponentManager>();
         if (invMgr)

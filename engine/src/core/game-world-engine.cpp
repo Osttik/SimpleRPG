@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdlib>
 #include "core/game-world-engine.h"
+#include "core/gameplay-constants.h"
 #include "core/tile-registry.h"
 #include "core/test-spawns.h"
 #include "core/components/dropped-item-component.h"
@@ -166,7 +167,7 @@ bool GameWorldEngine::DropItem(uint32_t entityId, int itemIndex)
   if (!item)
     return false;
 
-  const float32 spread = player->Radius * float32(0.5);
+  const float32 spread = player->Radius * ITEM_DROP_SPREAD_RADIUS_FACTOR;
   const float32 rx = (float32(std::rand()) / float32(RAND_MAX)) * float32(2.0) - float32(1.0);
   const float32 ry = (float32(std::rand()) / float32(RAND_MAX)) * float32(2.0) - float32(1.0);
   Point dropPos(
@@ -253,7 +254,7 @@ void GameWorldEngine::Tick()
   {
     if (!entity->IsStaticProp)
     {
-      Physics.UpdateFocus(entity.get(), Point(float32(-1000000.0), float32(-1000000.0)), interactMgr);
+      Physics.UpdateFocus(entity.get(), Point(FOCUS_QUERY_OFFSCREEN_COORD, FOCUS_QUERY_OFFSCREEN_COORD), interactMgr);
     }
   }
 

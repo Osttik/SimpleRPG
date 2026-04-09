@@ -9,6 +9,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { InventoryView, type InventoryItemView } from '../inventory_view';
 
 type InventoryTab = 'all' | 'equipped';
+const INVENTORY_TABS: InventoryTab[] = ['all', 'equipped'];
+const DETAILS_PANEL_MIN_WIDTH_CLASS = 'min-w-[22rem]';
+const SPRITE_PREVIEW_SIZE_CLASS = 'h-44 w-44';
 
 const getDummyDescription = (item: InventoryItemView | null) => {
   if (!item) {
@@ -97,7 +100,7 @@ export const InventoryComponent = () => {
         <div className="flex h-full w-full gap-4 p-5">
           <div className="min-w-0 flex-[3]">
             <div className="mb-4 flex gap-2">
-              {(['all', 'equipped'] as InventoryTab[]).map(tab => (
+              {INVENTORY_TABS.map(tab => (
                 <button
                   key={tab}
                   type="button"
@@ -123,7 +126,7 @@ export const InventoryComponent = () => {
             />
           </div>
 
-          <div className="flex min-w-[22rem] flex-[2] flex-col gap-4">
+          <div className={`flex ${DETAILS_PANEL_MIN_WIDTH_CLASS} flex-[2] flex-col gap-4`}>
             <div className="rounded-xl border border-slate-600 bg-[#111827E6] p-4 text-slate-200 shadow-2xl">
               <div className="mb-2 text-sm uppercase tracking-wider text-slate-400">Description</div>
               <div className="text-lg font-semibold text-white">{selectedItem?.name ?? 'No item selected'}</div>
@@ -139,7 +142,7 @@ export const InventoryComponent = () => {
             <div className="flex flex-1 flex-col rounded-xl border border-slate-600 bg-[#111827E6] p-4 shadow-2xl">
               <div className="mb-3 text-sm uppercase tracking-wider text-slate-400">Sprite Preview</div>
               <div className="flex flex-1 items-center justify-center rounded-lg border border-slate-700 bg-slate-900/70">
-                <div className="flex h-44 w-44 items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-center">
+                <div className={`flex ${SPRITE_PREVIEW_SIZE_CLASS} items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-center`}>
                   <div className="px-3 text-sm text-slate-300">
                     {selectedItem ? selectedItem.spriteKey || selectedItem.name : 'No sprite'}
                   </div>

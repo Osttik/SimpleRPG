@@ -1,4 +1,5 @@
 #include "core/physics-system.h"
+#include "core/gameplay-constants.h"
 #include "math/point.h"
 #include "core/game-object-physics.h"
 #include "core/components/interactable-component.h"
@@ -83,8 +84,8 @@ void PhysicsSystem::UpdateFocus(GameObject *source, const Point &mousePosition,
     auto candidates = _aabbTree->GetObjectsInArea(topleft, bottomright);
 
     GameObject *bestTarget = nullptr;
-    float32 bestScore(-1000000);
-    float32 bestMouseDist(1000000);
+    float32 bestScore(FOCUS_SCORE_FALLBACK);
+    float32 bestMouseDist(FOCUS_MOUSE_DISTANCE_FALLBACK);
     GameObject *mouseTarget = nullptr;
 
     for (GameObject *obj : candidates)
@@ -109,7 +110,7 @@ void PhysicsSystem::UpdateFocus(GameObject *source, const Point &mousePosition,
         float32 mdy = obj->Transform.Position().Y - mousePosition.Y;
         float32 mDistSq = mdx * mdx + mdy * mdy;
 
-        float32 radius = float32(20);
+        float32 radius = FOCUS_DEFAULT_TARGET_RADIUS;
         const Shape *targetBounds = interactMgr->GetTargetBounds(obj->Id);
         if (targetBounds && targetBounds->Type == ShapeType::Circle)
         {
@@ -117,7 +118,7 @@ void PhysicsSystem::UpdateFocus(GameObject *source, const Point &mousePosition,
         }
         float32 minMouseDistSq = radius * radius;
 
-        if (mDistSq <= minMouseDistSq * float32(1.5))
+        if (mDistSq <= minMouseDistSq * FOCUS_MOUSE_SELECTION_MULTIPLIER)
         {
             if (mDistSq < bestMouseDist)
             {
@@ -127,7 +128,7 @@ void PhysicsSystem::UpdateFocus(GameObject *source, const Point &mousePosition,
         }
 
         // Keyboard Focus
-        float32 distanceScore = float32(1000) - dist;
+        float32 distanceScore = FOCUS_BASE_SCORE - dist;
         float32 score = distanceScore;
 
         if (score > bestScore)

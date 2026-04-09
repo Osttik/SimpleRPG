@@ -1,6 +1,17 @@
 import { CHUNK_PIXEL_SIZE, GAME_TICK_RATE, GAME_TOPIC } from './config.js';
 import { physics } from './gamecore.js';
 import { buildInitMessage } from './init-message.js';
+import {
+  CHUNK_MESSAGE_TYPE,
+  INITIAL_CHUNK_MAX_Z_OFFSET,
+  INITIAL_CHUNK_MIN_Z_OFFSET,
+  INITIAL_CHUNK_RADIUS,
+  INITIAL_SPAWN_AREA_HEIGHT,
+  INITIAL_SPAWN_AREA_WIDTH,
+  INPUT_MESSAGE_MAX_TYPE,
+  TRANSFER_MESSAGE_MIN_LENGTH,
+  TRANSFER_MESSAGE_TYPE,
+} from './socket-constants.js';
 import type { InitEntity, InitTile, SocketData } from './types.js';
 import type { TemplatedApp, WebSocket } from './uws.js';
 
@@ -13,7 +24,7 @@ export function sendChunk(ws: WebSocket<SocketData>, cx: number, cy: number, cz:
     if (!chunkBuffer || !chunkVisuals) return;
 
     const header = Buffer.alloc(13);
-    header.writeUInt8(1, 0);
+    header.writeUInt8(CHUNK_MESSAGE_TYPE, 0);
     header.writeInt32LE(cx, 1);
     header.writeInt32LE(cy, 5);
     header.writeInt32LE(cz, 9);
@@ -26,8 +37,8 @@ export function sendChunk(ws: WebSocket<SocketData>, cx: number, cy: number, cz:
 }
 
 export function handleOpen(ws: WebSocket<SocketData>) {
-  const initialX = Math.random() * 800;
-  const initialY = Math.random() * 600;
+  const initialX = Math.random() * INITIAL_SPAWN_AREA_WIDTH;
+  const initialY = Math.random() * INITIAL_SPAWN_AREA_HEIGHT;
   const numericId: number = physics.addPlayer(initialX, initialY);
 
   ws.getUserData().id = numericId;
@@ -65,9 +76,9 @@ export function handleOpen(ws: WebSocket<SocketData>) {
   const centerCY = Math.floor(initialY / CHUNK_PIXEL_SIZE);
   const centerCZ = 0;
 
-  for (let dx = -1; dx <= 1; dx++) {
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dz = -1; dz <= 0; dz++) {
+  for (let dx = -INITIAL_CHUNK_RADIUS; dx <= INITIAL_CHUNK_RADIUS; dx++) {
+    for (let dy = -INITIAL_CHUNK_RADIUS; dy <= INITIAL_CHUNK_RADIUS; dy++) {
+      for (let dz = INITIAL_CHUNK_MIN_Z_OFFSET; dz <= INITIAL_CHUNK_MAX_Z_OFFSET; dz++) {
         sendChunk(ws, centerCX + dx, centerCY + dy, centerCZ + dz);
       }
     }
@@ -81,10 +92,10 @@ export function handleMessage(ws: WebSocket<SocketData>, message: ArrayBuffer, i
     if (isBinary) {
       const buf = Buffer.from(message);
 
-      if (buf.length > 0 && buf[0] <= 0x03) {
+      if (buf.length > 0 && buf[0] <= INPUT_MESSAGE_MAX_TYPE) {
         physics.processInput(id, buf);
 
-        if (buf[0] === 0x03 && buf.length >= 10) {
+        if (buf[0] === TRANSFER_MESSAGE_TYPE && buf.length >= TRANSFER_MESSAGE_MIN_LENGTH) {
           const targetId = buf.readUInt32LE(1);
           const payload = physics.getLootState(id, targetId);
           if (payload) {

@@ -11,6 +11,9 @@ import type { InventoryItemView, InventoryMetaView } from '@/modules/ui_module/c
 
 let socket: WebSocket | null = null;
 let renderPort: MessagePort | null = null;
+const DEFAULT_WS_PORT = 3001;
+const INIT_FRAME_PREFIX_BYTES = 1;
+const INTERACTION_FRAME_PREFIX_BYTES = 1;
 
 const getHostname = () => {
   try {
@@ -20,14 +23,14 @@ const getHostname = () => {
   }
 };
 
-const wsUrl = import.meta.env.VITE_WS_URL || `ws://${getHostname()}:3001`;
+const resolvedWsUrl = import.meta.env.VITE_WS_URL || `ws://${getHostname()}:${DEFAULT_WS_PORT}`;
 
 // ─── FlatBuffers Init Message Decoder ────────────────────────────────────────
 // Converts the binary FlatBuffer into the same plain-object shape the rest of
 // the codebase already knows (id, players Record, tileRegistry Record).
 
 function decodeInitMessage(bytes: Uint8Array) {
-  const bb = new ByteBuffer(bytes.slice(1)); // skip the 0x10 type prefix byte
+  const bb = new ByteBuffer(bytes.slice(INIT_FRAME_PREFIX_BYTES)); // skip the 0x10 type prefix byte
   const msg = InitMessage.getRootAsInitMessage(bb);
 
   const players: Record<string, { x: number; y: number; type: string; focusedId: number }> = {};
@@ -87,7 +90,7 @@ function decodeInventory(inventory: InventoryContents | null, prefix: string): {
 }
 
 function decodeInteractionMessage(bytes: Uint8Array) {
-  const bb = new ByteBuffer(bytes.slice(1)); // skip 0x11 prefix
+  const bb = new ByteBuffer(bytes.slice(INTERACTION_FRAME_PREFIX_BYTES)); // skip 0x11 prefix
   const msg = InteractionResponse.getRootAsInteractionResponse(bb);
 
   const playerDecoded = decodeInventory(msg.playerInventory(), 'player');
@@ -105,7 +108,7 @@ function decodeInteractionMessage(bytes: Uint8Array) {
 }
 
 function connect() {
-  socket = new WebSocket(wsUrl);
+  socket = new WebSocket(resolvedWsUrl);
   socket.binaryType = 'arraybuffer';
   resetInputSequence();
 

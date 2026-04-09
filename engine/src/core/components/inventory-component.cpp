@@ -1,4 +1,5 @@
 #include "core/components/inventory-component.h"
+#include "core/gameplay-constants.h"
 
 InventoryComponent *InventoryComponentManager::Ensure(uint32_t entityId, GameObject *owner)
 {
@@ -63,7 +64,7 @@ bool InventoryComponentManager::AddItem(uint32_t entityId, ContainerSlot slot, s
     if (!comp)
       return false;
 
-    auto fallback = std::make_unique<Inventory>(float32(500.0), float32(0.0));
+    auto fallback = std::make_unique<Inventory>(DEFAULT_FALLBACK_INVENTORY_MAX_VOLUME, float32(0.0));
     comp->Inventories->EquipContainer(slot, std::move(fallback));
     container = comp->Inventories->GetContainer(slot);
   }

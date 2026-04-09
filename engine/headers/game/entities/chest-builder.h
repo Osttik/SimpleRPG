@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "core/game-world-engine.h"
+#include "core/gameplay-constants.h"
 #include "core/components/interactable-component.h"
 #include "core/components/inventory-component.h"
 
@@ -17,7 +18,7 @@ public:
     obj->Transform.SetZPosition(chunkZ);
 
     // Add inventory with MainStorage
-    auto storage = std::make_unique<Inventory>(float32(500.0), float32(0.0));
+    auto storage = std::make_unique<Inventory>(CHEST_STORAGE_MAX_VOLUME, float32(0.0));
     engine.Ctx.GetManager<InventoryComponentManager>()->EquipContainer(
         obj->Id, ContainerSlot::MainStorage, std::move(storage), obj);
 

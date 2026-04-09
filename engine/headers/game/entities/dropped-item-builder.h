@@ -1,5 +1,6 @@
 #pragma once
 #include "core/game-world-engine.h"
+#include "core/gameplay-constants.h"
 #include "core/components/dropped-item-component.h"
 #include "core/components/interactable-component.h"
 
@@ -12,7 +13,7 @@ public:
     auto *obj = engine.ObjectManager.Instantiate(position, std::move(shape));
     obj->Type = "item_drop";
     obj->IsStaticProp = true;
-    obj->Radius = float32(8.0);
+    obj->Radius = DROPPED_ITEM_RENDER_RADIUS;
 
     auto *droppedMgr = engine.Ctx.GetManager<DroppedItemComponentManager>();
     auto *interactMgr = engine.Ctx.GetManager<InteractableComponentManager>();
@@ -23,7 +24,7 @@ public:
     droppedMgr->SetItem(obj->Id, std::move(item), obj);
     interactMgr->AddTarget(
         obj->Id, obj, InteractionType::Pickup, label,
-        std::make_unique<Circle>(position, float32(12.0)));
+        std::make_unique<Circle>(position, DROPPED_ITEM_INTERACTION_RADIUS));
 
     return obj->Id;
   }
