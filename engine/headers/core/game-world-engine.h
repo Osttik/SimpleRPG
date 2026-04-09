@@ -43,6 +43,8 @@ public:
   bool TransferItem(const uint32_t playerId, const uint32_t targetId,
                     int fromContainer, int toContainer, int itemIndex);
   bool ToggleEquipItem(uint32_t entityId, int itemIndex);
+  bool DropItem(uint32_t entityId, int itemIndex);
+  bool PickupItem(uint32_t playerId, uint32_t targetId);
   void SpawnTestChest();
   void DestroyTile(int32_t wx, int32_t wy, int32_t wz);
 

@@ -228,7 +228,7 @@ app.ws<SocketData>('/*', {
       } else if (data.type === 'interact_target') {
         const payload = physics.interactTarget(id, Number(data.targetId || 0));
         if (payload) {
-          ws.send(JSON.stringify({ type: 'open_loot', ...payload }), false);
+          ws.send(JSON.stringify({ type: payload.payloadType || 'open_loot', ...payload }), false);
         }
       } else if (data.type === 'transfer_item') {
         const ok = physics.transferItem(
@@ -255,6 +255,22 @@ app.ws<SocketData>('/*', {
           const payload = physics.getPlayerInventoryState(id);
           if (payload) {
             ws.send(JSON.stringify({ type: 'player_inventory', ...payload }), false);
+          }
+        }
+      } else if (data.type === 'drop_item') {
+        const ok = physics.dropItem(id, Number(data.itemIndex || 0));
+        if (ok) {
+          const targetId = Number(data.targetId || 0);
+          if (targetId > 0) {
+            const payload = physics.getLootState(id, targetId);
+            if (payload) {
+              ws.send(JSON.stringify({ type: 'open_loot', ...payload }), false);
+            }
+          } else {
+            const payload = physics.getPlayerInventoryState(id);
+            if (payload) {
+              ws.send(JSON.stringify({ type: 'player_inventory', ...payload }), false);
+            }
           }
         }
       }

@@ -59,7 +59,7 @@ export const InteractionUIModal = () => {
 
   const triggerInteraction = () => {
     if (!gameState.socketWorker || !selectedTarget || !selectedInteraction) return;
-    if (selectedInteraction.interactionId === 'loot') {
+    if (selectedInteraction.interactionId === 'loot' || selectedInteraction.interactionId === 'pickup') {
       gameState.socketWorker.postMessage({
         type: 'interact',
         targetId: Number(selectedTarget.targetId),

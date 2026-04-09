@@ -153,16 +153,14 @@ std::string EquipmentComponentManager::SlotName(EquipSlot slot)
     return "Head";
   case EquipSlot::Chest:
     return "Chest";
-  case EquipSlot::Hands:
-    return "Hands";
   case EquipSlot::Legs:
     return "Legs";
   case EquipSlot::Feet:
     return "Feet";
-  case EquipSlot::MainHand:
-    return "Main Hand";
-  case EquipSlot::OffHand:
-    return "Off Hand";
+  case EquipSlot::HandPrimary:
+    return "Hand 1";
+  case EquipSlot::HandSecondary:
+    return "Hand 2";
   default:
     return "Unknown";
   }

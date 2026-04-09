@@ -42,11 +42,10 @@ enum class EquipSlot : uint8_t
   None,
   Head,
   Chest,
-  Hands,
   Legs,
   Feet,
-  MainHand,
-  OffHand,
+  HandPrimary,
+  HandSecondary,
 };
 
 class EquippableFeature : public ItemFeature
@@ -194,6 +193,7 @@ public:
 namespace ItemFactory
 {
   std::unique_ptr<Item> CreateSword(int quantity = 1);
+  std::unique_ptr<Item> CreatePickaxe(int quantity = 1);
   std::unique_ptr<Item> CreateCoin(int quantity = 1);
 }
 
@@ -206,9 +206,11 @@ private:
 
 public:
   float32 MaxCarryVolume;
+  float32 MaxCarryWeight;
   float32 Weight;
 
-  Inventory(float32 maxVolume, float32 weight) : MaxCarryVolume(maxVolume), Weight(weight) {}
+  Inventory(float32 maxVolume, float32 weight, float32 maxWeight = float32(500.0))
+      : MaxCarryVolume(maxVolume), MaxCarryWeight(maxWeight), Weight(weight) {}
 
   const Item *operator[](size_t index) const
   {
@@ -219,10 +221,11 @@ public:
 
   size_t Count() const;
   float32 GetCurrentVolume();
-  float32 GetAllWeight();
+  float32 GetAllWeight() const;
+  bool CanAccept(const Item &item) const;
   void AddListener(InventoryListener *listener);
   void RemoveListener(InventoryListener *listener);
-  void AddItem(std::unique_ptr<Item> itemPtr);
+  bool AddItem(std::unique_ptr<Item> itemPtr);
   std::unique_ptr<Item> RemoveItem(size_t index);
 
 private:

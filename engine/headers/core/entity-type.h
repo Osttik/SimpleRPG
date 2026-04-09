@@ -7,6 +7,7 @@ enum class EntityType : uint8_t {
     Player = 0,
     Chest  = 1,
     NPC    = 2,
+    ItemDrop = 3,
     // Add new types here...
     Unknown = 255
 };

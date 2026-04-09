@@ -71,6 +71,13 @@ bool InventoryComponentManager::AddItem(uint32_t entityId, ContainerSlot slot, s
   if (!container)
     return false;
 
-  container->AddItem(std::move(item));
-  return true;
+  return container->AddItem(std::move(item));
+}
+
+std::unique_ptr<Item> InventoryComponentManager::RemoveItem(uint32_t entityId, ContainerSlot slot, size_t itemIndex)
+{
+  auto *container = GetContainer(entityId, slot);
+  if (!container)
+    return nullptr;
+  return container->RemoveItem(itemIndex);
 }

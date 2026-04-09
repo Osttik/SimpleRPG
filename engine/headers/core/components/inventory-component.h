@@ -22,4 +22,5 @@ public:
   bool TransferItem(uint32_t fromEntityId, uint32_t toEntityId,
                     ContainerSlot fromSlot, ContainerSlot toSlot, size_t itemIndex);
   bool AddItem(uint32_t entityId, ContainerSlot slot, std::unique_ptr<Item> item, GameObject *owner = nullptr);
+  std::unique_ptr<Item> RemoveItem(uint32_t entityId, ContainerSlot slot, size_t itemIndex);
 };

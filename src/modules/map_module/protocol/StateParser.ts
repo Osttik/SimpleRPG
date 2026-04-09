@@ -17,6 +17,7 @@ export const EntityType = {
     Player: 0,
     Chest:  1,
     NPC:    2,
+    ItemDrop: 3,
     Unknown: 255,
 } as const;
 

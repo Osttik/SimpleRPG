@@ -67,11 +67,30 @@ namespace ItemFactory
         1,
         quantity);
 
-    sword->AddFeature<EquippableFeature>(std::vector<EquipSlot>{EquipSlot::MainHand});
+    sword->AddFeature<EquippableFeature>(std::vector<EquipSlot>{EquipSlot::HandPrimary, EquipSlot::HandSecondary});
     sword->AddFeature<WeaponFeature>(4, 8);
     sword->AddFeature<DurabilityFeature>(100, 100);
     sword->AddFeature<MerchantValueFeature>(float32(60.0));
     return sword;
+  }
+
+  std::unique_ptr<Item> CreatePickaxe(int quantity)
+  {
+    auto pickaxe = std::make_unique<Item>(
+        "tool.pickaxe.iron",
+        "Pickaxe",
+        "pickaxe",
+        float32(2.5),
+        float32(6.0),
+        false,
+        1,
+        quantity);
+
+    pickaxe->AddFeature<EquippableFeature>(std::vector<EquipSlot>{EquipSlot::HandPrimary, EquipSlot::HandSecondary});
+    pickaxe->AddFeature<WeaponFeature>(3, 6);
+    pickaxe->AddFeature<DurabilityFeature>(100, 100);
+    pickaxe->AddFeature<MerchantValueFeature>(float32(55.0));
+    return pickaxe;
   }
 
   std::unique_ptr<Item> CreateCoin(int quantity)
@@ -98,9 +117,15 @@ float32 Inventory::GetCurrentVolume()
   return _currentVolume;
 }
 
-float32 Inventory::GetAllWeight()
+float32 Inventory::GetAllWeight() const
 {
   return Weight + _currentWeight;
+}
+
+bool Inventory::CanAccept(const Item &item) const
+{
+  return _currentVolume + item.GetStackVolume() <= MaxCarryVolume &&
+         GetAllWeight() + item.GetStackWeight() <= MaxCarryWeight;
 }
 
 void Inventory::AddListener(InventoryListener *listener)
@@ -118,13 +143,13 @@ void Inventory::RemoveListener(InventoryListener *listener)
   _listeners.erase(it, _listeners.end());
 }
 
-void Inventory::AddItem(std::unique_ptr<Item> itemPtr)
+bool Inventory::AddItem(std::unique_ptr<Item> itemPtr)
 {
   if (!itemPtr)
-    return;
+    return false;
 
-  if (itemPtr->GetStackVolume() + _currentVolume > MaxCarryVolume)
-    return;
+  if (!CanAccept(*itemPtr))
+    return false;
 
   if (itemPtr->Stackable)
   {
@@ -139,7 +164,7 @@ void Inventory::AddItem(std::unique_ptr<Item> itemPtr)
         item->Quantity += itemPtr->Quantity;
         _currentVolume += itemPtr->Volume * float32(itemPtr->Quantity);
         _currentWeight += itemPtr->Weight * float32(itemPtr->Quantity);
-        return;
+        return true;
       }
 
       item->Quantity += space;
@@ -153,6 +178,7 @@ void Inventory::AddItem(std::unique_ptr<Item> itemPtr)
   _currentWeight += itemPtr->GetStackWeight();
 
   _items.push_back(std::move(itemPtr));
+  return true;
 }
 
 std::unique_ptr<Item> Inventory::RemoveItem(size_t index)
@@ -181,14 +207,13 @@ bool InventoryOperator::TransferTo(Inventory &from, Inventory &to, size_t index)
   if (!itemToMove)
     return false;
 
-  if (itemToMove->GetStackVolume() + to.GetCurrentVolume() > to.MaxCarryVolume)
+  if (!to.CanAccept(*itemToMove))
   {
     return false;
   }
 
   std::unique_ptr<Item> item = from.RemoveItem(index);
-  to.AddItem(std::move(item));
-  return true;
+  return to.AddItem(std::move(item));
 }
 
 void InventoryManager::EquipContainer(ContainerSlot slot, std::unique_ptr<Inventory> inventory)

@@ -1,5 +1,7 @@
 import { CoreOverlay } from '@/components/overlay';
+import { KeyEnum } from '@/defines/key.enum';
 import { gameState } from '@/modules/game_module/game_state';
+import { keyboardService } from '@/services/keyboard.service';
 import { interactionsState } from '@/store';
 import { Button } from 'primereact/button';
 import { ProgressBar } from 'primereact/progressbar';
@@ -52,6 +54,21 @@ export const LootUI = () => {
       setSelected(null);
     }
   }, [selected, chestInv, playerInv]);
+
+  useEffect(() => {
+    const dropSub = keyboardService.subscribeToKeyDown([KeyEnum.r, KeyEnum.R], () => {
+      if (!isOpen || !selected || selected.source !== 'player' || !gameState.socketWorker) return;
+      const itemIndex = playerInv.findIndex(item => item.id === selected.itemId);
+      if (itemIndex < 0) return;
+      gameState.socketWorker.postMessage({
+        type: 'drop_item',
+        itemIndex,
+        targetId: Number(gameState.lootingTargetId || 0),
+      });
+    });
+
+    return () => dropSub.dispose();
+  }, [isOpen, playerInv, selected]);
 
   const selectedItem = useMemo(() => {
     if (!selected) return null;

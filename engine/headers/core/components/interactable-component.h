@@ -11,6 +11,7 @@ enum class InteractionType
   None,
   Talk,
   Loot,
+  Pickup,
   Mine
 };
 

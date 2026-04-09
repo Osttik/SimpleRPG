@@ -205,5 +205,13 @@ self.onmessage = (event) => {
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'equip_item', itemIndex: Number(event.data.itemIndex) }));
     }
+  } else if (event.data.type === 'drop_item') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'drop_item',
+        itemIndex: Number(event.data.itemIndex),
+        targetId: Number(event.data.targetId || 0),
+      }));
+    }
   }
 };

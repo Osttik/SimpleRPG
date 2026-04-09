@@ -32,6 +32,7 @@ const ENTITY_TYPE_NAMES: Record<number, string> = {
   [EntityType.Player]:  'player',
   [EntityType.Chest]:   'chest',
   [EntityType.NPC]:     'npc',
+  [EntityType.ItemDrop]:'item_drop',
   [EntityType.Unknown]: 'prop',
 };
 
@@ -200,7 +201,12 @@ function initWebGL() {
         }
       }
 
-      for (const [_id, entity] of entities) {
+      const sortedEntities = Array.from(entities.values()).sort((a, b) => {
+        if (a.chunkZ !== b.chunkZ) return a.chunkZ - b.chunkZ;
+        return a.y - b.y;
+      });
+
+      for (const entity of sortedEntities) {
         const typeName = ENTITY_TYPE_NAMES[entity.type] || 'prop';
         const playerVisual = RegistryManager.getEntityVisual(typeName) || RegistryManager.getEntityVisual("player");
         const playerLogic = RegistryManager.getEntityLogic(typeName) || RegistryManager.getEntityLogic("player");
@@ -288,6 +294,7 @@ function getDefaultColor(type: number): number[] {
     case EntityType.Player:  return [1.0, 1.0, 1.0, 1.0];
     case EntityType.Chest:   return [0.8, 0.5, 0.2, 1.0];
     case EntityType.NPC:     return [0.2, 0.8, 0.5, 1.0];
+    case EntityType.ItemDrop:return [0.95, 0.8, 0.35, 1.0];
     default:                 return [1.0, 0.0, 0.0, 1.0];
   }
 }

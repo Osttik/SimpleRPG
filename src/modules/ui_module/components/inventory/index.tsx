@@ -54,6 +54,17 @@ export const InventoryComponent = () => {
   }, [openInventory, isInventoryOpen]);
 
   useEffect(() => {
+    const dropSub = keyboardService.subscribeToKeyDown([KeyEnum.r, KeyEnum.R], () => {
+      if (!isInventoryOpen || !selectedItemId || !gameState.socketWorker) return;
+      const itemIndex = items.findIndex(item => item.id === selectedItemId);
+      if (itemIndex < 0) return;
+      gameState.socketWorker.postMessage({ type: 'drop_item', itemIndex, targetId: 0 });
+    });
+
+    return () => dropSub.dispose();
+  }, [isInventoryOpen, items, selectedItemId]);
+
+  useEffect(() => {
     if (!selectedItemId) return;
     if (!items.some(i => i.id === selectedItemId)) {
       setSelectedItemId(null);

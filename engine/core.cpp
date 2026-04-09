@@ -1,6 +1,7 @@
 #include <napi.h>
 #include "core/game-world-engine.h"
 #include "core/tile-registry.h"
+#include "core/components/dropped-item-component.h"
 #include "core/components/equipment-component.h"
 #include "core/components/interactable-component.h"
 #include "core/components/inventory-component.h"
@@ -35,6 +36,7 @@ public:
                                               InstanceMethod("getPlayerInventoryState", &GameWorldWrapper::GetPlayerInventoryState),
                                               InstanceMethod("transferItem", &GameWorldWrapper::TransferItem),
                                               InstanceMethod("toggleEquipItem", &GameWorldWrapper::ToggleEquipItem),
+                                              InstanceMethod("dropItem", &GameWorldWrapper::DropItem),
                                           });
         exports.Set("GameWorld", func);
         return exports;
@@ -116,6 +118,20 @@ private:
         auto *target = core_->ObjectManager.GetById(targetId);
         if (!player || !target || !interactMgr->CanInteract(playerId, targetId))
             return env.Null();
+
+        auto *interactComp = interactMgr->Get(targetId);
+        if (interactComp && interactComp->Type == InteractionType::Pickup)
+        {
+            if (!core_->PickupItem(playerId, targetId))
+                return env.Null();
+
+            Napi::Object payload = Napi::Object::New(env);
+            payload.Set("payloadType", Napi::String::New(env, "player_inventory"));
+            auto playerInventory = BuildInventoryObject(env, playerId, inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack));
+            payload.Set("playerInventory", playerInventory.Get("items"));
+            payload.Set("playerInventoryMeta", playerInventory);
+            return payload;
+        }
 
         Napi::Object payload = Napi::Object::New(env);
         payload.Set("chestId", Napi::String::New(env, std::to_string(targetId)));
@@ -263,8 +279,22 @@ private:
                 continue;
 
             auto *comp = interactMgr->Get(id);
-            if (!comp || comp->Type != InteractionType::Loot)
+            if (!comp)
                 continue;
+
+            if (comp->Type == InteractionType::Pickup)
+            {
+                auto *droppedMgr = core_->Ctx.GetManager<DroppedItemComponentManager>();
+                auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();
+                auto *backpack = inventoryMgr ? inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack) : nullptr;
+                auto *item = droppedMgr ? droppedMgr->GetItem(id) : nullptr;
+                if (!backpack || !item || !backpack->CanAccept(*item))
+                    continue;
+            }
+            else if (comp->Type != InteractionType::Loot)
+            {
+                continue;
+            }
             Napi::Object target = Napi::Object::New(info.Env());
             target.Set("targetId", Napi::String::New(info.Env(), std::to_string(id)));
             const std::string baseLabel = comp && !comp->Label.empty() ? comp->Label : entity->Type;
@@ -272,8 +302,8 @@ private:
 
             Napi::Array interactions = Napi::Array::New(info.Env(), 1);
             Napi::Object option = Napi::Object::New(info.Env());
-            option.Set("interactionId", Napi::String::New(info.Env(), "loot"));
-            option.Set("nameKey", Napi::String::New(info.Env(), "Loot"));
+            option.Set("interactionId", Napi::String::New(info.Env(), comp->Type == InteractionType::Pickup ? "pickup" : "loot"));
+            option.Set("nameKey", Napi::String::New(info.Env(), comp->Type == InteractionType::Pickup ? "Pick up" : "Loot"));
             interactions.Set(uint32_t(0), option);
             target.Set("interactions", interactions);
 
@@ -351,6 +381,16 @@ private:
         const uint32_t entityId = info[0].As<Napi::Number>().Uint32Value();
         const int idx = info[1].As<Napi::Number>().Int32Value();
         return Napi::Boolean::New(info.Env(), core_->ToggleEquipItem(entityId, idx));
+    }
+
+    Napi::Value DropItem(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 2)
+            return Napi::Boolean::New(info.Env(), false);
+
+        const uint32_t entityId = info[0].As<Napi::Number>().Uint32Value();
+        const int idx = info[1].As<Napi::Number>().Int32Value();
+        return Napi::Boolean::New(info.Env(), core_->DropItem(entityId, idx));
     }
 
     // ─── Zero-Copy Binary State ───

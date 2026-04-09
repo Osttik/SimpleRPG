@@ -1,7 +1,9 @@
 #include <cmath>
+#include <cstdlib>
 #include "core/game-world-engine.h"
 #include "core/tile-registry.h"
 #include "core/test-spawns.h"
+#include "core/components/dropped-item-component.h"
 #include "net/protocol.hpp"
 #include "core/components/equipment-component.h"
 #include "core/components/move-component.h"
@@ -16,6 +18,7 @@ GameWorldEngine::GameWorldEngine()
   Managers.Register(std::make_unique<InteractableComponentManager>());
   Managers.Register(std::make_unique<InventoryComponentManager>());
   Managers.Register(std::make_unique<EquipmentComponentManager>());
+  Managers.Register(std::make_unique<DroppedItemComponentManager>());
 
   Ctx.Managers = &Managers;
   Ctx.Objects = &ObjectManager;
@@ -149,6 +152,61 @@ bool GameWorldEngine::ToggleEquipItem(uint32_t entityId, int itemIndex)
   return equipmentMgr->ToggleEquip(entityId, static_cast<size_t>(itemIndex), inventoryMgr, player);
 }
 
+bool GameWorldEngine::DropItem(uint32_t entityId, int itemIndex)
+{
+  if (itemIndex < 0)
+    return false;
+
+  auto *player = ObjectManager.GetById(entityId);
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  if (!player || !inventoryMgr)
+    return false;
+
+  auto item = inventoryMgr->RemoveItem(entityId, ContainerSlot::Backpack, static_cast<size_t>(itemIndex));
+  if (!item)
+    return false;
+
+  const float32 spread = player->Radius * float32(0.5);
+  const float32 rx = (float32(std::rand()) / float32(RAND_MAX)) * float32(2.0) - float32(1.0);
+  const float32 ry = (float32(std::rand()) / float32(RAND_MAX)) * float32(2.0) - float32(1.0);
+  Point dropPos(
+      player->Transform.Position().X + rx * spread,
+      player->Transform.Position().Y + ry * spread,
+      player->Transform.Position().Z);
+
+  Props.AddDroppedItem(*this, dropPos, std::move(item));
+  return true;
+}
+
+bool GameWorldEngine::PickupItem(uint32_t playerId, uint32_t targetId)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *target = ObjectManager.GetById(targetId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  auto *droppedMgr = Ctx.GetManager<DroppedItemComponentManager>();
+  if (!player || !target || !interactMgr || !inventoryMgr || !droppedMgr)
+    return false;
+
+  if (!interactMgr->CanInteract(playerId, targetId))
+    return false;
+
+  auto *backpack = inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack);
+  auto *worldItem = droppedMgr->GetItem(targetId);
+  if (!backpack || !worldItem || !backpack->CanAccept(*worldItem))
+    return false;
+
+  auto item = droppedMgr->TakeItem(targetId);
+  if (!item)
+    return false;
+
+  if (!backpack->AddItem(std::move(item)))
+    return false;
+
+  ObjectManager.MarkForDestruction(targetId);
+  return true;
+}
+
 // ─── Tile Operations ───
 
 void GameWorldEngine::DestroyTile(int32_t wx, int32_t wy, int32_t wz)
@@ -221,6 +279,8 @@ EntityType GameWorldEngine::ResolveEntityType(const std::string &typeStr)
     return EntityType::Chest;
   if (typeStr == "npc")
     return EntityType::NPC;
+  if (typeStr == "item_drop")
+    return EntityType::ItemDrop;
   return EntityType::Unknown;
 }
 
