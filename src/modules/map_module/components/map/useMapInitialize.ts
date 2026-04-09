@@ -90,6 +90,10 @@ export const useMapInitialize = () => {
         gameState.chestInventoryMeta = data.chestInventoryMeta ?? gameState.chestInventoryMeta;
         gameState.playerInventoryMeta = data.playerInventoryMeta ?? gameState.playerInventoryMeta;
         window.dispatchEvent(new Event('gameStateUpdate'));
+      } else if (data.type === 'player_inventory') {
+        gameState.playerInventory = data.playerInventory;
+        gameState.playerInventoryMeta = data.playerInventoryMeta ?? gameState.playerInventoryMeta;
+        window.dispatchEvent(new Event('gameStateUpdate'));
       }
     };
 

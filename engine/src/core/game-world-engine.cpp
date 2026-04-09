@@ -3,6 +3,7 @@
 #include "core/tile-registry.h"
 #include "core/test-spawns.h"
 #include "net/protocol.hpp"
+#include "core/components/equipment-component.h"
 #include "core/components/move-component.h"
 #include "core/components/interactable-component.h"
 #include "core/components/inventory-component.h"
@@ -14,6 +15,7 @@ GameWorldEngine::GameWorldEngine()
   Managers.Register(std::make_unique<MoveComponentManager>());
   Managers.Register(std::make_unique<InteractableComponentManager>());
   Managers.Register(std::make_unique<InventoryComponentManager>());
+  Managers.Register(std::make_unique<EquipmentComponentManager>());
 
   Ctx.Managers = &Managers;
   Ctx.Objects = &ObjectManager;
@@ -131,6 +133,20 @@ bool GameWorldEngine::TransferItem(const uint32_t playerId, const uint32_t targe
       fromSlotEnum,
       toSlotEnum,
       static_cast<size_t>(itemIndex));
+}
+
+bool GameWorldEngine::ToggleEquipItem(uint32_t entityId, int itemIndex)
+{
+  if (itemIndex < 0)
+    return false;
+
+  auto *player = ObjectManager.GetById(entityId);
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  auto *equipmentMgr = Ctx.GetManager<EquipmentComponentManager>();
+  if (!player || !inventoryMgr || !equipmentMgr)
+    return false;
+
+  return equipmentMgr->ToggleEquip(entityId, static_cast<size_t>(itemIndex), inventoryMgr, player);
 }
 
 // ─── Tile Operations ───

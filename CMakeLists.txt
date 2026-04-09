@@ -55,7 +55,7 @@ fetchcontent_declare(flatbuffers
 
 fetchcontent_makeavailable(fpm robin_hood Boost flatbuffers)
 
-file(GLOB_RECURSE CORE_SOURCES "engine/src/*.cpp")
+file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS "engine/src/*.cpp")
 list(REMOVE_ITEM CORE_SOURCES "${CMAKE_SOURCE_DIR}/engine/core.cpp")
 list(REMOVE_ITEM CORE_SOURCES "${CMAKE_SOURCE_DIR}/engine/frontend.cpp")
 

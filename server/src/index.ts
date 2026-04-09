@@ -244,6 +244,19 @@ app.ws<SocketData>('/*', {
             ws.send(JSON.stringify({ type: 'open_loot', ...payload }), false);
           }
         }
+      } else if (data.type === 'request_player_inventory') {
+        const payload = physics.getPlayerInventoryState(id);
+        if (payload) {
+          ws.send(JSON.stringify({ type: 'player_inventory', ...payload }), false);
+        }
+      } else if (data.type === 'equip_item') {
+        const ok = physics.toggleEquipItem(id, Number(data.itemIndex || 0));
+        if (ok) {
+          const payload = physics.getPlayerInventoryState(id);
+          if (payload) {
+            ws.send(JSON.stringify({ type: 'player_inventory', ...payload }), false);
+          }
+        }
       }
     } catch (e) {
       console.error('Failed to parse message:', e);

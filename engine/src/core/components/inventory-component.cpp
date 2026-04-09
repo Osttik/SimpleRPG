@@ -54,7 +54,7 @@ bool InventoryComponentManager::TransferItem(uint32_t fromEntityId, uint32_t toE
   return InventoryOperator::TransferTo(*from, *to, itemIndex);
 }
 
-bool InventoryComponentManager::AddItem(uint32_t entityId, ContainerSlot slot, std::unique_ptr<ItemData> item, GameObject *owner)
+bool InventoryComponentManager::AddItem(uint32_t entityId, ContainerSlot slot, std::unique_ptr<Item> item, GameObject *owner)
 {
   auto *container = GetContainer(entityId, slot);
   if (!container)

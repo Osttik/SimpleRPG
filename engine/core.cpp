@@ -1,6 +1,7 @@
 #include <napi.h>
 #include "core/game-world-engine.h"
 #include "core/tile-registry.h"
+#include "core/components/equipment-component.h"
 #include "core/components/interactable-component.h"
 #include "core/components/inventory-component.h"
 
@@ -31,7 +32,9 @@ public:
                                               InstanceMethod("getInteractionOptions", &GameWorldWrapper::GetInteractionOptions),
                                               InstanceMethod("interactTarget", &GameWorldWrapper::InteractTarget),
                                               InstanceMethod("getLootState", &GameWorldWrapper::GetLootState),
+                                              InstanceMethod("getPlayerInventoryState", &GameWorldWrapper::GetPlayerInventoryState),
                                               InstanceMethod("transferItem", &GameWorldWrapper::TransferItem),
+                                              InstanceMethod("toggleEquipItem", &GameWorldWrapper::ToggleEquipItem),
                                           });
         exports.Set("GameWorld", func);
         return exports;
@@ -43,20 +46,22 @@ public:
     }
 
 private:
-    Napi::Object BuildInventoryObject(Napi::Env env, Inventory *inventory) const
+    Napi::Object BuildInventoryObject(Napi::Env env, uint32_t ownerId, Inventory *inventory) const
     {
         Napi::Object out = Napi::Object::New(env);
         Napi::Array items = Napi::Array::New(env);
+        auto *equipmentMgr = core_->Ctx.GetManager<EquipmentComponentManager>();
 
         if (inventory)
         {
             for (size_t i = 0; i < inventory->Count(); ++i)
             {
-                const ItemData *item = (*inventory)[i];
+                const Item *item = (*inventory)[i];
                 if (!item)
                     continue;
 
                 Napi::Object row = Napi::Object::New(env);
+                row.Set("id", Napi::String::New(env, std::to_string(i)));
                 row.Set("name", Napi::String::New(env, item->Name));
                 row.Set("spriteKey", Napi::String::New(env, item->SpriteKey));
                 row.Set("quantity", Napi::Number::New(env, item->Quantity));
@@ -64,7 +69,11 @@ private:
                 row.Set("maxStack", Napi::Number::New(env, item->MaxStack));
                 row.Set("volume", Napi::Number::New(env, static_cast<double>(item->Volume)));
                 row.Set("weight", Napi::Number::New(env, static_cast<double>(item->Weight)));
-                row.Set("price", Napi::Number::New(env, static_cast<double>((item->Weight + item->Volume) * float32(25))));
+                row.Set("price", Napi::Number::New(env, static_cast<double>(item->GetMerchantBaseValue())));
+                const bool equipped = equipmentMgr ? equipmentMgr->IsEquipped(ownerId, item) : false;
+                row.Set("equipped", Napi::Boolean::New(env, equipped));
+                const auto slot = equipmentMgr ? equipmentMgr->GetEquippedSlotFor(ownerId, item) : EquipSlot::None;
+                row.Set("equipSlot", Napi::String::New(env, EquipmentComponentManager::SlotName(slot)));
                 items.Set(i, row);
             }
 
@@ -83,6 +92,19 @@ private:
         return out;
     }
 
+    Napi::Value BuildPlayerInventoryState(Napi::Env env, uint32_t playerId) const
+    {
+        auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();
+        if (!inventoryMgr)
+            return env.Null();
+
+        Napi::Object payload = Napi::Object::New(env);
+        auto playerInventory = BuildInventoryObject(env, playerId, inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack));
+        payload.Set("playerInventory", playerInventory.Get("items"));
+        payload.Set("playerInventoryMeta", playerInventory);
+        return payload;
+    }
+
     Napi::Value BuildLootState(Napi::Env env, uint32_t playerId, uint32_t targetId) const
     {
         auto *interactMgr = core_->Ctx.GetManager<InteractableComponentManager>();
@@ -99,8 +121,8 @@ private:
         payload.Set("chestId", Napi::String::New(env, std::to_string(targetId)));
         payload.Set("interactionType", Napi::String::New(env, "loot"));
 
-        auto playerInventory = BuildInventoryObject(env, inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack));
-        auto chestInventory = BuildInventoryObject(env, inventoryMgr->GetContainer(targetId, ContainerSlot::MainStorage));
+        auto playerInventory = BuildInventoryObject(env, playerId, inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack));
+        auto chestInventory = BuildInventoryObject(env, targetId, inventoryMgr->GetContainer(targetId, ContainerSlot::MainStorage));
 
         payload.Set("playerInventory", playerInventory.Get("items"));
         payload.Set("chestInventory", chestInventory.Get("items"));
@@ -299,6 +321,14 @@ private:
         return BuildLootState(info.Env(), playerId, targetId);
     }
 
+    Napi::Value GetPlayerInventoryState(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 1 || !info[0].IsNumber())
+            return info.Env().Null();
+
+        return BuildPlayerInventoryState(info.Env(), info[0].As<Napi::Number>().Uint32Value());
+    }
+
     Napi::Value TransferItem(const Napi::CallbackInfo &info)
     {
         if (info.Length() < 5)
@@ -311,6 +341,16 @@ private:
         const int idx = info[4].As<Napi::Number>().Int32Value();
 
         return Napi::Boolean::New(info.Env(), core_->TransferItem(playerId, targetId, from, to, idx));
+    }
+
+    Napi::Value ToggleEquipItem(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 2)
+            return Napi::Boolean::New(info.Env(), false);
+
+        const uint32_t entityId = info[0].As<Napi::Number>().Uint32Value();
+        const int idx = info[1].As<Napi::Number>().Int32Value();
+        return Napi::Boolean::New(info.Env(), core_->ToggleEquipItem(entityId, idx));
     }
 
     // ─── Zero-Copy Binary State ───

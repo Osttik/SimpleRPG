@@ -4,8 +4,11 @@ import { gameState } from '@/modules/game_module/game_state';
 import { keyboardService } from '@/services/keyboard.service';
 import { selectIsInventoryOpen, useUIActions } from '@/store/slices/ui.slice';
 import { Button } from 'primereact/button';
+import { classNames } from 'primereact/utils';
 import { useEffect, useMemo, useState } from 'react';
 import { InventoryView, type InventoryItemView } from '../inventory_view';
+
+type InventoryTab = 'all' | 'equipped';
 
 const getDummyDescription = (item: InventoryItemView | null) => {
   if (!item) {
@@ -20,6 +23,7 @@ export const InventoryComponent = () => {
   const { openInventory } = useUIActions();
   const [items, setItems] = useState<InventoryItemView[]>([]);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<InventoryTab>('all');
 
   useEffect(() => {
     const updateFromState = () => {
@@ -36,7 +40,11 @@ export const InventoryComponent = () => {
         gameState.playerInventory = [];
         window.dispatchEvent(new Event('gameStateUpdate'));
       }
-      openInventory(!isInventoryOpen);
+      const nextState = !isInventoryOpen;
+      if (nextState && gameState.socketWorker) {
+        gameState.socketWorker.postMessage({ type: 'request_player_inventory' });
+      }
+      openInventory(nextState);
     });
 
     return () => {
@@ -52,10 +60,22 @@ export const InventoryComponent = () => {
     }
   }, [items, selectedItemId]);
 
+  const visibleItems = useMemo(
+    () => activeTab === 'equipped' ? items.filter(i => i.equipped) : items,
+    [activeTab, items],
+  );
+
   const selectedItem = useMemo(
     () => items.find(i => i.id === selectedItemId) ?? null,
     [items, selectedItemId],
   );
+
+  const toggleEquip = (item: InventoryItemView) => {
+    if (!gameState.socketWorker) return;
+    const itemIndex = items.findIndex(candidate => candidate.id === item.id);
+    if (itemIndex < 0) return;
+    gameState.socketWorker.postMessage({ type: 'equip_item', itemIndex });
+  };
 
   return (
     <CoreOverlay
@@ -65,11 +85,30 @@ export const InventoryComponent = () => {
       content={(
         <div className="flex h-full w-full gap-4 p-5">
           <div className="min-w-0 flex-[3]">
+            <div className="mb-4 flex gap-2">
+              {(['all', 'equipped'] as InventoryTab[]).map(tab => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={classNames(
+                    'rounded-lg border px-4 py-2 text-sm font-semibold transition-colors',
+                    activeTab === tab
+                      ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                      : 'border-slate-600 bg-slate-900/60 text-slate-300 hover:border-slate-400'
+                  )}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  {tab === 'all' ? 'All Items' : 'Equipped'}
+                </button>
+              ))}
+            </div>
             <InventoryView
               title="Inventory"
-              items={items}
+              items={visibleItems}
               selectedItemId={selectedItemId}
               onSelectItem={(item) => setSelectedItemId(item?.id ?? null)}
+              onDoubleClickItem={toggleEquip}
+              showEquipSlot={activeTab === 'equipped'}
             />
           </div>
 
@@ -80,6 +119,9 @@ export const InventoryComponent = () => {
               <div className="mt-3 text-sm leading-6 text-slate-300">{getDummyDescription(selectedItem)}</div>
               <div className="mt-4 text-xs text-slate-400">
                 Qty: {selectedItem?.quantity ?? 0} | Price: {selectedItem?.price ?? 0}
+              </div>
+              <div className="mt-2 text-xs text-slate-400">
+                Equip: {selectedItem?.equipped ? selectedItem.equipSlot || 'Equipped' : 'Not equipped'}
               </div>
             </div>
 

@@ -199,6 +199,11 @@ html, body, #root {
   color: inherit !important;
 }
 
+.inventory-table .inventory-row-equipped {
+  background: rgba(180, 120, 40, 0.22) !important;
+  color: #f8e7c2 !important;
+}
+
 .core-overlay {
   max-width: none !important;
 }

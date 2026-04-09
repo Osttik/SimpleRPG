@@ -42,6 +42,7 @@ public:
   void Interact(const uint32_t id);
   bool TransferItem(const uint32_t playerId, const uint32_t targetId,
                     int fromContainer, int toContainer, int itemIndex);
+  bool ToggleEquipItem(uint32_t entityId, int itemIndex);
   void SpawnTestChest();
   void DestroyTile(int32_t wx, int32_t wy, int32_t wz);
 

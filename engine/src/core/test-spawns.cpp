@@ -15,10 +15,10 @@ void SpawnTestChests(GameWorldEngine &core)
             Inventory *mainStorage = invMgr->GetContainer(id, ContainerSlot::MainStorage);
             if (mainStorage)
             {
-                mainStorage->AddItem(std::make_unique<Coin>(1000));
+                mainStorage->AddItem(ItemFactory::CreateCoin(1000));
                 for (int i = 0; i < 5; i++)
                 {
-                    mainStorage->AddItem(std::make_unique<Sword>());
+                    mainStorage->AddItem(ItemFactory::CreateSword());
                 }
             }
         }

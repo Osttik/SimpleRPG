@@ -70,6 +70,8 @@ function decodeInventory(inventory: InventoryContents | null, prefix: string): {
         stackable: item.stackable(),
         maxStack: item.maxStack(),
         price: Math.max(1, Math.round((weight + volume) * 25)),
+        equipped: false,
+        equipSlot: '',
       });
     }
   }
@@ -148,7 +150,7 @@ function connect() {
       return;
     }
 
-    if (data.type === 'interaction_options' || data.type === 'open_loot') {
+    if (data.type === 'interaction_options' || data.type === 'open_loot' || data.type === 'player_inventory') {
       self.postMessage(data);
       return;
     }
@@ -194,6 +196,14 @@ self.onmessage = (event) => {
         Number(event.data.itemIndex),
       );
       socket.send(buf);
+    }
+  } else if (event.data.type === 'request_player_inventory') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'request_player_inventory' }));
+    }
+  } else if (event.data.type === 'equip_item') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'equip_item', itemIndex: Number(event.data.itemIndex) }));
     }
   }
 };

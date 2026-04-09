@@ -11,6 +11,8 @@ export interface InventoryItemView {
   stackable: boolean;
   maxStack: number;
   price: number;
+  equipped: boolean;
+  equipSlot: string;
 }
 
 export interface InventoryMetaView {
@@ -26,6 +28,7 @@ interface InventoryViewProps {
   onSelectItem: (item: InventoryItemView | null) => void;
   onDoubleClickItem?: (item: InventoryItemView) => void;
   canExchangeItem?: (item: InventoryItemView) => boolean;
+  showEquipSlot?: boolean;
 }
 
 export const InventoryView = ({
@@ -35,12 +38,20 @@ export const InventoryView = ({
   onSelectItem,
   onDoubleClickItem,
   canExchangeItem,
+  showEquipSlot,
 }: InventoryViewProps) => {
   const selectedItem = selectedItemId ? items.find(i => i.id === selectedItemId) ?? null : null;
 
   const rowClassName = (data: InventoryItemView) => {
-    if (!canExchangeItem) return {};
-    return canExchangeItem(data) ? {} : { 'opacity-40': true, 'grayscale': true };
+    const classes: Record<string, boolean> = {};
+    if (data.equipped) {
+      classes['inventory-row-equipped'] = true;
+    }
+    if (canExchangeItem && !canExchangeItem(data)) {
+      classes['opacity-40'] = true;
+      classes['grayscale'] = true;
+    }
+    return classes;
   };
 
   const handleRowDoubleClick = (e: DataTableRowClickEvent) => {
@@ -70,6 +81,7 @@ export const InventoryView = ({
         scrollHeight="flex"
       >
         <Column field="name" header="Name" sortable />
+        {showEquipSlot ? <Column field="equipSlot" header="Slot" sortable /> : null}
         <Column field="price" header="Price" sortable />
         <Column field="quantity" header="Qty" sortable />
         <Column field="weight" header="Weight" sortable body={(row: InventoryItemView) => row.weight.toFixed(2)} />

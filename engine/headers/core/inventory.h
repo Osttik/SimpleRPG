@@ -1,10 +1,11 @@
 #pragma once
-#include <vector>
-#include <memory>
 #include <algorithm>
 #include <array>
-#include <unordered_map>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
+#include <stdint.h>
 #include "math/number.h"
 
 enum class ContainerSlot : size_t
@@ -14,9 +15,114 @@ enum class ContainerSlot : size_t
   Count,
 };
 
-class ItemData
+class ItemFeatureType
+{
+private:
+  static inline uint32_t NextId = 0;
+
+public:
+  template <typename T>
+  static uint32_t Get()
+  {
+    static uint32_t id = NextId++;
+    return id;
+  }
+};
+
+class ItemFeature
 {
 public:
+  virtual ~ItemFeature() = default;
+  virtual uint32_t TypeId() const = 0;
+  virtual bool IsStackCompatibleWith(const ItemFeature &other) const = 0;
+};
+
+enum class EquipSlot : uint8_t
+{
+  None,
+  Head,
+  Chest,
+  Hands,
+  Legs,
+  Feet,
+  MainHand,
+  OffHand,
+};
+
+class EquippableFeature : public ItemFeature
+{
+public:
+  std::vector<EquipSlot> AllowedSlots;
+
+  explicit EquippableFeature(std::vector<EquipSlot> allowedSlots)
+      : AllowedSlots(std::move(allowedSlots)) {}
+
+  uint32_t TypeId() const override { return ItemFeatureType::Get<EquippableFeature>(); }
+
+  bool IsStackCompatibleWith(const ItemFeature &other) const override
+  {
+    const auto *typed = dynamic_cast<const EquippableFeature *>(&other);
+    return typed && AllowedSlots == typed->AllowedSlots;
+  }
+};
+
+class DurabilityFeature : public ItemFeature
+{
+public:
+  int Current = 0;
+  int Max = 0;
+
+  DurabilityFeature(int current, int max) : Current(current), Max(max) {}
+
+  uint32_t TypeId() const override { return ItemFeatureType::Get<DurabilityFeature>(); }
+
+  bool IsStackCompatibleWith(const ItemFeature &other) const override
+  {
+    const auto *typed = dynamic_cast<const DurabilityFeature *>(&other);
+    return typed && Current == typed->Current && Max == typed->Max;
+  }
+};
+
+class WeaponFeature : public ItemFeature
+{
+public:
+  int MinDamage = 0;
+  int MaxDamage = 0;
+
+  WeaponFeature(int minDamage, int maxDamage) : MinDamage(minDamage), MaxDamage(maxDamage) {}
+
+  uint32_t TypeId() const override { return ItemFeatureType::Get<WeaponFeature>(); }
+
+  bool IsStackCompatibleWith(const ItemFeature &other) const override
+  {
+    const auto *typed = dynamic_cast<const WeaponFeature *>(&other);
+    return typed && MinDamage == typed->MinDamage && MaxDamage == typed->MaxDamage;
+  }
+};
+
+class MerchantValueFeature : public ItemFeature
+{
+public:
+  float32 BaseValue = float32(0);
+
+  explicit MerchantValueFeature(float32 baseValue) : BaseValue(baseValue) {}
+
+  uint32_t TypeId() const override { return ItemFeatureType::Get<MerchantValueFeature>(); }
+
+  bool IsStackCompatibleWith(const ItemFeature &other) const override
+  {
+    const auto *typed = dynamic_cast<const MerchantValueFeature *>(&other);
+    return typed && BaseValue == typed->BaseValue;
+  }
+};
+
+class Item
+{
+private:
+  std::vector<std::unique_ptr<ItemFeature>> _features;
+
+public:
+  std::string DefinitionId;
   std::string Name;
   std::string SpriteKey;
   float32 Volume;
@@ -25,25 +131,76 @@ public:
   int Quantity;
   int MaxStack;
 
-  ItemData(std::string name, std::string spriteKey, float32 volume, float32 weight, bool stackable = false, int maxStack = 1, int quantity = 1)
-      : Name(std::move(name)), SpriteKey(std::move(spriteKey)), Volume(volume), Weight(weight), Stackable(stackable), Quantity(quantity), MaxStack(maxStack) {}
-  virtual ~ItemData() = default;
+  Item(std::string definitionId, std::string name, std::string spriteKey, float32 volume, float32 weight,
+       bool stackable = false, int maxStack = 1, int quantity = 1)
+      : DefinitionId(std::move(definitionId)),
+        Name(std::move(name)),
+        SpriteKey(std::move(spriteKey)),
+        Volume(volume),
+        Weight(weight),
+        Stackable(stackable),
+        Quantity(quantity),
+        MaxStack(maxStack) {}
+
+  template <typename T, typename... TArgs>
+  T *AddFeature(TArgs &&...args)
+  {
+    auto feature = std::make_unique<T>(std::forward<TArgs>(args)...);
+    auto *raw = feature.get();
+    _features.push_back(std::move(feature));
+    return raw;
+  }
+
+  template <typename T>
+  T *GetFeature()
+  {
+    const Item *constSelf = this;
+    return const_cast<T *>(constSelf->GetFeature<T>());
+  }
+
+  template <typename T>
+  const T *GetFeature() const
+  {
+    const uint32_t wantedTypeId = ItemFeatureType::Get<T>();
+    for (const auto &feature : _features)
+    {
+      if (feature && feature->TypeId() == wantedTypeId)
+        return static_cast<const T *>(feature.get());
+    }
+    return nullptr;
+  }
+
+  template <typename T>
+  bool HasFeature() const
+  {
+    return GetFeature<T>() != nullptr;
+  }
+
+  bool CanStackWith(const Item &other) const;
+  float32 GetStackVolume() const;
+  float32 GetStackWeight() const;
+  float32 GetMerchantBaseValue() const;
 };
 
-class Sword : public ItemData {
+class Inventory;
+
+class InventoryListener
+{
 public:
-  Sword() : ItemData("Sword", "sword", float32(2.0), float32(5.0), false, 1, 1) {}
+  virtual ~InventoryListener() = default;
+  virtual void OnItemRemoved(Inventory &inventory, const Item &item) = 0;
 };
 
-class Coin : public ItemData {
-public:
-  Coin(int quantity = 1) : ItemData("Coin", "coin", float32(0.01), float32(0.01), true, 10000, quantity) {}
-};
+namespace ItemFactory
+{
+  std::unique_ptr<Item> CreateSword(int quantity = 1);
+  std::unique_ptr<Item> CreateCoin(int quantity = 1);
+}
 
 class Inventory
 {
 private:
-  std::vector<std::unique_ptr<ItemData>> _items;
+  std::vector<std::unique_ptr<Item>> _items;
   float32 _currentVolume = float32(0);
   float32 _currentWeight = float32(0);
 
@@ -53,7 +210,7 @@ public:
 
   Inventory(float32 maxVolume, float32 weight) : MaxCarryVolume(maxVolume), Weight(weight) {}
 
-  const ItemData *operator[](size_t index) const
+  const Item *operator[](size_t index) const
   {
     if (index >= _items.size())
       return nullptr;
@@ -63,8 +220,13 @@ public:
   size_t Count() const;
   float32 GetCurrentVolume();
   float32 GetAllWeight();
-  void AddItem(std::unique_ptr<ItemData> itemPtr);
-  std::unique_ptr<ItemData> RemoveItem(size_t index);
+  void AddListener(InventoryListener *listener);
+  void RemoveListener(InventoryListener *listener);
+  void AddItem(std::unique_ptr<Item> itemPtr);
+  std::unique_ptr<Item> RemoveItem(size_t index);
+
+private:
+  std::vector<InventoryListener *> _listeners;
 };
 
 class InventoryOperator
