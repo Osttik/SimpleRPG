@@ -1,7 +1,8 @@
+import { isOverlayOpen } from '@/components/overlay';
 import { useEffect } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { subscribeToMovement } from './controls/subscribeToMovement';
-import { controlsContext, getRelativePositions } from './controls';
+import { controlsContext, getRelativePositions, resetMovementIntent } from './controls';
 import { subscribeToSelection } from './controls/subscribeToSelection';
 
 export const useControls = (socketWorker: Worker | null) => {
@@ -16,16 +17,26 @@ export const useControls = (socketWorker: Worker | null) => {
       ...subscribeToSelection(socketWorker),
     ];
 
-    const resetPressedKeys = () => {
-      controlsContext.pressedKeys.x = 0;
-      controlsContext.pressedKeys.y = 0;
-    };
-    window.addEventListener('blur', resetPressedKeys);
+    window.addEventListener('blur', resetMovementIntent);
 
     let wasMoving = false;
 
     const moveInterval = setInterval(() => {
       if (!socketWorker) return;
+      if (isOverlayOpen()) {
+        resetMovementIntent();
+        if (wasMoving) {
+          socketWorker.postMessage({ type: 'move', dx: 0, dy: 0 });
+          wasMoving = false;
+        }
+
+        const tooltip = document.getElementById('interaction-tooltip');
+        if (tooltip) {
+          tooltip.style.display = 'none';
+        }
+        return;
+      }
+
       const { pressedKeys, isMousePressed, targetMousePosition } = controlsContext;
       let moveX = 0;
       let moveY = 0;
@@ -92,7 +103,7 @@ export const useControls = (socketWorker: Worker | null) => {
     }, 1000 / 30);
 
     return () => {
-      window.removeEventListener('blur', resetPressedKeys);
+      window.removeEventListener('blur', resetMovementIntent);
       dispose.forEach(e => e.dispose());
       clearInterval(moveInterval);
     };

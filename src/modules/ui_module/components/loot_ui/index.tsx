@@ -92,8 +92,8 @@ export const LootUI = () => {
       }}
       maximized
       content={(
-        <div className="flex h-full min-h-[70vh] w-full gap-4 p-5">
-          <div className="w-[36%]">
+        <div className="grid h-full w-full grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.9fr)_minmax(0,1.2fr)] gap-4 p-5">
+          <div className="min-w-0">
             <InventoryView
               title="Chest"
               items={chestInv}
@@ -104,7 +104,7 @@ export const LootUI = () => {
             />
           </div>
 
-          <div className="flex w-[28%] flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-4">
             <div className="rounded-xl border border-slate-600 bg-[#111827E6] p-4 text-slate-200 shadow-2xl">
               <div className="mb-2 text-sm uppercase tracking-wider text-slate-400">Description</div>
               <div className="text-lg font-semibold text-white">{selectedItem?.name ?? 'No item selected'}</div>
@@ -130,9 +130,13 @@ export const LootUI = () => {
                 </div>
               </div>
             </div>
+
+            <div className="flex justify-end">
+              <Button label="Close" severity="secondary" outlined onClick={closeLoot} />
+            </div>
           </div>
 
-          <div className="w-[36%]">
+          <div className="min-w-0">
             <InventoryView
               title="Player Backpack"
               items={playerInv}
@@ -141,10 +145,6 @@ export const LootUI = () => {
               onDoubleClickItem={(item) => transfer('player', item)}
               canExchangeItem={(item) => canPlaceInInventory(item, chestMeta)}
             />
-          </div>
-
-          <div className="flex w-[36%] items-end justify-end">
-            <Button label="Close" severity="secondary" outlined onClick={closeLoot} />
           </div>
         </div>
       )}

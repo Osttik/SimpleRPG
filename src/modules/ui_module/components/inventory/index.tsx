@@ -63,8 +63,8 @@ export const InventoryComponent = () => {
       setVisible={openInventory}
       maximized
       content={(
-        <div className="flex h-full min-h-[70vh] w-full gap-4 p-5">
-          <div className="w-3/5">
+        <div className="flex h-full w-full gap-4 p-5">
+          <div className="min-w-0 flex-[3]">
             <InventoryView
               title="Inventory"
               items={items}
@@ -73,7 +73,7 @@ export const InventoryComponent = () => {
             />
           </div>
 
-          <div className="flex w-2/5 flex-col gap-4">
+          <div className="flex min-w-[22rem] flex-[2] flex-col gap-4">
             <div className="rounded-xl border border-slate-600 bg-[#111827E6] p-4 text-slate-200 shadow-2xl">
               <div className="mb-2 text-sm uppercase tracking-wider text-slate-400">Description</div>
               <div className="text-lg font-semibold text-white">{selectedItem?.name ?? 'No item selected'}</div>

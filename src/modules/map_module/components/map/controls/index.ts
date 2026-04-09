@@ -21,6 +21,13 @@ export const controlsContext: IControlsContext = {
   keyValue,
 }
 
+export const resetMovementIntent = () => {
+  controlsContext.isMousePressed = false;
+  controlsContext.targetMousePosition = null;
+  controlsContext.pressedKeys.x = 0;
+  controlsContext.pressedKeys.y = 0;
+};
+
 import { gameState } from "@/modules/game_module/game_state";
 
 export const getRelativePositions = (canvas: HTMLCanvasElement | null | undefined, clientX: number, clientY: number) => {

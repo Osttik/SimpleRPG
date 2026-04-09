@@ -199,6 +199,24 @@ html, body, #root {
   color: inherit !important;
 }
 
+.core-overlay {
+  max-width: none !important;
+}
+
+.core-overlay .p-dialog-content,
+.core-overlay-content {
+  height: 100%;
+}
+
+.core-overlay-maximized {
+  border-radius: 0 !important;
+}
+
+.core-overlay-maximized .p-dialog-header,
+.core-overlay-maximized .p-dialog-content {
+  border-radius: 0 !important;
+}
+
 @keyframes sandFillup {
   0% { opacity: 0; height: 0; }
   60% { opacity: 1; height: 0; }
