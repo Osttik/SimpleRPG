@@ -1,3 +1,4 @@
+import { isOverlayOpen } from "@/components/overlay";
 import { KeyEnum, KeyEnumValue } from "@/defines/key.enum";
 
 interface IControlsContext {
@@ -21,11 +22,19 @@ export const controlsContext: IControlsContext = {
   keyValue,
 }
 
-export const resetMovementIntent = () => {
+export const clearMovementIntent = () => {
   controlsContext.isMousePressed = false;
   controlsContext.targetMousePosition = null;
   controlsContext.pressedKeys.x = 0;
   controlsContext.pressedKeys.y = 0;
+};
+
+export const areControlsDisabled = () => {
+  const disabled = isOverlayOpen();
+  if (disabled) {
+    clearMovementIntent();
+  }
+  return disabled;
 };
 
 import { gameState } from "@/modules/game_module/game_state";

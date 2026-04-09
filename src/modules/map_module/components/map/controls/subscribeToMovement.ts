@@ -1,6 +1,5 @@
-import { isOverlayOpen } from "@/components/overlay";
 import { keyboardService } from "@/services/keyboard.service";
-import { controlsContext, resetMovementIntent } from ".";
+import { areControlsDisabled, controlsContext } from ".";
 import { MouseKeyEnum } from "@/defines/key.enum";
 import { gameState } from "@/modules/game_module/game_state";
 
@@ -8,8 +7,7 @@ export const subscribeToMovement = () => {
   return [...keyboardService.subscribeToKey(
     Object.keys(controlsContext.keyValue),
     (e) => {
-      if (isOverlayOpen()) {
-        resetMovementIntent();
+      if (areControlsDisabled()) {
         return;
       }
       if (e.repeat) return; // browser key-repeat fires extra keydowns; skip them to prevent drift
@@ -22,8 +20,7 @@ export const subscribeToMovement = () => {
       controlsContext.pressedKeys.y += val.y ?? 0;
     },
     (e) => {
-      if (isOverlayOpen()) {
-        resetMovementIntent();
+      if (areControlsDisabled()) {
         return;
       }
       const val = controlsContext.keyValue[e.key];
@@ -34,8 +31,7 @@ export const subscribeToMovement = () => {
     }),
   ...keyboardService.subscribeToMouse(MouseKeyEnum.MouseRight,
     () => {
-      if (isOverlayOpen()) {
-        resetMovementIntent();
+      if (areControlsDisabled()) {
         return;
       }
       controlsContext.isMousePressed = true;

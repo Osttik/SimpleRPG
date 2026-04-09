@@ -1,8 +1,7 @@
-import { isOverlayOpen } from '@/components/overlay';
 import { useEffect } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { subscribeToMovement } from './controls/subscribeToMovement';
-import { controlsContext, getRelativePositions, resetMovementIntent } from './controls';
+import { areControlsDisabled, clearMovementIntent, controlsContext, getRelativePositions } from './controls';
 import { subscribeToSelection } from './controls/subscribeToSelection';
 
 export const useControls = (socketWorker: Worker | null) => {
@@ -17,14 +16,13 @@ export const useControls = (socketWorker: Worker | null) => {
       ...subscribeToSelection(socketWorker),
     ];
 
-    window.addEventListener('blur', resetMovementIntent);
+    window.addEventListener('blur', clearMovementIntent);
 
     let wasMoving = false;
 
     const moveInterval = setInterval(() => {
       if (!socketWorker) return;
-      if (isOverlayOpen()) {
-        resetMovementIntent();
+      if (areControlsDisabled()) {
         if (wasMoving) {
           socketWorker.postMessage({ type: 'move', dx: 0, dy: 0 });
           wasMoving = false;
@@ -103,7 +101,7 @@ export const useControls = (socketWorker: Worker | null) => {
     }, 1000 / 30);
 
     return () => {
-      window.removeEventListener('blur', resetMovementIntent);
+      window.removeEventListener('blur', clearMovementIntent);
       dispose.forEach(e => e.dispose());
       clearInterval(moveInterval);
     };

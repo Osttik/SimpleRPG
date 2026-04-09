@@ -1,13 +1,12 @@
-import { isOverlayOpen } from "@/components/overlay";
 import { MouseKeyEnum } from "@/defines/key.enum";
 import { gameState } from "@/modules/game_module/game_state";
 import { keyboardService } from "@/services/keyboard.service";
-import { controlsContext, getRelativePositions } from ".";
+import { areControlsDisabled, controlsContext, getRelativePositions } from ".";
 
 export const subscribeToSelection = (socketWorker: Worker) => {
   return [keyboardService.subscribeToKeyDown(MouseKeyEnum.MouseLeft,
     () => {
-      if (isOverlayOpen()) return;
+      if (areControlsDisabled()) return;
       controlsContext.targetMousePosition = null;
 
       if (!gameState.myId) return;
