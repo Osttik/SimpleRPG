@@ -36,3 +36,4 @@ engine/generated/
 .env
 compile_flags.txt
 build_log.txt
+llm.ps1
