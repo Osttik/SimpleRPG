@@ -45,6 +45,7 @@ interface IGameState {
   socketWorker?: Worker | null;
   combatBodies: Record<string, Record<number, CombatPartStateView>>;
   combatEventLog: CombatEventView[];
+  camera: { x: number; y: number };
 }
 
 export interface ChunkData {
@@ -78,4 +79,5 @@ export const gameState: IGameState = {
   focusedId: null,
   combatBodies: {},
   combatEventLog: [],
+  camera: { x: 0, y: 0 },
 };

@@ -2,6 +2,7 @@ import { keyboardService } from "@/services/keyboard.service";
 import { areControlsDisabled, controlsContext } from ".";
 import { MouseKeyEnum } from "@/defines/key.enum";
 import { gameState } from "@/modules/game_module/game_state";
+import { getWorldMousePosition } from ".";
 
 export const subscribeToMovement = () => {
   return [...keyboardService.subscribeToKey(
@@ -35,7 +36,11 @@ export const subscribeToMovement = () => {
         return;
       }
       controlsContext.isMousePressed = true;
-      controlsContext.targetMousePosition = gameState.mousePosition;
+      controlsContext.targetMousePosition = getWorldMousePosition(
+        gameState.canvasRef?.current,
+        gameState.mousePosition.x,
+        gameState.mousePosition.y,
+      );
     }, () => {
       controlsContext.isMousePressed = false;
     })

@@ -1,7 +1,7 @@
 import { MouseKeyEnum } from "@/defines/key.enum";
 import { gameState } from "@/modules/game_module/game_state";
 import { keyboardService } from "@/services/keyboard.service";
-import { areControlsDisabled, controlsContext, getRelativePositions } from ".";
+import { areControlsDisabled, controlsContext, getWorldMousePosition } from ".";
 
 export const subscribeToSelection = (socketWorker: Worker) => {
   return [keyboardService.subscribeToKeyDown(MouseKeyEnum.MouseLeft,
@@ -13,7 +13,7 @@ export const subscribeToSelection = (socketWorker: Worker) => {
       const canvas = gameState.canvasRef?.current;
       if (!canvas) return;
 
-      const [x, y] = getRelativePositions(canvas, gameState.mousePosition.x, gameState.mousePosition.y);
+      const { x, y } = getWorldMousePosition(canvas, gameState.mousePosition.x, gameState.mousePosition.y);
       let hitChest = false;
       for (const [id, entity] of Object.entries(gameState.players)) {
         if (id === gameState.myId) continue;

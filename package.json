@@ -1,7 +1,7 @@
 {
   "name": "tmp_init",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "install": "echo \"Skipping node-gyp auto-build!\"",
@@ -12,18 +12,16 @@
     "dev:web": "vite --port 3000",
     "dev:server": "npm --prefix server run dev",
     "build:cpp": "node build_scripts/build-core.js",
+    "clean": "powershell -Command \"Remove-Item -Recurse -Force build, build_wasm, engine/generated, src/generated\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
-  "main": "http://localhost:3000",
-  "node-remote": "http://localhost:3000",
-  "window": {
-    "title": "RPG (Dev Mode)",
-    "width": 1280,
-    "height": 720
+  "cmake-js": {
+    "arch": "x64",
+    "runtime": "node"
   },
-  "nodejs": true,
+  "main": "http://localhost:3000",
   "dependencies": {
     "@most/adapter": "^1.0.0",
     "@most/core": "^1.6.1",
@@ -43,25 +41,14 @@
     "valtio": "^2.3.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
-    "@tailwindcss/postcss": "^4.2.1",
-    "@types/node": "^24.12.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.0",
-    "autoprefixer": "^10.4.27",
     "cmake-js": "^8.0.0",
     "concurrently": "^9.2.1",
     "eslint": "^9.39.4",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.4.0",
     "nw": "^0.109.0-sdk",
-    "postcss": "^8.5.8",
     "sass": "^1.98.0",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.56.1",
     "vite": "^8.0.0"
   }
 }

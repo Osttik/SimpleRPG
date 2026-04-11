@@ -9,6 +9,7 @@ import {
   INITIAL_SPAWN_AREA_HEIGHT,
   INITIAL_SPAWN_AREA_WIDTH,
   INPUT_MESSAGE_MAX_TYPE,
+  STREAM_CHUNK_RADIUS,
   TRANSFER_MESSAGE_MIN_LENGTH,
   TRANSFER_MESSAGE_TYPE,
 } from './socket-constants.js';
@@ -16,6 +17,34 @@ import type { InitEntity, InitTile, SocketData } from './types.js';
 import type { TemplatedApp, WebSocket } from './uws.js';
 
 export const sockets = new Set<WebSocket<SocketData>>();
+
+function streamChunksAround(
+  ws: WebSocket<SocketData>,
+  centerCX: number,
+  centerCY: number,
+  centerCZ: number,
+  radius: number,
+) {
+  const userData = ws.getUserData();
+  if (!userData.loadedChunks) {
+    userData.loadedChunks = new Set<string>();
+  }
+
+  for (let dx = -radius; dx <= radius; dx++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dz = INITIAL_CHUNK_MIN_Z_OFFSET; dz <= INITIAL_CHUNK_MAX_Z_OFFSET; dz++) {
+        const cx = centerCX + dx;
+        const cy = centerCY + dy;
+        const cz = centerCZ + dz;
+        const key = `${cx},${cy},${cz}`;
+        if (userData.loadedChunks.has(key)) continue;
+
+        sendChunk(ws, cx, cy, cz);
+        userData.loadedChunks.add(key);
+      }
+    }
+  }
+}
 
 export function sendChunk(ws: WebSocket<SocketData>, cx: number, cy: number, cz: number) {
   try {
@@ -42,6 +71,7 @@ export function handleOpen(ws: WebSocket<SocketData>) {
   const numericId: number = physics.addPlayer(initialX, initialY);
 
   ws.getUserData().id = numericId;
+  ws.getUserData().loadedChunks = new Set<string>();
   ws.subscribe(GAME_TOPIC);
   sockets.add(ws);
 
@@ -75,14 +105,7 @@ export function handleOpen(ws: WebSocket<SocketData>) {
   const centerCX = Math.floor(initialX / CHUNK_PIXEL_SIZE);
   const centerCY = Math.floor(initialY / CHUNK_PIXEL_SIZE);
   const centerCZ = 0;
-
-  for (let dx = -INITIAL_CHUNK_RADIUS; dx <= INITIAL_CHUNK_RADIUS; dx++) {
-    for (let dy = -INITIAL_CHUNK_RADIUS; dy <= INITIAL_CHUNK_RADIUS; dy++) {
-      for (let dz = INITIAL_CHUNK_MIN_Z_OFFSET; dz <= INITIAL_CHUNK_MAX_Z_OFFSET; dz++) {
-        sendChunk(ws, centerCX + dx, centerCY + dy, centerCZ + dz);
-      }
-    }
-  }
+  streamChunksAround(ws, centerCX, centerCY, centerCZ, INITIAL_CHUNK_RADIUS);
 }
 
 export function handleMessage(ws: WebSocket<SocketData>, message: ArrayBuffer, isBinary: boolean) {
@@ -202,9 +225,20 @@ export function startGameLoop(app: TemplatedApp) {
         app.publish(GAME_TOPIC, combatEvents, true);
       }
 
+      const state = physics.getState();
+      const players = state?.players ?? {};
+
       for (const ws of sockets) {
         if ((ws as any).getBufferedAmount && (ws as any).getBufferedAmount() > 0) continue;
         const id = ws.getUserData().id;
+        const playerState = players[id];
+        if (playerState) {
+          const centerCX = Math.floor(playerState.x / CHUNK_PIXEL_SIZE);
+          const centerCY = Math.floor(playerState.y / CHUNK_PIXEL_SIZE);
+          const centerCZ = Number(playerState.z || 0);
+          streamChunksAround(ws, centerCX, centerCY, centerCZ, STREAM_CHUNK_RADIUS);
+        }
+
         const payload = physics.getInteractionOptions(id);
         if (payload) {
           ws.send(JSON.stringify({ type: 'interaction_options', ...payload }), false);

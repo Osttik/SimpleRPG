@@ -12,3 +12,4 @@ export const INITIAL_SPAWN_AREA_HEIGHT = 600;
 export const INITIAL_CHUNK_RADIUS = 1;
 export const INITIAL_CHUNK_MIN_Z_OFFSET = -1;
 export const INITIAL_CHUNK_MAX_Z_OFFSET = 0;
+export const STREAM_CHUNK_RADIUS = 3;

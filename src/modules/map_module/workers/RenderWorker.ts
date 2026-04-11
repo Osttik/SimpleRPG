@@ -18,14 +18,22 @@ interface RenderGameState {
   tileRegistry: Record<number, string>;
   myId?: string;
   myNumericId?: number;
+  cameraX: number;
+  cameraY: number;
 }
 
 const gameState: RenderGameState = {
   chunks: new Map(),
   tileRegistry: {},
+  cameraX: 0,
+  cameraY: 0,
 };
 
 const interpolator = new SnapshotInterpolator();
+const TILE_SIZE = 40;
+const CHUNK_SIZE = 16;
+const CHUNK_PIXEL_SIZE = CHUNK_SIZE * TILE_SIZE;
+const VIEWPORT_CULL_MARGIN = CHUNK_PIXEL_SIZE;
 
 // Entity type to string mapping for RegistryManager lookups
 const ENTITY_TYPE_NAMES: Record<number, string> = {
@@ -88,13 +96,22 @@ function initWebGL() {
   const instanceData = new Float32Array(MAX_INSTANCES * 4);
 
   const pointSize = 40.0;
-  const tileSize = 40.0;
+  const tileSize = TILE_SIZE;
 
   const render = () => {
     if (!gl || !canvas) return;
 
     // ─── Get interpolated entities from snapshot buffer ───
     const entities = interpolator.getInterpolatedState();
+    const myEntity = gameState.myNumericId ? entities?.get(gameState.myNumericId) : undefined;
+    if (myEntity) {
+      gameState.cameraX = myEntity.x - canvas.width / 2;
+      gameState.cameraY = myEntity.y - canvas.height / 2;
+    }
+    const visibleMinX = gameState.cameraX - VIEWPORT_CULL_MARGIN;
+    const visibleMinY = gameState.cameraY - VIEWPORT_CULL_MARGIN;
+    const visibleMaxX = gameState.cameraX + canvas.width + VIEWPORT_CULL_MARGIN;
+    const visibleMaxY = gameState.cameraY + canvas.height + VIEWPORT_CULL_MARGIN;
 
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -126,8 +143,13 @@ function initWebGL() {
       const cy = parseInt(strCy);
       const cz = parseInt(strCz);
       
-      const chunkBaseX = cx * 16 * tileSize;
-      const chunkBaseY = cy * 16 * tileSize;
+      const chunkBaseX = cx * CHUNK_SIZE * tileSize;
+      const chunkBaseY = cy * CHUNK_SIZE * tileSize;
+      const chunkMaxX = chunkBaseX + CHUNK_PIXEL_SIZE;
+      const chunkMaxY = chunkBaseY + CHUNK_PIXEL_SIZE;
+      if (chunkMaxX < visibleMinX || chunkBaseX > visibleMaxX || chunkMaxY < visibleMinY || chunkBaseY > visibleMaxY) {
+        continue;
+      }
 
       const raw = tiles.raw;
       const visual = tiles.visual;
@@ -144,8 +166,8 @@ function initWebGL() {
         const x = t % 16;
         const y = Math.floor(t / 16) % 16;
         
-        instanceData[instanceCount * 4 + 0] = chunkBaseX + x * tileSize;
-        instanceData[instanceCount * 4 + 1] = chunkBaseY + y * tileSize;
+        instanceData[instanceCount * 4 + 0] = chunkBaseX + x * tileSize - gameState.cameraX;
+        instanceData[instanceCount * 4 + 1] = chunkBaseY + y * tileSize - gameState.cameraY;
         instanceData[instanceCount * 4 + 2] = spriteId;
         instanceData[instanceCount * 4 + 3] = cz;
         instanceCount++;
@@ -187,18 +209,17 @@ function initWebGL() {
     if (entities) {
       // Find my player's focused entity for highlight rendering
       let focusedEntityId = 0;
-      if (gameState.myNumericId) {
-        const myEntity = entities.get(gameState.myNumericId);
-        if (myEntity) {
-          focusedEntityId = myEntity.focusedId;
+      if (myEntity) {
+        focusedEntityId = myEntity.focusedId;
 
-          self.postMessage({
-            type: 'my_position',
-            x: myEntity.x,
-            y: myEntity.y,
-            focusedNumericId: myEntity.focusedId,
-          });
-        }
+        self.postMessage({
+          type: 'my_position',
+          x: myEntity.x,
+          y: myEntity.y,
+          focusedNumericId: myEntity.focusedId,
+          cameraX: gameState.cameraX,
+          cameraY: gameState.cameraY,
+        });
       }
 
       const sortedEntities = Array.from(entities.values()).sort((a, b) => {
@@ -207,6 +228,12 @@ function initWebGL() {
       });
 
       for (const entity of sortedEntities) {
+        const screenX = entity.x - gameState.cameraX;
+        const screenY = entity.y - gameState.cameraY;
+        if (screenX < -pointSize || screenX > canvas.width + pointSize || screenY < -pointSize || screenY > canvas.height + pointSize) {
+          continue;
+        }
+
         const typeName = ENTITY_TYPE_NAMES[entity.type] || 'prop';
         const playerVisual = RegistryManager.getEntityVisual(typeName) || RegistryManager.getEntityVisual("player");
         const playerLogic = RegistryManager.getEntityLogic(typeName) || RegistryManager.getEntityLogic("player");
@@ -215,7 +242,7 @@ function initWebGL() {
         // Highlight focused entity
         if (focusedEntityId !== 0 && entity.id === focusedEntityId) {
           gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-            entity.x, entity.y
+            screenX, screenY
           ]), gl.STATIC_DRAW);
           gl.uniform1f(playerSizeLoc, pSize + 10.0);
           gl.uniform1i(playerUseTexLoc, 0); 
@@ -260,7 +287,7 @@ function initWebGL() {
         }
 
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-          entity.x, entity.y
+          screenX, screenY
         ]), gl.STATIC_DRAW);
 
         // Use packed color from entity or fallback

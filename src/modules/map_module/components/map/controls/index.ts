@@ -48,3 +48,11 @@ export const getRelativePositions = (canvas: HTMLCanvasElement | null | undefine
   const canvasY = (clientY - rect.top) * (gameState.canvasHeight / rect.height);
   return [canvasX, canvasY];
 }
+
+export const getWorldMousePosition = (canvas: HTMLCanvasElement | null | undefined, clientX: number, clientY: number) => {
+  const [canvasX, canvasY] = getRelativePositions(canvas, clientX, clientY);
+  return {
+    x: gameState.camera.x + canvasX,
+    y: gameState.camera.y + canvasY,
+  };
+};

@@ -1,5 +1,6 @@
 export interface SocketData {
   id: number;
+  loadedChunks?: Set<string>;
 }
 
 export interface InitEntity {

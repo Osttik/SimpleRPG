@@ -48,6 +48,8 @@ export const useMapInitialize = () => {
             ? event.data.focusedNumericId.toString()
             : null;
           gameState.focusedId = focusedId;
+          gameState.camera.x = event.data.cameraX ?? gameState.camera.x;
+          gameState.camera.y = event.data.cameraY ?? gameState.camera.y;
         }
       }
     };

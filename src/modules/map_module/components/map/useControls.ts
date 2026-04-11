@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { subscribeToMovement } from './controls/subscribeToMovement';
-import { areControlsDisabled, clearMovementIntent, controlsContext, getRelativePositions } from './controls';
+import { areControlsDisabled, clearMovementIntent, controlsContext, getWorldMousePosition } from './controls';
 import { clearCombatIntent, subscribeToCombat } from './controls/subscribeToCombat';
 import { subscribeToSelection } from './controls/subscribeToSelection';
 
@@ -55,7 +55,11 @@ export const useControls = (socketWorker: Worker | null) => {
         const me = gameState.players[gameState.myId];
         if (me) {
           const distThreshold = 5;
-          const [x, y] = getRelativePositions(canvas, state.x, state.y);
+          const worldTarget = isMousePressed
+            ? getWorldMousePosition(canvas, state.x, state.y)
+            : state;
+          const x = worldTarget.x;
+          const y = worldTarget.y;
           const vX = x - me.x;
           const vY = y - me.y;
           const distSq = vX * vX + vY * vY;
