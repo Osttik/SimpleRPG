@@ -33,6 +33,7 @@ export interface EntityState {
     flags: number;
     animState: number;
     color: number;
+    animAux?: number;
 }
 
 export interface GameSnapshot {
@@ -75,9 +76,10 @@ export function parseSnapshot(buffer: ArrayBuffer): GameSnapshot {
                 focusedId: e.focusedIdNum,
                 type: e.typeId,
                 chunkZ: e.z,
-                flags: 0,
-                animState: 0,
-                color: 0
+                flags: e.flags ?? 0,
+                animState: e.animState ?? 0,
+                color: e.colorPacked ?? 0,
+                animAux: e.animAux ?? 0
             });
         }
         return arr;

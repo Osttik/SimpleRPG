@@ -13,6 +13,7 @@ const MAX_SNAPSHOTS = 10;     // Ring buffer capacity
 
 export class SnapshotInterpolator {
     private snapshots: GameSnapshot[] = [];
+    private lastClock = { tick: 0, alpha: 0, nowMs: 0 };
 
     /**
      * Push a new binary snapshot into the ring buffer.
@@ -31,6 +32,10 @@ export class SnapshotInterpolator {
     getLatestTick(): number {
         if (this.snapshots.length === 0) return 0;
         return this.snapshots[this.snapshots.length - 1].tick;
+    }
+
+    getRenderClock(): { tick: number; alpha: number; nowMs: number } {
+        return this.lastClock;
     }
 
     /**
@@ -59,6 +64,7 @@ export class SnapshotInterpolator {
             // Not enough data — return latest snapshot raw if available
             if (this.snapshots.length === 1) {
                 const snap = this.snapshots[0];
+                this.lastClock = { tick: snap.tick, alpha: 1, nowMs: performance.now() };
                 const result = new Map<number, EntityState>();
                 for (const e of [...snap.players, ...snap.props]) {
                     result.set(e.id, e);
@@ -93,6 +99,11 @@ export class SnapshotInterpolator {
         const t = duration > 0
             ? Math.max(0, Math.min(1, (renderTime - snapA.timestamp) / duration))
             : 1.0;
+        this.lastClock = {
+            tick: snapA.tick + ((snapB.tick - snapA.tick) * t),
+            alpha: t,
+            nowMs: performance.now(),
+        };
 
         // Build interpolated entity map
         const result = new Map<number, EntityState>();

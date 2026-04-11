@@ -3,13 +3,15 @@ import tilesetUrl from '../../../assets/Tileset.png';
 import heroUrl from '../../../assets/hero.png';
 import decorationsUrl from '../../../assets/Decorations.png';
 import chestsUrl from '../../../assets/chestsAll.png';
+import testingDummyUrl from '../../../assets/testing_dummy.png';
 
 const assetMap: Record<string, string> = {
     'assets/Tileset.png': tilesetUrl,
     'assets/hero.png': heroUrl,
     'assets/Player_Base.png': heroUrl,
     'assets/Decorations.png': decorationsUrl,
-    'assets/chestsAll.png': chestsUrl
+    'assets/chestsAll.png': chestsUrl,
+    'assets/testing_dummy.png': testingDummyUrl
 };
 
 // Create a map to cache our ImageBitmaps

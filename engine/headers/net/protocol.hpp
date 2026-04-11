@@ -74,7 +74,7 @@ struct EntityState
   uint8_t flags;
   uint8_t animState;
   uint32_t colorPacked;
-  uint32_t pad;
+  uint32_t pad; // animation aux: attackDirection, attackTickIndex, blockDirection, visualFlags
 };
 
 #pragma pack(pop)

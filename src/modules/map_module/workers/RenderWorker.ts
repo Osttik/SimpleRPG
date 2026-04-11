@@ -10,6 +10,10 @@ import { RegistryManager } from '../../game_module/utils/RegistryManager';
 import { SnapshotInterpolator } from '../protocol/SnapshotInterpolator';
 import { EntityType } from '../protocol/StateParser';
 import { loadWasm } from '../../../services/wasm-loader';
+import { CharacterAnimator } from '../../game_module/animation/core/CharacterAnimator';
+import { AnimationPoseSolver } from '../../game_module/animation/core/AnimationPoseSolver';
+import { CharacterRigRegistry, type ResolvedCharacterRigSkin } from '../../game_module/render/CharacterRigRegistry';
+import { CompositeCharacterRenderer } from '../../game_module/render/CompositeCharacterRenderer';
 
 // ─── State ───
 
@@ -30,6 +34,8 @@ const gameState: RenderGameState = {
 };
 
 const interpolator = new SnapshotInterpolator();
+const characterAnimator = new CharacterAnimator();
+const poseSolvers = new Map<string, AnimationPoseSolver>();
 const TILE_SIZE = 40;
 const CHUNK_SIZE = 16;
 const CHUNK_PIXEL_SIZE = CHUNK_SIZE * TILE_SIZE;
@@ -46,11 +52,16 @@ const ENTITY_TYPE_NAMES: Record<number, string> = {
 
 let canvas: OffscreenCanvas | null = null;
 let gl: WebGL2RenderingContext | null = null;
+let compositeCharacterRenderer: CompositeCharacterRenderer | null = null;
 
 function initWebGL() {
   if (!canvas || !gl) return;
 
   SpriteSystem.init(gl).catch(console.error);
+  CharacterRigRegistry.init().catch(console.error);
+  compositeCharacterRenderer = new CompositeCharacterRenderer(gl);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
   const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource.trim());
   const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource.trim());
@@ -207,6 +218,8 @@ function initWebGL() {
     gl.uniform2f(playerResLoc, canvas.width, canvas.height);
 
     if (entities) {
+      const renderClock = interpolator.getRenderClock();
+      const activeEntityIds = new Set<number>();
       // Find my player's focused entity for highlight rendering
       let focusedEntityId = 0;
       if (myEntity) {
@@ -228,9 +241,10 @@ function initWebGL() {
       });
 
       for (const entity of sortedEntities) {
+        activeEntityIds.add(entity.id);
         const screenX = entity.x - gameState.cameraX;
         const screenY = entity.y - gameState.cameraY;
-        if (screenX < -pointSize || screenX > canvas.width + pointSize || screenY < -pointSize || screenY > canvas.height + pointSize) {
+        if (screenX < -pointSize * 2 || screenX > canvas.width + pointSize * 2 || screenY < -pointSize * 2 || screenY > canvas.height + pointSize * 2) {
           continue;
         }
 
@@ -241,6 +255,11 @@ function initWebGL() {
 
         // Highlight focused entity
         if (focusedEntityId !== 0 && entity.id === focusedEntityId) {
+          gl.useProgram(playerProgram);
+          gl.enableVertexAttribArray(playerPosLoc);
+          gl.bindBuffer(gl.ARRAY_BUFFER, playerPosBuffer);
+          gl.vertexAttribPointer(playerPosLoc, 2, gl.FLOAT, false, 0, 0);
+          gl.uniform2f(playerResLoc, canvas.width, canvas.height);
           gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
             screenX, screenY
           ]), gl.STATIC_DRAW);
@@ -250,6 +269,21 @@ function initWebGL() {
           gl.drawArrays(gl.POINTS, 0, 1);
         }
 
+        const rigSkin = CharacterRigRegistry.getForEntityType(typeName);
+        if (rigSkin && compositeCharacterRenderer) {
+          const visualState = characterAnimator.updateEntity(entity, renderClock);
+          const solver = getPoseSolver(rigSkin);
+          const pose = solver.solve(entity, visualState, renderClock, characterAnimator.weaponLag);
+          compositeCharacterRenderer.draw(pose, rigSkin, gameState.cameraX, gameState.cameraY, canvas.width, canvas.height);
+          characterAnimator.consumeImpactMarkers(entity.id);
+          continue;
+        }
+
+        gl.useProgram(playerProgram);
+        gl.enableVertexAttribArray(playerPosLoc);
+        gl.bindBuffer(gl.ARRAY_BUFFER, playerPosBuffer);
+        gl.vertexAttribPointer(playerPosLoc, 2, gl.FLOAT, false, 0, 0);
+        gl.uniform2f(playerResLoc, canvas.width, canvas.height);
         gl.uniform1f(playerSizeLoc, pSize);
         
         if (playerVisual) {
@@ -297,12 +331,23 @@ function initWebGL() {
         gl.uniform4f(playerColorLoc, color[0], color[1], color[2], color[3]);
         gl.drawArrays(gl.POINTS, 0, 1);
       }
+      characterAnimator.prune(activeEntityIds);
     }
 
     requestAnimationFrame(render);
   };
 
   render();
+}
+
+function getPoseSolver(rigSkin: ResolvedCharacterRigSkin): AnimationPoseSolver {
+  const key = `${rigSkin.rig.id}:${rigSkin.skin.id}`;
+  let solver = poseSolvers.get(key);
+  if (!solver) {
+    solver = new AnimationPoseSolver(rigSkin.rig, rigSkin.skin);
+    poseSolvers.set(key, solver);
+  }
+  return solver;
 }
 
 // Unpack RGBA8888 uint32 to [r, g, b, a] floats
@@ -377,6 +422,8 @@ self.onmessage = (event) => {
         gameState.myId = portData.id;
         gameState.myNumericId = typeof portData.id === 'number' ? portData.id : parseInt(portData.id);
         gameState.tileRegistry = portData.tileRegistry || {};
+      } else if (portData.type === 'combat_events') {
+        characterAnimator.applyCombatEvents(portData.events ?? []);
       }
     };
   }

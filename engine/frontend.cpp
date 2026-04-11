@@ -86,6 +86,7 @@ val decodeSnapshot(uintptr_t ptr, size_t length)
   result.set("tick", header->tick);
 
   val playersObj = val::object();
+  val propsObj = val::object();
 
   size_t offset = sizeof(SnapshotHeader);
 
@@ -106,6 +107,8 @@ val decodeSnapshot(uintptr_t ptr, size_t length)
     p.set("z", state->chunkZ);
     p.set("flags", state->flags);
     p.set("animState", state->animState);
+    p.set("colorPacked", state->colorPacked);
+    p.set("animAux", state->pad);
     playersObj.set(std::to_string(state->id), p);
 
     offset += sizeof(EntityState);
@@ -128,7 +131,9 @@ val decodeSnapshot(uintptr_t ptr, size_t length)
     p.set("z", state->chunkZ);
     p.set("flags", state->flags);
     p.set("animState", state->animState);
-    playersObj.set(std::to_string(state->id), p);
+    p.set("colorPacked", state->colorPacked);
+    p.set("animAux", state->pad);
+    propsObj.set(std::to_string(state->id), p);
 
     offset += sizeof(EntityState);
   }
@@ -144,6 +149,7 @@ val decodeSnapshot(uintptr_t ptr, size_t length)
   }
 
   result.set("players", playersObj);
+  result.set("props", propsObj);
   result.set("destroyed", destroyedArr);
 
   return result;

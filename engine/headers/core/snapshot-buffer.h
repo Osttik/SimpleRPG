@@ -15,7 +15,7 @@
 //  22      1     flags         (bitfield: bit0=isDestroyed, bit1=hasInventory…)
 //  23      1     animState     (uint8_t)
 //  24      4     colorPacked   (uint32_t RGBA8888)
-//  28      4     reserved
+//  28      4     animation aux: attackDirection, attackTickIndex, blockDirection, visualFlags
 // Total: 32 bytes per entity
 
 constexpr size_t ENTITY_STRIDE = 32;

@@ -11,6 +11,10 @@
     "chests_sheet": {
       "url": "assets/chestsAll.png",
       "tileSize": 16
+    },
+    "testing_dummy": {
+      "url": "assets/testing_dummy.png",
+      "tileSize": 16
     }
   },
   "sprites": {

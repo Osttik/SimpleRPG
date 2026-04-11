@@ -1,0 +1,5 @@
+{
+  "schema": "simple-rpg.animation-pack.v1",
+  "rigId": "humanoid_base",
+  "notes": "Runtime track definitions live in TypeScript for typed interpolation. This asset file declares the pack boundary for future data-driven export."
+}

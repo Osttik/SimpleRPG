@@ -171,6 +171,7 @@ SimpleRPG/
 * **RegistryManager**: Merges `tiles_registry.json`, `entities_registry.json`, `sprites_data.json` into `tilesById` and `entitiesByType` maps.
 * **TileDataManager**: `Float32Array` lookup indexed by `(tileId * 256) + mask` → sprite layer index. O(1).
 * **SpriteSystem**: Builds `TEXTURE_2D_ARRAY` for tiles (one layer per sprite variant) and `TEXTURE_2D` per entity sheet.
+* Prefer generating modular sprites from reusable 3D source assets rendered into 2D/pixelized parts instead of redrawing the same sprite pieces by hand for each variant.
 * **Layer Tinting**: `tileFragment.glsl` applies `tint = max(0.2, 1.0 + cz * 0.4)` for `cz < 0` — cz=-1 → 0.6, cz=-2 → 0.2 (floor), cz=0 → 1.0.
 * **Render Sort**: Entities are sorted by `z` then by `y` so lower screen-position entities render over higher ones (correct top-down overlap).
 

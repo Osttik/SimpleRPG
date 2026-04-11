@@ -1,0 +1,216 @@
+{
+  "schema": "simple-rpg.rig.v1",
+  "id": "humanoid_base",
+  "name": "Humanoid Base Rig",
+  "coordinateSystem": "screen_y_down",
+  "parts": {
+    "torso": {
+      "bindOffset": [0, 0]
+    },
+    "head": {
+      "bindOffset": [0, -18]
+    },
+    "upper_arm_r": {
+      "bindOffset": [-8, -6],
+      "length": 12
+    },
+    "forearm_r": {
+      "bindOffset": [-8, 6],
+      "length": 12
+    },
+    "shield": {
+      "bindOffset": [11, 2]
+    },
+    "sword": {
+      "bindOffset": [-6, 12]
+    }
+  },
+  "anchors": {
+    "head": {
+      "part": "torso",
+      "position": [0, -14]
+    },
+    "shoulder_r": {
+      "part": "torso",
+      "position": [-8, -6]
+    },
+    "hand_r_idle": {
+      "part": "torso",
+      "position": [-8, 14]
+    },
+    "shield_grip_l": {
+      "part": "torso",
+      "position": [10, 2]
+    }
+  },
+  "limbs": {
+    "rightArm": {
+      "shoulderAnchor": "shoulder_r",
+      "upperPart": "upper_arm_r",
+      "lowerPart": "forearm_r",
+      "upperLength": 12,
+      "lowerLength": 12,
+      "bendDirection": -1
+    }
+  },
+  "attachments": {
+    "sword": {
+      "part": "forearm_r",
+      "anchor": "hand_r",
+      "offset": [0, 0],
+      "rotation": 0
+    },
+    "shield": {
+      "part": "torso",
+      "anchor": "shield_grip_l",
+      "offset": [0, 0],
+      "rotation": 0
+    }
+  },
+  "drawOrder": [
+    "shield",
+    "upper_arm_r",
+    "torso",
+    "head",
+    "forearm_r",
+    "sword"
+  ],
+  "facingRules": {
+    "S": {
+      "partOffsets": {
+        "torso": [0, 0],
+        "head": [0, -18],
+        "shield": [11, 2]
+      },
+      "anchorOverrides": {
+        "shoulder_r": [-8, -6],
+        "shield_grip_l": [10, 2]
+      },
+      "drawOrder": ["shield", "upper_arm_r", "torso", "head", "forearm_r", "sword"],
+      "xFlipParts": [],
+      "yScale": 1,
+      "weaponAngleOffset": 0,
+      "shieldRotation": 0,
+      "limbBendDirection": -1
+    },
+    "SE": {
+      "partOffsets": {
+        "torso": [1, 0],
+        "head": [2, -18],
+        "shield": [12, 0]
+      },
+      "anchorOverrides": {
+        "shoulder_r": [-5, -6],
+        "shield_grip_l": [12, 0]
+      },
+      "drawOrder": ["shield", "upper_arm_r", "torso", "head", "forearm_r", "sword"],
+      "xFlipParts": [],
+      "yScale": 0.98,
+      "weaponAngleOffset": 0.1,
+      "shieldRotation": 0.18,
+      "limbBendDirection": -1
+    },
+    "E": {
+      "partOffsets": {
+        "torso": [1, 0],
+        "head": [3, -17],
+        "shield": [13, -1]
+      },
+      "anchorOverrides": {
+        "shoulder_r": [-2, -5],
+        "shield_grip_l": [13, -1]
+      },
+      "drawOrder": ["shield", "torso", "head", "upper_arm_r", "forearm_r", "sword"],
+      "xFlipParts": [],
+      "yScale": 0.96,
+      "weaponAngleOffset": 0.16,
+      "shieldRotation": 0.35,
+      "limbBendDirection": -1
+    },
+    "NE": {
+      "partOffsets": {
+        "torso": [1, -1],
+        "head": [2, -19],
+        "shield": [8, -4]
+      },
+      "anchorOverrides": {
+        "shoulder_r": [-3, -7],
+        "shield_grip_l": [8, -4]
+      },
+      "drawOrder": ["upper_arm_r", "forearm_r", "sword", "torso", "head", "shield"],
+      "xFlipParts": [],
+      "yScale": 0.98,
+      "weaponAngleOffset": 0.08,
+      "shieldRotation": 0.22,
+      "limbBendDirection": 1
+    },
+    "N": {
+      "partOffsets": {
+        "torso": [0, -1],
+        "head": [0, -20],
+        "shield": [0, -6]
+      },
+      "anchorOverrides": {
+        "shoulder_r": [6, -7],
+        "shield_grip_l": [0, -6]
+      },
+      "drawOrder": ["upper_arm_r", "forearm_r", "sword", "torso", "head", "shield"],
+      "xFlipParts": [],
+      "yScale": 1,
+      "weaponAngleOffset": 0,
+      "shieldRotation": 0,
+      "limbBendDirection": 1
+    },
+    "NW": {
+      "partOffsets": {
+        "torso": [-1, -1],
+        "head": [-2, -19],
+        "shield": [-8, -4]
+      },
+      "anchorOverrides": {
+        "shoulder_r": [3, -7],
+        "shield_grip_l": [-8, -4]
+      },
+      "drawOrder": ["upper_arm_r", "forearm_r", "sword", "torso", "head", "shield"],
+      "xFlipParts": ["torso", "head", "upper_arm_r", "forearm_r", "sword", "shield"],
+      "yScale": 0.98,
+      "weaponAngleOffset": -0.08,
+      "shieldRotation": -0.22,
+      "limbBendDirection": -1
+    },
+    "W": {
+      "partOffsets": {
+        "torso": [-1, 0],
+        "head": [-3, -17],
+        "shield": [-13, -1]
+      },
+      "anchorOverrides": {
+        "shoulder_r": [2, -5],
+        "shield_grip_l": [-13, -1]
+      },
+      "drawOrder": ["shield", "torso", "head", "upper_arm_r", "forearm_r", "sword"],
+      "xFlipParts": ["torso", "head", "upper_arm_r", "forearm_r", "sword", "shield"],
+      "yScale": 0.96,
+      "weaponAngleOffset": -0.16,
+      "shieldRotation": -0.35,
+      "limbBendDirection": 1
+    },
+    "SW": {
+      "partOffsets": {
+        "torso": [-1, 0],
+        "head": [-2, -18],
+        "shield": [-12, 0]
+      },
+      "anchorOverrides": {
+        "shoulder_r": [5, -6],
+        "shield_grip_l": [-12, 0]
+      },
+      "drawOrder": ["shield", "upper_arm_r", "torso", "head", "forearm_r", "sword"],
+      "xFlipParts": ["torso", "head", "upper_arm_r", "forearm_r", "sword", "shield"],
+      "yScale": 0.98,
+      "weaponAngleOffset": -0.1,
+      "shieldRotation": -0.18,
+      "limbBendDirection": 1
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "schema": "simple-rpg.skin.v1",
+  "id": "testing_dummy",
+  "name": "Testing Dummy",
+  "rigId": "humanoid_base",
+  "texture": {
+    "sheetKey": "testing_dummy",
+    "path": "assets/testing_dummy.png"
+  },
+  "scale": 2,
+  "defaultTint": [1, 1, 1, 1],
+  "parts": {
+    "head": {
+      "rect": [0, 0, 16, 16],
+      "pivot": [8, 14]
+    },
+    "torso": {
+      "rect": [16, 0, 16, 24],
+      "pivot": [8, 12]
+    },
+    "upper_arm_r": {
+      "rect": [32, 0, 4, 12],
+      "pivot": [2, 2]
+    },
+    "forearm_r": {
+      "rect": [36, 0, 4, 12],
+      "pivot": [2, 2]
+    },
+    "sword": {
+      "rect": [40, 0, 4, 32],
+      "pivot": [2, 30],
+      "tint": [0.95, 0.97, 1, 1]
+    },
+    "shield": {
+      "rect": [44, 0, 16, 16],
+      "pivot": [8, 8],
+      "tint": [0.9, 0.95, 1, 1]
+    }
+  },
+  "variants": {
+    "testing_dummy_blue": {
+      "tint": [0.75, 0.9, 1, 1],
+      "scale": 2
+    },
+    "testing_dummy_red": {
+      "tint": [1, 0.72, 0.68, 1],
+      "scale": 2.1
+    }
+  }
+}

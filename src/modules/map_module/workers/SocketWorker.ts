@@ -171,7 +171,9 @@ function connect() {
       }
 
       if (firstByte === MSG.COMBAT) {
-        self.postMessage(decodeCombatEvents(bytes));
+        const combatEvents = decodeCombatEvents(bytes);
+        renderPort?.postMessage(combatEvents);
+        self.postMessage(combatEvents);
         return;
       }
 

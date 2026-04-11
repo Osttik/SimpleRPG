@@ -14,6 +14,33 @@
 #include "core/components/interactable-component.h"
 #include "core/components/inventory-component.h"
 
+namespace
+{
+uint8_t QuantizeFacingSector(const Point &facing)
+{
+  const float32 zero = float32(0);
+  const float32 absX = facing.X < zero ? zero - facing.X : facing.X;
+  const float32 absY = facing.Y < zero ? zero - facing.Y : facing.Y;
+
+  if (absX == zero && absY == zero)
+    return 0;
+
+  if (absX * float32(2) < absY)
+    return facing.Y >= zero ? 0 : 4;
+
+  if (absY * float32(2) < absX)
+    return facing.X >= zero ? 2 : 6;
+
+  if (facing.X >= zero && facing.Y >= zero)
+    return 1;
+  if (facing.X >= zero && facing.Y < zero)
+    return 3;
+  if (facing.X < zero && facing.Y < zero)
+    return 5;
+  return 7;
+}
+}
+
 GameWorldEngine::GameWorldEngine()
 {
   ObjectManager.SetContext(this);
@@ -363,9 +390,37 @@ void GameWorldEngine::WriteEntity(uint8_t *buf, size_t offset, const GameObject 
       flags |= 0x02;
   }
 
-  uint8_t animState = 0;
+  uint8_t animState = QuantizeFacingSector(obj.Transform.FacingDirection()) & 0x07;
   uint32_t colorPacked = 0;
   uint32_t reserved = 0;
+
+  auto *attackMgr = Ctx.GetManager<ActiveAttackComponentManager>();
+  auto *combatStateMgr = Ctx.GetManager<CombatStateComponentManager>();
+  auto *attack = attackMgr ? attackMgr->Get(obj.Id) : nullptr;
+  auto *combatState = combatStateMgr ? combatStateMgr->Get(obj.Id) : nullptr;
+
+  uint8_t attackDirection = 0;
+  uint8_t attackTickIndex = 0;
+  uint8_t blockDirection = 0;
+  uint8_t visualFlags = 0;
+
+  if (attack && attack->Active)
+  {
+    attackDirection = static_cast<uint8_t>(attack->Direction);
+    attackTickIndex = attack->TickIndex;
+    visualFlags |= 0x01;
+  }
+
+  if (combatState && combatState->Blocking)
+  {
+    blockDirection = static_cast<uint8_t>(combatState->ActiveBlock);
+    visualFlags |= 0x02;
+  }
+
+  reserved = static_cast<uint32_t>(attackDirection) |
+             (static_cast<uint32_t>(attackTickIndex) << 8) |
+             (static_cast<uint32_t>(blockDirection) << 16) |
+             (static_cast<uint32_t>(visualFlags) << 24);
 
   std::memcpy(buf + offset + 0, &numericId, 4);
   std::memcpy(buf + offset + 4, &rawX, 4);
