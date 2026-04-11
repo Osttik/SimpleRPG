@@ -5,6 +5,8 @@ export interface GameProtocolWasm {
   encodeMove: (dx: number, dy: number, seq: number) => Uint8Array;
   encodeInteract: () => Uint8Array;
   encodeTransfer: (targetId: number, from: number, to: number, idx: number) => Uint8Array;
+  encodeAttack: (attackType: number, direction: number) => Uint8Array;
+  encodeBlock: (active: number, direction: number) => Uint8Array;
   decodeSnapshot: (ptr: number, length: number) => any;
   allocateBuffer: (size: number) => number;
   freeBuffer: (ptr: number) => void;

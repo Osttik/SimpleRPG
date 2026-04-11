@@ -28,6 +28,7 @@ public:
                                               InstanceMethod("getChunkVisuals", &GameWorldWrapper::GetChunkVisuals),
                                               InstanceMethod("getState", &GameWorldWrapper::GetState),
                                               InstanceMethod("getBinaryState", &GameWorldWrapper::GetBinaryState),
+                                              InstanceMethod("getCombatEvents", &GameWorldWrapper::GetCombatEvents),
                                               InstanceMethod("getTileRegistry", &GameWorldWrapper::GetTileRegistry),
                                               InstanceMethod("setTileRegistry", &GameWorldWrapper::SetTileRegistry),
                                               InstanceMethod("getInteractionOptions", &GameWorldWrapper::GetInteractionOptions),
@@ -412,6 +413,17 @@ private:
         );
 
         return ab;
+    }
+
+    Napi::Value GetCombatEvents(const Napi::CallbackInfo &info)
+    {
+        if (core_->CombatEvents.Empty())
+        {
+            return info.Env().Null();
+        }
+
+        const auto bytes = core_->CombatEvents.SerializeAndClear();
+        return Napi::Buffer<uint8_t>::Copy(info.Env(), bytes.data(), bytes.size());
     }
 
     Napi::Value GetChunk(const Napi::CallbackInfo &info)

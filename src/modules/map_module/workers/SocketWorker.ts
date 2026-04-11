@@ -1,5 +1,5 @@
 import { isSnapshotBuffer, MSG } from '../protocol/StateParser';
-import { encodeMovement, encodeTransferItem, resetInputSequence } from '../protocol/InputEncoder';
+import { encodeAttackInput, encodeBlockInput, encodeMovement, encodeTransferItem, resetInputSequence } from '../protocol/InputEncoder';
 import { loadWasm } from '../../../services/wasm-loader';
 import { ByteBuffer } from 'flatbuffers';
 
@@ -14,6 +14,8 @@ let renderPort: MessagePort | null = null;
 const DEFAULT_WS_PORT = 3001;
 const INIT_FRAME_PREFIX_BYTES = 1;
 const INTERACTION_FRAME_PREFIX_BYTES = 1;
+const COMBAT_EVENT_HEADER_BYTES = 4;
+const COMBAT_EVENT_ENTRY_BYTES = 24;
 
 const getHostname = () => {
   try {
@@ -107,6 +109,31 @@ function decodeInteractionMessage(bytes: Uint8Array) {
   };
 }
 
+function decodeCombatEvents(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const count = view.getUint16(1, true);
+  const events = [];
+
+  for (let i = 0; i < count; i++) {
+    const offset = COMBAT_EVENT_HEADER_BYTES + (i * COMBAT_EVENT_ENTRY_BYTES);
+    if (offset + COMBAT_EVENT_ENTRY_BYTES > bytes.byteLength) break;
+
+    events.push({
+      tick: view.getUint32(offset + 0, true),
+      attackerId: view.getUint32(offset + 4, true).toString(),
+      victimId: view.getUint32(offset + 8, true).toString(),
+      damage: view.getInt32(offset + 12, true) / 65536,
+      remainingHp: view.getInt32(offset + 16, true) / 65536,
+      eventType: view.getUint8(offset + 20),
+      partId: view.getUint8(offset + 21),
+      routedPartId: view.getUint8(offset + 22),
+      flags: view.getUint8(offset + 23),
+    });
+  }
+
+  return { type: 'combat_events', events };
+}
+
 function connect() {
   socket = new WebSocket(resolvedWsUrl);
   socket.binaryType = 'arraybuffer';
@@ -140,6 +167,11 @@ function connect() {
       if (firstByte === MSG.INTERACTION) {
         const interactionData = decodeInteractionMessage(bytes);
         self.postMessage(interactionData);
+        return;
+      }
+
+      if (firstByte === MSG.COMBAT) {
+        self.postMessage(decodeCombatEvents(bytes));
         return;
       }
 
@@ -203,6 +235,14 @@ self.onmessage = (event) => {
   } else if (event.data.type === 'request_player_inventory') {
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'request_player_inventory' }));
+    }
+  } else if (event.data.type === 'attack') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(encodeAttackInput(Number(event.data.direction)));
+    }
+  } else if (event.data.type === 'block') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(encodeBlockInput(Boolean(event.data.active), Number(event.data.direction)));
     }
   } else if (event.data.type === 'equip_item') {
     if (socket?.readyState === WebSocket.OPEN) {

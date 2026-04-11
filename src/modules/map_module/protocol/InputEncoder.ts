@@ -11,6 +11,21 @@ import { getWasm } from '../../../services/wasm-loader';
 
 let inputSequence = 0;
 
+export const CombatAttackDirection = {
+    SlashLeftToRight: 1,
+    SlashRightToLeft: 2,
+    RisingSlash: 3,
+    OverheadSlash: 4,
+    ThrustFront: 5,
+} as const;
+
+export const CombatBlockDirection = {
+    High: 1,
+    Left: 2,
+    Right: 3,
+    Front: 4,
+} as const;
+
 export function encodeMovement(dx: number, dy: number): ArrayBuffer {
     const wasm = getWasm();
     const dxInt = Math.round(Math.max(-127, Math.min(127, dx * 127)));
@@ -30,6 +45,15 @@ export function encodeTransferItem(
     itemIndex: number
 ): ArrayBuffer {
     return getWasm().encodeTransfer(targetId, from, to, itemIndex).slice().buffer;
+}
+
+export function encodeAttackInput(direction: number): ArrayBuffer {
+    const attackType = direction === CombatAttackDirection.ThrustFront ? 2 : 1;
+    return getWasm().encodeAttack(attackType, direction).slice().buffer;
+}
+
+export function encodeBlockInput(active: boolean, direction: number): ArrayBuffer {
+    return getWasm().encodeBlock(active ? 1 : 0, direction).slice().buffer;
 }
 
 export function resetInputSequence(): void {

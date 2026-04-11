@@ -1,6 +1,9 @@
 #pragma once
 #include <stdint.h>
 #include "core/game-world-engine.h"
+#include "core/components/active-attack-component.h"
+#include "core/components/combat-body-component.h"
+#include "core/components/combat-state-component.h"
 #include "core/gameplay-constants.h"
 #include "core/components/equipment-component.h"
 #include "core/components/move-component.h"
@@ -18,6 +21,9 @@ public:
     player->Radius = PLAYER_DEFAULT_RADIUS;
 
     engine.Ctx.GetManager<MoveComponentManager>()->Add(player->Id, player);
+    engine.Ctx.GetManager<CombatBodyComponentManager>()->AddDefaultHumanoid(player->Id, player);
+    engine.Ctx.GetManager<CombatStateComponentManager>()->Ensure(player->Id, player);
+    engine.Ctx.GetManager<ActiveAttackComponentManager>()->Ensure(player->Id, player);
 
     auto backpack = std::make_unique<Inventory>(PLAYER_DEFAULT_BACKPACK_MAX_VOLUME, float32(0.0));
     engine.Ctx.GetManager<InventoryComponentManager>()->EquipContainer(

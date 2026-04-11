@@ -7,6 +7,8 @@
 #include "core/game-world.h"
 #include "core/physics-system.h"
 #include "core/snapshot-buffer.h"
+#include "core/combat/body-parts.h"
+#include "core/combat/combat-events.h"
 #include "core/entity-type.h"
 #include "game/managers/player-manager.h"
 #include "game/managers/prop-manager.h"
@@ -24,6 +26,7 @@ public:
   GameWorld World;
   PhysicsSystem Physics;
   SnapshotBuffer Snapshot;
+  CombatEventBuffer CombatEvents;
   GameObjectManager ObjectManager;
   ComponentsManagersRegistry Managers;
   GameContext Ctx;
@@ -45,6 +48,8 @@ public:
   bool ToggleEquipItem(uint32_t entityId, int itemIndex);
   bool DropItem(uint32_t entityId, int itemIndex);
   bool PickupItem(uint32_t playerId, uint32_t targetId);
+  bool StartAttack(uint32_t entityId, AttackDirection direction);
+  bool SetBlockState(uint32_t entityId, bool active, BlockDirection direction);
   void SpawnTestChest();
   void DestroyTile(int32_t wx, int32_t wy, int32_t wz);
 

@@ -94,6 +94,24 @@ export const useMapInitialize = () => {
         gameState.playerInventory = data.playerInventory;
         gameState.playerInventoryMeta = data.playerInventoryMeta ?? gameState.playerInventoryMeta;
         window.dispatchEvent(new Event('gameStateUpdate'));
+      } else if (data.type === 'combat_events') {
+        for (const event of data.events ?? []) {
+          const victimId = event.victimId?.toString?.() ?? '';
+          if (victimId) {
+            if (!gameState.combatBodies[victimId]) {
+              gameState.combatBodies[victimId] = {};
+            }
+            gameState.combatBodies[victimId][event.routedPartId] = {
+              hp: event.remainingHp,
+            };
+          }
+          gameState.combatEventLog.push(event);
+        }
+
+        if (gameState.combatEventLog.length > 24) {
+          gameState.combatEventLog = gameState.combatEventLog.slice(-24);
+        }
+        window.dispatchEvent(new Event('gameStateUpdate'));
       }
     };
 

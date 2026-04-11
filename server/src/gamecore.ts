@@ -30,3 +30,6 @@ try {
 
 physics.spawnTestChest();
 console.log('Spawned test chest at (0,0).');
+
+const combatDummyId = physics.addPlayer(250, 250);
+console.log(`Spawned combat dummy player ${combatDummyId} at (250, 250).`);

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { subscribeToMovement } from './controls/subscribeToMovement';
 import { areControlsDisabled, clearMovementIntent, controlsContext, getRelativePositions } from './controls';
+import { clearCombatIntent, subscribeToCombat } from './controls/subscribeToCombat';
 import { subscribeToSelection } from './controls/subscribeToSelection';
 
 export const useControls = (socketWorker: Worker | null) => {
@@ -14,15 +15,22 @@ export const useControls = (socketWorker: Worker | null) => {
     const dispose = [
       ...subscribeToMovement(),
       ...subscribeToSelection(socketWorker),
+      ...subscribeToCombat(socketWorker),
     ];
 
-    window.addEventListener('blur', clearMovementIntent);
+    const handleBlur = () => {
+      clearMovementIntent();
+      clearCombatIntent(socketWorker);
+    };
+
+    window.addEventListener('blur', handleBlur);
 
     let wasMoving = false;
 
     const moveInterval = setInterval(() => {
       if (!socketWorker) return;
       if (areControlsDisabled()) {
+        clearCombatIntent(socketWorker);
         if (wasMoving) {
           socketWorker.postMessage({ type: 'move', dx: 0, dy: 0 });
           wasMoving = false;
@@ -101,7 +109,8 @@ export const useControls = (socketWorker: Worker | null) => {
     }, 1000 / 30);
 
     return () => {
-      window.removeEventListener('blur', clearMovementIntent);
+      window.removeEventListener('blur', handleBlur);
+      clearCombatIntent(socketWorker);
       dispose.forEach(e => e.dispose());
       clearInterval(moveInterval);
     };

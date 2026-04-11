@@ -11,6 +11,7 @@ export const MSG = {
   CHUNK:       0x01,
   INIT:        0x10,
   INTERACTION: 0x11,
+  COMBAT:      0x12,
 } as const;
 
 export const EntityType = {

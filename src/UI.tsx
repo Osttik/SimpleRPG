@@ -8,6 +8,7 @@ import gameMusicFile from './assets/Game.m4a';
 import { InventoryComponent } from './modules/ui_module/components/inventory';
 import { LootUI } from './modules/ui_module/components/loot_ui';
 import { InteractionUIModal } from './modules/ui_module/components/interaction-ui-modal';
+import { CombatDebugPanel } from './modules/ui_module/components/combat_debug_panel';
 
 export const UIComponent = () => {
   const { setMenuState } = useMenuActions();
@@ -28,6 +29,9 @@ export const UIComponent = () => {
       <div className='flex flex-row gap-2 w-full'>
         <div className='flex flex-row gap-2 flex-1 justify-start'>
           <GameInternalState className="absolute pointer-events-auto" />
+          <div className="absolute top-14 pointer-events-none">
+            <CombatDebugPanel />
+          </div>
         </div>
         <div className='flex flex-row gap-2 flex-1 justify-center'>
         </div>

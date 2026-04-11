@@ -1,5 +1,5 @@
 export const CHUNK_MESSAGE_TYPE = 0x01;
-export const INPUT_MESSAGE_MAX_TYPE = 0x03;
+export const INPUT_MESSAGE_MAX_TYPE = 0x05;
 export const TRANSFER_MESSAGE_TYPE = 0x03;
 export const TRANSFER_MESSAGE_MIN_LENGTH = 10;
 

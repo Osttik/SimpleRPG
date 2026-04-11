@@ -7,7 +7,9 @@ enum class NETMessageType : uint8_t
 {
   Move = 1,
   Interact = 2,
-  Transfer = 3
+  Transfer = 3,
+  Attack = 4,
+  Block = 5
 };
 
 struct MovePacket
@@ -30,6 +32,22 @@ struct TransferPacket
   uint8_t from;
   uint8_t to;
   uint16_t idx;
+  uint8_t pad;
+};
+
+struct AttackPacket
+{
+  NETMessageType type;
+  uint8_t attackType;
+  uint8_t direction;
+  uint8_t pad;
+};
+
+struct BlockPacket
+{
+  NETMessageType type;
+  uint8_t active;
+  uint8_t direction;
   uint8_t pad;
 };
 

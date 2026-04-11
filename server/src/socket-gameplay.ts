@@ -197,6 +197,11 @@ export function startGameLoop(app: TemplatedApp) {
         app.publish(GAME_TOPIC, Buffer.from(binaryState), true);
       }
 
+      const combatEvents: Buffer | null = physics.getCombatEvents?.() ?? null;
+      if (combatEvents && combatEvents.length > 0) {
+        app.publish(GAME_TOPIC, combatEvents, true);
+      }
+
       for (const ws of sockets) {
         if ((ws as any).getBufferedAmount && (ws as any).getBufferedAmount() > 0) continue;
         const id = ws.getUserData().id;

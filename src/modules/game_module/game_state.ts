@@ -9,6 +9,22 @@ interface IPlayer {
   focusedId: string;
 }
 
+export interface CombatPartStateView {
+  hp: number;
+}
+
+export interface CombatEventView {
+  tick: number;
+  attackerId: string;
+  victimId: string;
+  damage: number;
+  remainingHp: number;
+  eventType: number;
+  partId: number;
+  routedPartId: number;
+  flags: number;
+}
+
 interface IGameState {
   canvasRef: RefObject<HTMLCanvasElement | null> | null;
   myId: string | null;
@@ -27,6 +43,8 @@ interface IGameState {
   chestInventoryMeta: InventoryMetaView;
   focusedId?: string | null;
   socketWorker?: Worker | null;
+  combatBodies: Record<string, Record<number, CombatPartStateView>>;
+  combatEventLog: CombatEventView[];
 }
 
 export interface ChunkData {
@@ -58,4 +76,6 @@ export const gameState: IGameState = {
     currentWeight: 0,
   },
   focusedId: null,
+  combatBodies: {},
+  combatEventLog: [],
 };

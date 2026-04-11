@@ -51,6 +51,26 @@ val encodeTransfer(uint32_t targetId, uint8_t from, uint8_t to, uint16_t idx)
   return val(typed_memory_view(sizeof(TransferPacket), encoding_buffer));
 }
 
+val encodeAttack(uint8_t attackType, uint8_t direction)
+{
+  AttackPacket *pkt = reinterpret_cast<AttackPacket *>(encoding_buffer);
+  pkt->type = NETMessageType::Attack;
+  pkt->attackType = attackType;
+  pkt->direction = direction;
+  pkt->pad = 0;
+  return val(typed_memory_view(sizeof(AttackPacket), encoding_buffer));
+}
+
+val encodeBlock(uint8_t active, uint8_t direction)
+{
+  BlockPacket *pkt = reinterpret_cast<BlockPacket *>(encoding_buffer);
+  pkt->type = NETMessageType::Block;
+  pkt->active = active;
+  pkt->direction = direction;
+  pkt->pad = 0;
+  return val(typed_memory_view(sizeof(BlockPacket), encoding_buffer));
+}
+
 val decodeSnapshot(uintptr_t ptr, size_t length)
 {
   if (length < sizeof(SnapshotHeader))
@@ -134,6 +154,8 @@ EMSCRIPTEN_BINDINGS(protocol_module)
   function("encodeMove", &encodeMove);
   function("encodeInteract", &encodeInteract);
   function("encodeTransfer", &encodeTransfer);
+  function("encodeAttack", &encodeAttack);
+  function("encodeBlock", &encodeBlock);
   function("decodeSnapshot", &decodeSnapshot);
   function("allocateBuffer", &allocateBuffer);
   function("freeBuffer", &freeBuffer);

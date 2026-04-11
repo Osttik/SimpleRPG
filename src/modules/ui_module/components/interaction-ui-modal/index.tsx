@@ -2,7 +2,7 @@ import { KeyEnum } from '@/defines/key.enum';
 import { gameState } from '@/modules/game_module/game_state';
 import { keyboardService } from '@/services/keyboard.service';
 import { interactionsState } from '@/store';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSnapshot } from 'valtio';
 
 type MenuMode = 'target' | 'interaction';
@@ -22,26 +22,40 @@ export const InteractionUIModal = () => {
       return;
     }
 
-    const selectedId = interactions.selectedTargetId;
-    if (selectedId) {
-      const idx = interactions.targets.findIndex(t => t.targetId === selectedId);
-      if (idx >= 0) {
-        setTargetIndex(idx);
+    setTargetIndex(prev => {
+      const currentTargetId = interactions.targets[prev]?.targetId;
+      if (currentTargetId) {
+        const preservedIndex = interactions.targets.findIndex(t => t.targetId === currentTargetId);
+        if (preservedIndex >= 0) return preservedIndex;
       }
-    } else {
-      setTargetIndex(prev => (prev >= targetsCount ? 0 : prev));
-    }
 
-    if (targetsCount > 1) {
-      setMode('target');
-      setInteractionIndex(0);
-    } else {
-      setMode('interaction');
-      setTargetIndex(0);
-    }
+      const selectedId = interactions.selectedTargetId;
+      if (selectedId) {
+        const selectedIndex = interactions.targets.findIndex(t => t.targetId === selectedId);
+        if (selectedIndex >= 0) return selectedIndex;
+      }
+
+      return 0;
+    });
+
+    setMode(prev => {
+      if (targetsCount <= 1) return 'interaction';
+      return prev;
+    });
   }, [interactions.targets, interactions.selectedTargetId]);
 
   const selectedTarget = interactions.targets[targetIndex] ?? null;
+
+  useEffect(() => {
+    const optionsCount = selectedTarget?.interactions.length ?? 0;
+    if (optionsCount <= 0) {
+      setInteractionIndex(0);
+      return;
+    }
+
+    setInteractionIndex(prev => (prev >= optionsCount ? 0 : prev));
+  }, [selectedTarget]);
+
   const selectedInteraction = selectedTarget?.interactions[interactionIndex] ?? null;
 
   const moveIndex = (delta: number) => {
@@ -82,6 +96,16 @@ export const InteractionUIModal = () => {
       moveIndex(e.deltaY > 0 ? 1 : -1);
     };
 
+    const moveUpSub = keyboardService.subscribeToKeyDown(KeyEnum.ArrowUp, (e) => {
+      if (e.repeat) return;
+      e.preventDefault();
+      moveIndex(-1);
+    });
+    const moveDownSub = keyboardService.subscribeToKeyDown(KeyEnum.ArrowDown, (e) => {
+      if (e.repeat) return;
+      e.preventDefault();
+      moveIndex(1);
+    });
     const keySub = keyboardService.subscribeToKeyDown([KeyEnum.e, KeyEnum.E], () => {
       activateCurrent();
     });
@@ -93,18 +117,20 @@ export const InteractionUIModal = () => {
 
     window.addEventListener('wheel', handleScroll, { passive: true });
     return () => {
+      moveUpSub.dispose();
+      moveDownSub.dispose();
       keySub.dispose();
       backSub.dispose();
       window.removeEventListener('wheel', handleScroll);
     };
   }, [mode, selectedTarget, selectedInteraction, interactions.targets]);
 
-  if (interactions.targets.length === 0) return <></>;
-
-  const options = mode === 'target'
+  const options = useMemo(() => (mode === 'target'
     ? interactions.targets.map((t) => ({ id: t.targetId, name: t.nameKey }))
-    : (selectedTarget?.interactions ?? []).map((o) => ({ id: o.interactionId, name: o.nameKey }));
+    : (selectedTarget?.interactions ?? []).map((o) => ({ id: o.interactionId, name: o.nameKey }))), [mode, interactions.targets, selectedTarget]);
   const activeIndex = mode === 'target' ? targetIndex : interactionIndex;
+
+  if (interactions.targets.length === 0) return <></>;
 
   const getVisibleItems = () => {
     const len = options.length;

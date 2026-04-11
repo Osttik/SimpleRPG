@@ -4,6 +4,9 @@
 #include "core/gameplay-constants.h"
 #include "core/tile-registry.h"
 #include "core/test-spawns.h"
+#include "core/components/active-attack-component.h"
+#include "core/components/combat-body-component.h"
+#include "core/components/combat-state-component.h"
 #include "core/components/dropped-item-component.h"
 #include "net/protocol.hpp"
 #include "core/components/equipment-component.h"
@@ -16,6 +19,9 @@ GameWorldEngine::GameWorldEngine()
   ObjectManager.SetContext(this);
 
   Managers.Register(std::make_unique<MoveComponentManager>());
+  Managers.Register(std::make_unique<CombatBodyComponentManager>());
+  Managers.Register(std::make_unique<CombatStateComponentManager>());
+  Managers.Register(std::make_unique<ActiveAttackComponentManager>());
   Managers.Register(std::make_unique<InteractableComponentManager>());
   Managers.Register(std::make_unique<InventoryComponentManager>());
   Managers.Register(std::make_unique<EquipmentComponentManager>());
@@ -77,6 +83,28 @@ void GameWorldEngine::ProcessInput(const uint32_t id, const uint8_t *data, size_
     }
     const TransferPacket *pkt = reinterpret_cast<const TransferPacket *>(data);
     TransferItem(id, pkt->targetId, pkt->from, pkt->to, pkt->idx);
+    break;
+  }
+  case NETMessageType::Attack:
+  {
+    if (length < sizeof(AttackPacket))
+    {
+      return;
+    }
+
+    const AttackPacket *pkt = reinterpret_cast<const AttackPacket *>(data);
+    StartAttack(id, static_cast<AttackDirection>(pkt->direction));
+    break;
+  }
+  case NETMessageType::Block:
+  {
+    if (length < sizeof(BlockPacket))
+    {
+      return;
+    }
+
+    const BlockPacket *pkt = reinterpret_cast<const BlockPacket *>(data);
+    SetBlockState(id, pkt->active != 0, static_cast<BlockDirection>(pkt->direction));
     break;
   }
   default:
@@ -208,6 +236,25 @@ bool GameWorldEngine::PickupItem(uint32_t playerId, uint32_t targetId)
   return true;
 }
 
+bool GameWorldEngine::StartAttack(uint32_t entityId, AttackDirection direction)
+{
+  auto *attackMgr = Ctx.GetManager<ActiveAttackComponentManager>();
+  auto *bodyMgr = Ctx.GetManager<CombatBodyComponentManager>();
+  auto *stateMgr = Ctx.GetManager<CombatStateComponentManager>();
+  if (!attackMgr || !bodyMgr)
+    return false;
+  return attackMgr->StartAttack(entityId, direction, bodyMgr, stateMgr, *this);
+}
+
+bool GameWorldEngine::SetBlockState(uint32_t entityId, bool active, BlockDirection direction)
+{
+  auto *stateMgr = Ctx.GetManager<CombatStateComponentManager>();
+  auto *bodyMgr = Ctx.GetManager<CombatBodyComponentManager>();
+  if (!stateMgr || !bodyMgr)
+    return false;
+  return stateMgr->SetBlockState(entityId, active, direction, bodyMgr);
+}
+
 // ─── Tile Operations ───
 
 void GameWorldEngine::DestroyTile(int32_t wx, int32_t wy, int32_t wz)
@@ -248,6 +295,9 @@ void GameWorldEngine::SetTileRegistry(const std::vector<TileDef> &registry)
 void GameWorldEngine::Tick()
 {
   auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *combatBodyMgr = Ctx.GetManager<CombatBodyComponentManager>();
+  auto *combatStateMgr = Ctx.GetManager<CombatStateComponentManager>();
+  auto *attackMgr = Ctx.GetManager<ActiveAttackComponentManager>();
 
   // 1. Update focus for all players (passes interactable manager for O(1) bitset check)
   for (auto &[id, entity] : ObjectManager.GetEntities())
@@ -261,10 +311,16 @@ void GameWorldEngine::Tick()
   // 2. Physics Update (passes dirty set for optimized AABB tree updates)
   Physics.Tick(World.ChunkManager.get(), ObjectManager.GetDirtyIds());
 
-  // 3. Cleanup destroyed (also removes components from all managers)
+  // 3. Resolve combat using the post-physics transforms for this server tick.
+  if (attackMgr && combatBodyMgr)
+  {
+    attackMgr->Tick(*this, combatBodyMgr, combatStateMgr);
+  }
+
+  // 4. Cleanup destroyed (also removes components from all managers)
   ObjectManager.CleanupDestroyed();
 
-  // 4. Clear dirty flags for next tick
+  // 5. Clear dirty flags for next tick
   ObjectManager.ClearDirty();
 
   TickCount++;
