@@ -3,20 +3,21 @@ import { keyboardService } from "@/services/keyboard.service";
 import { areControlsDisabled } from ".";
 import { CombatAttackDirection, CombatBlockDirection } from "@/modules/map_module/protocol/InputEncoder";
 
-let activeBlockDirection: number | null = null;
+const STANDARD_BLOCK_DIRECTION = CombatBlockDirection.Front;
+let isBlocking = false;
 
 export const clearCombatIntent = (socketWorker?: Worker | null) => {
-  if (activeBlockDirection == null || !socketWorker) {
-    activeBlockDirection = null;
+  if (!isBlocking || !socketWorker) {
+    isBlocking = false;
     return;
   }
 
   socketWorker.postMessage({
     type: 'block',
     active: false,
-    direction: activeBlockDirection,
+    direction: STANDARD_BLOCK_DIRECTION,
   });
-  activeBlockDirection = null;
+  isBlocking = false;
 };
 
 export const subscribeToCombat = (socketWorker: Worker) => {
@@ -28,39 +29,23 @@ export const subscribeToCombat = (socketWorker: Worker) => {
     { keys: [KeyEnum.o, KeyEnum.O], direction: CombatAttackDirection.ThrustFront },
   ];
 
-  const blockBindings = [
-    { keys: [KeyEnum.z, KeyEnum.Z], direction: CombatBlockDirection.High },
-    { keys: [KeyEnum.x, KeyEnum.X], direction: CombatBlockDirection.Left },
-    { keys: [KeyEnum.c, KeyEnum.C], direction: CombatBlockDirection.Right },
-    { keys: [KeyEnum.v, KeyEnum.V], direction: CombatBlockDirection.Front },
-  ];
-
   const disposables = attackBindings.map(binding =>
     keyboardService.subscribeToKeyDown(binding.keys, (e) => {
       if (areControlsDisabled() || e.repeat) return;
       socketWorker.postMessage({ type: 'attack', direction: binding.direction });
     }));
 
-  blockBindings.forEach((binding) => {
-    disposables.push(keyboardService.subscribeToKeyDown(binding.keys, (e) => {
-      if (areControlsDisabled() || e.repeat) return;
-      if (activeBlockDirection === binding.direction) return;
+  disposables.push(keyboardService.subscribeToKeyDown([KeyEnum.b, KeyEnum.B], (e) => {
+    if (areControlsDisabled() || e.repeat || isBlocking) return;
+    isBlocking = true;
+    socketWorker.postMessage({ type: 'block', active: true, direction: STANDARD_BLOCK_DIRECTION });
+  }));
 
-      if (activeBlockDirection != null) {
-        socketWorker.postMessage({ type: 'block', active: false, direction: activeBlockDirection });
-      }
-
-      activeBlockDirection = binding.direction;
-      socketWorker.postMessage({ type: 'block', active: true, direction: binding.direction });
-    }));
-
-    disposables.push(keyboardService.subscribeToKeyUp(binding.keys, () => {
-      if (activeBlockDirection !== binding.direction) return;
-      socketWorker.postMessage({ type: 'block', active: false, direction: binding.direction });
-      activeBlockDirection = null;
-    }));
-  });
+  disposables.push(keyboardService.subscribeToKeyUp([KeyEnum.b, KeyEnum.B], () => {
+    if (!isBlocking) return;
+    socketWorker.postMessage({ type: 'block', active: false, direction: STANDARD_BLOCK_DIRECTION });
+    isBlocking = false;
+  }));
 
   return disposables;
 };
-

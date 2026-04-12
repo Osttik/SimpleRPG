@@ -23,6 +23,22 @@ export interface CombatEventView {
   partId: number;
   routedPartId: number;
   flags: number;
+  attackEpoch: number;
+  visualTrackId: number;
+}
+
+export interface AnimationMetricsView {
+  riggedEntitiesRendered: number;
+  fullIkSolves: number;
+  simplifiedSolves: number;
+  instancedQuadsSubmitted: number;
+  drawCallsBeforeBatching: number;
+  drawCallsAfterBatching: number;
+  facingSectorSwitchesPerSecond: number;
+  lateCombatEventsDiscarded: number;
+  staleCombatEventsDiscarded: number;
+  attackVisualResetsDueToEpochMismatch: number;
+  averageAnimationUpdateMs: number;
 }
 
 interface IGameState {
@@ -45,6 +61,7 @@ interface IGameState {
   socketWorker?: Worker | null;
   combatBodies: Record<string, Record<number, CombatPartStateView>>;
   combatEventLog: CombatEventView[];
+  animationMetrics?: AnimationMetricsView;
   camera: { x: number; y: number };
 }
 

@@ -15,7 +15,7 @@ const DEFAULT_WS_PORT = 3001;
 const INIT_FRAME_PREFIX_BYTES = 1;
 const INTERACTION_FRAME_PREFIX_BYTES = 1;
 const COMBAT_EVENT_HEADER_BYTES = 4;
-const COMBAT_EVENT_ENTRY_BYTES = 24;
+const COMBAT_EVENT_ENTRY_BYTES = 28;
 
 const getHostname = () => {
   try {
@@ -128,6 +128,8 @@ function decodeCombatEvents(bytes: Uint8Array) {
       partId: view.getUint8(offset + 21),
       routedPartId: view.getUint8(offset + 22),
       flags: view.getUint8(offset + 23),
+      attackEpoch: view.getUint16(offset + 24, true),
+      visualTrackId: view.getUint8(offset + 26),
     });
   }
 

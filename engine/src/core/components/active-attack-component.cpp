@@ -18,28 +18,12 @@ namespace
   constexpr float32 THRUST_SHIELD_STOP_BONUS = float32(40);
   constexpr float32 SHIELD_STOP_BONUS = float32(18);
 
-  enum class HurtboxPrimitive : uint8_t
-  {
-    Circle,
-    Box
-  };
-
   struct Basis2
   {
     float32 ForwardX = float32(0);
     float32 ForwardY = float32(1);
     float32 RightX = float32(1);
     float32 RightY = float32(0);
-  };
-
-  struct LocalHurtboxDef
-  {
-    BodyPart Part = BodyPart::Torso;
-    HurtboxPrimitive Primitive = HurtboxPrimitive::Box;
-    float32 A = float32(0);
-    float32 B = float32(0);
-    float32 C = float32(0);
-    float32 D = float32(0);
   };
 
   struct CombatPoint
@@ -70,22 +54,7 @@ namespace
     bool IsShield = false;
   };
 
-  const std::array<LocalHurtboxDef, 14> kOuterHurtboxes = {
-      LocalHurtboxDef{BodyPart::Head, HurtboxPrimitive::Circle, float32(0), float32(18), float32(6), float32(0)},
-      LocalHurtboxDef{BodyPart::Neck, HurtboxPrimitive::Box, float32(-3), float32(10), float32(3), float32(16)},
-      LocalHurtboxDef{BodyPart::Torso, HurtboxPrimitive::Box, float32(-8), float32(-10), float32(8), float32(10)},
-      LocalHurtboxDef{BodyPart::ShoulderL, HurtboxPrimitive::Circle, float32(-11), float32(7), float32(4), float32(0)},
-      LocalHurtboxDef{BodyPart::UpperArmL, HurtboxPrimitive::Box, float32(-20), float32(-1), float32(-10), float32(6)},
-      LocalHurtboxDef{BodyPart::ForearmHandL, HurtboxPrimitive::Box, float32(-28), float32(-5), float32(-18), float32(4)},
-      LocalHurtboxDef{BodyPart::ShoulderR, HurtboxPrimitive::Circle, float32(11), float32(7), float32(4), float32(0)},
-      LocalHurtboxDef{BodyPart::UpperArmR, HurtboxPrimitive::Box, float32(10), float32(-1), float32(20), float32(6)},
-      LocalHurtboxDef{BodyPart::ForearmHandR, HurtboxPrimitive::Box, float32(18), float32(-5), float32(28), float32(4)},
-      LocalHurtboxDef{BodyPart::ThighL, HurtboxPrimitive::Box, float32(-7), float32(-22), float32(-1), float32(-10)},
-      LocalHurtboxDef{BodyPart::ShinFootL, HurtboxPrimitive::Box, float32(-9), float32(-35), float32(-2), float32(-22)},
-      LocalHurtboxDef{BodyPart::ThighR, HurtboxPrimitive::Box, float32(1), float32(-22), float32(7), float32(-10)},
-      LocalHurtboxDef{BodyPart::ShinFootR, HurtboxPrimitive::Box, float32(2), float32(-35), float32(9), float32(-22)},
-      LocalHurtboxDef{BodyPart::Shield, HurtboxPrimitive::Box, float32(-30), float32(0), float32(-14), float32(20)},
-  };
+  constexpr const auto &kOuterHurtboxes = CombatRigContract::OuterHurtboxes;
 
   float32 AbsFixed(float32 value)
   {
@@ -199,11 +168,11 @@ namespace
     return !(a.MaxX < b.MinX || a.MinX > b.MaxX || a.MaxY < b.MinY || a.MinY > b.MaxY);
   }
 
-  CombatPoint GetHurtboxCenter(const LocalHurtboxDef &hurtbox)
+  CombatPoint GetHurtboxCenter(const CombatRigContract::HurtboxDefinition &hurtbox)
   {
-    if (hurtbox.Primitive == HurtboxPrimitive::Circle)
-      return CombatPoint{hurtbox.A, hurtbox.B};
-    return CombatPoint{(hurtbox.A + hurtbox.C) / float32(2), (hurtbox.B + hurtbox.D) / float32(2)};
+    if (hurtbox.Primitive == CombatRigContract::HurtboxPrimitive::Circle)
+      return CombatPoint{float32(hurtbox.A), float32(hurtbox.B)};
+    return CombatPoint{float32(hurtbox.A + hurtbox.C) / float32(2), float32(hurtbox.B + hurtbox.D) / float32(2)};
   }
 
   bool ClipSegment(float32 p, float32 q, float32 &t0, float32 &t1)
@@ -268,33 +237,37 @@ namespace
     return SegmentDistanceSquared(start, end, center) <= (threshold * threshold);
   }
 
-  bool HurtboxIntersectsSweep(const LocalHurtboxDef &hurtbox,
+  bool HurtboxIntersectsSweep(const CombatRigContract::HurtboxDefinition &hurtbox,
                               const CombatPoint &prevHilt, const CombatPoint &prevTip,
                               const CombatPoint &currHilt, const CombatPoint &currTip)
   {
-    if (hurtbox.Primitive == HurtboxPrimitive::Circle)
+    if (hurtbox.Primitive == CombatRigContract::HurtboxPrimitive::Circle)
     {
-      CombatPoint center{hurtbox.A, hurtbox.B};
-      const float32 radius = hurtbox.C;
+      CombatPoint center{float32(hurtbox.A), float32(hurtbox.B)};
+      const float32 radius = float32(hurtbox.C);
       return SegmentIntersectsExpandedCircle(prevHilt, prevTip, center, radius, BLADE_HALF_WIDTH) ||
              SegmentIntersectsExpandedCircle(currHilt, currTip, center, radius, BLADE_HALF_WIDTH) ||
              SegmentIntersectsExpandedCircle(prevTip, currTip, center, radius, BLADE_HALF_WIDTH) ||
              SegmentIntersectsExpandedCircle(prevHilt, currHilt, center, radius, BLADE_HALF_WIDTH);
     }
 
-    return SegmentIntersectsExpandedBox(prevHilt, prevTip, hurtbox.A, hurtbox.B, hurtbox.C, hurtbox.D, BLADE_HALF_WIDTH) ||
-           SegmentIntersectsExpandedBox(currHilt, currTip, hurtbox.A, hurtbox.B, hurtbox.C, hurtbox.D, BLADE_HALF_WIDTH) ||
-           SegmentIntersectsExpandedBox(prevTip, currTip, hurtbox.A, hurtbox.B, hurtbox.C, hurtbox.D, BLADE_HALF_WIDTH) ||
-           SegmentIntersectsExpandedBox(prevHilt, currHilt, hurtbox.A, hurtbox.B, hurtbox.C, hurtbox.D, BLADE_HALF_WIDTH);
+    const float32 a = float32(hurtbox.A);
+    const float32 b = float32(hurtbox.B);
+    const float32 c = float32(hurtbox.C);
+    const float32 d = float32(hurtbox.D);
+    return SegmentIntersectsExpandedBox(prevHilt, prevTip, a, b, c, d, BLADE_HALF_WIDTH) ||
+           SegmentIntersectsExpandedBox(currHilt, currTip, a, b, c, d, BLADE_HALF_WIDTH) ||
+           SegmentIntersectsExpandedBox(prevTip, currTip, a, b, c, d, BLADE_HALF_WIDTH) ||
+           SegmentIntersectsExpandedBox(prevHilt, currHilt, a, b, c, d, BLADE_HALF_WIDTH);
   }
 
   BodyPart RouteTorsoVirtual(const CombatPoint &localImpact)
   {
-    if (localImpact.Y > float32(4))
-      return BodyPart::ChestVirtual;
-    if (localImpact.Y < float32(-4))
-      return BodyPart::PelvisVirtual;
-    return BodyPart::BellyVirtual;
+    if (localImpact.Y > float32(CombatRigContract::ChestMinYExclusive))
+      return static_cast<BodyPart>(CombatRigContract::ChestVirtualPart);
+    if (localImpact.Y < float32(CombatRigContract::PelvisMaxYExclusive))
+      return static_cast<BodyPart>(CombatRigContract::PelvisVirtualPart);
+    return static_cast<BodyPart>(CombatRigContract::BellyVirtualPart);
   }
 
   uint8_t ComputeIncomingFlags(const GameObject *attacker, const GameObject *defender, const Basis2 &defenderBasis)
@@ -317,6 +290,15 @@ namespace
     if (attackDirection == AttackDirection::ThrustFront)
       return BlockDirection::Front;
     return localAttacker.X < float32(0) ? BlockDirection::Left : BlockDirection::Right;
+  }
+
+  bool CanStandardBlockDirection(BlockDirection activeBlock, BlockDirection incomingDirection)
+  {
+    if (incomingDirection == BlockDirection::None)
+      return false;
+    if (activeBlock == BlockDirection::Front)
+      return true;
+    return activeBlock == incomingDirection;
   }
 
   bool AlreadyHitPart(const ActiveAttackComponent &attack, uint32_t targetId, BodyPart part)
@@ -357,6 +339,11 @@ namespace
     if (a.Part != b.Part)
       return static_cast<uint8_t>(a.Part) < static_cast<uint8_t>(b.Part);
     return a.VictimId < b.VictimId;
+  }
+
+  uint8_t GetVisualTrackId(const AttackDefinition &definition)
+  {
+    return static_cast<uint8_t>(definition.Direction) & 0x0f;
   }
 }
 
@@ -410,7 +397,10 @@ bool ActiveAttackComponentManager::StartAttack(uint32_t entityId, AttackDirectio
       static_cast<uint8_t>(CombatEventType::AttackStarted),
       static_cast<uint8_t>(definition.Type),
       static_cast<uint8_t>(direction),
-      CombatEventFlagNone});
+      CombatEventFlagNone,
+      component->Epoch,
+      GetVisualTrackId(definition),
+      0});
   return true;
 }
 
@@ -429,7 +419,10 @@ void ActiveAttackComponentManager::StopAttack(uint32_t entityId, uint8_t flags, 
       static_cast<uint8_t>(CombatEventType::AttackStopped),
       static_cast<uint8_t>(component->Type),
       static_cast<uint8_t>(component->Direction),
-      flags});
+      flags,
+      component->Epoch,
+      static_cast<uint8_t>(static_cast<uint8_t>(component->Direction) & 0x0f),
+      0});
 
   component->Active = false;
   component->Type = AttackType::None;
@@ -508,11 +501,11 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
 
         bool shieldMatched = false;
         if (combatState && combatState->Blocking &&
-            combatState->ActiveBlock == incomingDirection &&
+            CanStandardBlockDirection(combatState->ActiveBlock, incomingDirection) &&
             bodyMgr->CanBlock(victimId) &&
             !AlreadyHitPart(*attack, victimId, BodyPart::Shield))
         {
-          const LocalHurtboxDef &shield = kOuterHurtboxes.back();
+          const auto &shield = kOuterHurtboxes.back();
           if (HurtboxIntersectsSweep(shield, prevHiltLocal, prevTipLocal, currHiltLocal, currTipLocal))
           {
             shieldMatched = true;
@@ -544,13 +537,14 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
 
         for (const auto &hurtbox : kOuterHurtboxes)
         {
-          if (hurtbox.Part == BodyPart::Shield)
+          const BodyPart hurtboxPart = static_cast<BodyPart>(hurtbox.PartId);
+          if (hurtboxPart == BodyPart::Shield)
             continue;
 
           if (!HurtboxIntersectsSweep(hurtbox, prevHiltLocal, prevTipLocal, currHiltLocal, currTipLocal))
             continue;
 
-          BodyPart routedPart = hurtbox.Part;
+          BodyPart routedPart = hurtboxPart;
           CombatPoint hurtboxCenter = GetHurtboxCenter(hurtbox);
           CombatPoint bladeDelta = SubPoint(currTipLocal, currHiltLocal);
           const float32 bladeLenSq = LengthSquared(bladeDelta);
@@ -560,14 +554,14 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
             bladeT = ClampFixed(Dot(SubPoint(hurtboxCenter, currHiltLocal), bladeDelta) / bladeLenSq, float32(0), float32(1));
           }
           CombatPoint impactLocal = AddPoint(currHiltLocal, ScalePoint(bladeDelta, bladeT));
-          if (hurtbox.Part == BodyPart::Torso)
+          if (hurtboxPart == BodyPart::Torso)
             routedPart = RouteTorsoVirtual(impactLocal);
 
           if (AlreadyHitPart(*attack, victimId, routedPart))
             continue;
 
           auto *partState = bodyMgr->GetPartState(victimId, routedPart);
-          auto *outerState = bodyMgr->GetPartState(victimId, hurtbox.Part);
+          auto *outerState = bodyMgr->GetPartState(victimId, hurtboxPart);
           if (!partState || !outerState)
             continue;
 
@@ -576,14 +570,14 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
 
           PendingHitCandidate &candidate = candidates[candidateCount++];
           candidate.VictimId = victimId;
-          candidate.Part = hurtbox.Part;
+          candidate.Part = hurtboxPart;
           candidate.RoutedPart = routedPart;
           candidate.ProgressKey = SegmentDistanceSquared(prevTipLocal, currTipLocal, hurtboxCenter);
           candidate.BladeDistanceKey = SegmentDistanceSquared(currHiltLocal, currTipLocal, hurtboxCenter);
           candidate.Flags = ComputeIncomingFlags(attack->Owner, victimObject, defenderBasis);
           candidate.Damage = ComputeDamage(definition, currentStep, bladeT, candidate.Flags, currentStep.Energy);
           candidate.StopCost = outerState->StopPower;
-          if (routedPart != hurtbox.Part)
+          if (routedPart != hurtboxPart)
             candidate.StopCost += partState->StopPower / float32(2);
           candidate.RemainingHp = partState->Hp;
           candidate.IsShield = false;
@@ -624,7 +618,10 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
             static_cast<uint8_t>(candidate.IsShield ? CombatEventType::Blocked : CombatEventType::HitLanded),
             static_cast<uint8_t>(candidate.Part),
             static_cast<uint8_t>(candidate.RoutedPart),
-            candidate.Flags});
+            candidate.Flags,
+            attack->Epoch,
+            GetVisualTrackId(definition),
+            0});
 
         if (!wasDisabled && partState && partState->Hp <= float32(0))
         {
@@ -637,7 +634,10 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
               static_cast<uint8_t>(CombatEventType::PartDisabled),
               static_cast<uint8_t>(candidate.RoutedPart),
               static_cast<uint8_t>(candidate.RoutedPart),
-              CombatEventFlagStateChanged});
+              CombatEventFlagStateChanged,
+              attack->Epoch,
+              GetVisualTrackId(definition),
+              0});
         }
 
         if (remainingEnergy > candidate.StopCost)
@@ -666,4 +666,3 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
     }
   }
 }
-

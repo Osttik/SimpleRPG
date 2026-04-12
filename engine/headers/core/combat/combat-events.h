@@ -47,6 +47,9 @@ struct CombatEventWire
   uint8_t partId = 0;
   uint8_t routedPartId = 0;
   uint8_t flags = 0;
+  uint16_t attackEpoch = 0;
+  uint8_t visualTrackId = 0;
+  uint8_t reserved = 0;
 };
 #pragma pack(pop)
 

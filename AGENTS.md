@@ -137,7 +137,7 @@ SimpleRPG/
     - Offset `+22`: `flags` (uint8_t)
     - Offset `+23`: `animState` (uint8_t)
     - Offset `+24`: `color` (uint32_t, RGBA8888)
-    - Offset `+28`: Padding (4 Bytes)
+    - Offset `+28`: `animAux` (uint32_t, compact visual intent: attackDirection, attackTickIndex, blockDirection, visualFlags)
   * After all entity strides: `destroyedCount` × uint32_t destroyed IDs.
 * **Numeric ID Mapping**: String UUIDs are never sent at 60Hz. C++ maintains a bidirectional `uint32_t ↔ string` map. Frontend receives the string-ID map only in low-frequency init events.
 * **Shared Protocol**: Both `core.cpp` (N-API) and `frontend.cpp` (WASM) share the same `protocol.hpp` structs.
@@ -147,13 +147,14 @@ SimpleRPG/
 * **Low-Frequency (FlatBuffers)**: Inventory updates, Interaction responses, World Init use FlatBuffers schema (`messages.fbs`) shared between C++ and TS.
 * **uWebSockets.js**: C++ ArrayBuffer piped directly into `app.publish()` — Node.js never parses game state.
 * **Protocol Messages**:
-  * **Server → Client**: Snapshot (magic `0x53525047`), Chunk (`0x01`), FlatBuffers (`0x10`, `0x11`), JSON.
-  * **Client → Server**: Move `0x01` (5B), Interact `0x02` (1B), Transfer `0x03` (10B), JSON.
+  * **Server → Client**: Snapshot (magic `0x53525047`), Chunk (`0x01`), FlatBuffers (`0x10`, `0x11`), Combat events (`0x12`), JSON.
+  * **Client → Server**: Move `0x01` (5B), Interact `0x02` (1B), Transfer `0x03` (10B), Attack `0x04`, Block `0x05`, JSON.
 
 ### 4. Frontend Worker Architecture
 * **SocketWorker**: Handles all network I/O. Routes binary frames to RenderWorker via MessagePort (zero-copy transfer). Routes FlatBuffers and JSON to main thread.
-* **RenderWorker**: Owns OffscreenCanvas and WebGL2 context. Runs the rAF loop. Never touches the DOM.
+* **RenderWorker**: Owns OffscreenCanvas, WebGL2 context, camera state, modular character pose solving, and the rAF loop. Never touches the DOM.
 * **Interpolation**: Ring buffer of 10 snapshots. Renders at `performance.now() - 100ms` delay. Lerps x/y between two bracketing snapshots. No extrapolation beyond buffer bounds.
+* **Camera**: Presentation-only. `CameraController` lives in RenderWorker and supports `free`, `drag`, and `soft_follow`; main thread forwards pointer/middle-drag/double-click events only. Never move camera simulation into C++ or server.
 * **WASM Memory Management**: `allocateBuffer/freeBuffer/getBufferView` provide explicit zero-copy heap access. `getBufferView` returns a **live view** — invalid after the next WASM allocation.
 
 ### 5. Interaction & Inventory Flow
@@ -172,6 +173,8 @@ SimpleRPG/
 * **TileDataManager**: `Float32Array` lookup indexed by `(tileId * 256) + mask` → sprite layer index. O(1).
 * **SpriteSystem**: Builds `TEXTURE_2D_ARRAY` for tiles (one layer per sprite variant) and `TEXTURE_2D` per entity sheet.
 * Prefer generating modular sprites from reusable 3D source assets rendered into 2D/pixelized parts instead of redrawing the same sprite pieces by hand for each variant.
+* **Modular Character Animation**: Frontend-only, data-driven rig/skin/track system under `src/modules/game_module/animation/` and `src/modules/game_module/render/`. C++ sends only compact intent (`animState`, `animAux`, combat events); RenderWorker reconstructs IK, weapon, shield, and layered sprite poses locally.
+* **Facing8 Top-Down Rendering**: Character body/head/shield use snapped `N/NE/E/SE/S/SW/W/NW` rig rules (offsets, flips, draw order, y-scale hooks). Do not rotate the whole character composite like a clock hand; only procedural parts such as arm segments and weapons rotate freely.
 * **Layer Tinting**: `tileFragment.glsl` applies `tint = max(0.2, 1.0 + cz * 0.4)` for `cz < 0` — cz=-1 → 0.6, cz=-2 → 0.2 (floor), cz=0 → 1.0.
 * **Render Sort**: Entities are sorted by `z` then by `y` so lower screen-position entities render over higher ones (correct top-down overlap).
 
@@ -230,6 +233,7 @@ The engine has moved from a monolithic design to a **Delegated ECS-Lite Architec
 * **Hybrid Protocol**: Snapshots = fixed 32-byte binary (`protocol.hpp`). RPCs = FlatBuffers (`messages.fbs`).
 * **Binary Streaming**: Grid data and entity states are raw binary buffers. JSON is strictly for low-frequency session/registry data.
 * **Lerp Smoothing**: Clients interpolate entity positions between server snapshots with 100ms delay buffer.
+* **Visual Animation State**: Do not add high-frequency visual transforms to FlatBuffers. Use `animState`, `animAux`, and compact combat events; per-bone transforms, hand positions, IK, weapon lag, and layered sprite animation stay frontend-only.
 
 ### 3. Frontend Modularization
 * **Workers**: Networking and Rendering MUST stay off the main thread.
@@ -237,6 +241,8 @@ The engine has moved from a monolithic design to a **Delegated ECS-Lite Architec
 * **PrimeReact**: Use for complex UI components while maintaining custom WebGL overlays.
 * **StrictMode**: Must be OFF (required for OffscreenCanvas transfer).
 * **Overlay State**: Overlay open/close state is tracked globally. All gameplay input (movement, interaction, click) is disabled while any overlay is open.
+* **Camera Ownership**: Camera state is separate from player state and owned by RenderWorker. Manual edge-pan or middle-drag cancels follow; double-clicking an entity can re-enable soft follow.
+* **Animation Ownership**: Visual IK, procedural tracks, weapon lag, hit-stop/shake hooks, rig/skin variant selection, and Facing8 pose rules are frontend/render concerns. Do not implement them in C++ gameplay systems.
 
 ### 4. Build System
 * `cmake-js` is required for C++ addon compilation.
@@ -462,17 +468,17 @@ Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endia
 
 ### Workers
 
-**`SocketWorker.ts`** — Network I/O only. Receives binary frames and routes: snapshots → RenderWorker via MessagePort (zero-copy), chunks → RenderWorker, FlatBuffers → decode → main thread, JSON → main thread. Encodes outgoing binary packets (move, interact, transfer). Handles drop/equip/unequip/inventory-refresh JSON messages. Never touches DOM or WebGL.
+**`SocketWorker.ts`** — Network I/O only. Receives binary frames and routes: snapshots → RenderWorker via MessagePort (zero-copy), chunks → RenderWorker, combat events → RenderWorker and main thread, FlatBuffers → decode → main thread, JSON → main thread. Encodes outgoing binary packets (move, interact, transfer, attack, block). Handles drop/equip/unequip/inventory-refresh JSON messages. Never touches DOM or WebGL.
 
-**`RenderWorker.ts`** — WebGL2 only. Owns OffscreenCanvas, shader programs, `SpriteSystem`, `SnapshotInterpolator`, chunk map. Runs rAF loop. Sorts entities by `z` then `y` before drawing. Posts `{type:'my_position', x, y, focusedNumericId}` to main thread every frame. MAX_INSTANCES = 100,000 tiles per draw call (instanced rendering).
+**`RenderWorker.ts`** — WebGL2 only. Owns OffscreenCanvas, shader programs, `SpriteSystem`, `SnapshotInterpolator`, `CameraController`, modular character renderer, chunk map. Runs rAF loop. Sorts entities by `z` then `y` before drawing. Posts `{type:'my_position', x, y, focusedNumericId, cameraX, cameraY}` to main thread every frame. MAX_INSTANCES = 100,000 tiles per draw call (instanced rendering).
 
 ### Protocol (`src/modules/map_module/protocol/`)
 
-**`StateParser.ts`** — `isSnapshotBuffer` (4-byte magic check), `parseSnapshot` (WASM allocate→view→decode→free). Defines `GameSnapshot` (`tick, timestamp, players:EntityState[], props:EntityState[], destroyedIds:number[]`) and `EntityState` (`id, x, y, radius, focusedId, type, chunkZ, flags, animState, color`). Handles `DroppedItem` entity type.
+**`StateParser.ts`** — `isSnapshotBuffer` (4-byte magic check), `parseSnapshot` (WASM allocate→view→decode→free). Defines `GameSnapshot` (`tick, timestamp, players:EntityState[], props:EntityState[], destroyedIds:number[]`) and `EntityState` (`id, x, y, radius, focusedId, type, chunkZ, flags, animState, color, animAux`). Handles `DroppedItem` entity type.
 
-**`SnapshotInterpolator.ts`** — Ring buffer of 10 snapshots. Renders at `performance.now() - 100ms`. Lerps x/y between two bracketing snapshots. No extrapolation beyond buffer bounds.
+**`SnapshotInterpolator.ts`** — Ring buffer of 10 snapshots. Renders at `performance.now() - 100ms`. Lerps x/y between two bracketing snapshots and exposes render clock (`tick, alpha, nowMs`) for animation evaluation. No extrapolation beyond buffer bounds.
 
-**`InputEncoder.ts`** — `encodeMovement`: scales dx/dy to int8 (×127), increments `inputSequence` (wraps at 0xFFFF), calls WASM `encodeMove`. **Must `.slice()` WASM return values** to get a standalone buffer.
+**`InputEncoder.ts`** — `encodeMovement`: scales dx/dy to int8 (×127), increments `inputSequence` (wraps at 0xFFFF), calls WASM `encodeMove`. Attack/block packets use WASM encoders too. **Must `.slice()` WASM return values** to get a standalone buffer.
 
 ### State
 
@@ -490,6 +496,10 @@ Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endia
 
 **`subscribeToSelection.ts`** — Left-click proximity check to chest entities (within 40px) → `{type:'interact'}`. Blocked while overlay is open.
 
+**`subscribeToCombat.ts`** — Attack keys remain `J/K/L/U/O`. Blocking is intentionally simplified: `B` starts one standard front/tall-shield block stance and releasing `B` cancels it. `Z/X/C/V` directional block inputs are no longer used.
+
+**`useMapInitialize.ts` camera input** — Captures DOM pointer/middle-button/double-click events and forwards camera messages to RenderWorker (`camera_pointer_move`, `camera_drag_start`, `camera_drag_end`, `camera_focus_at`). It is not the camera source of truth.
+
 ### Rendering (`src/modules/game_module/`)
 
 **`SpriteSystem.ts`** — Builds `TEXTURE_2D_ARRAY` for tiles (one layer per sprite variant extracted via OffscreenCanvas) and `TEXTURE_2D` per entity sheet. `getSpriteId(tileType, mask)` delegates to TileDataManager.
@@ -499,6 +509,14 @@ Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endia
 **`RegistryManager.ts`** — Auto-init on import. Merges three JSON files into `tilesById:Map<number,{logic,visual}>` and `entitiesByType:Map<string,{logic,visual}>`. Tiles use `masks` dict (mask→{row,col}); entities use `coords` ({row,col}).
 
 **`AssetManager.ts`** — `ImageBitmap` cache keyed by sheet name. De-duplicates concurrent requests via pending promise map. URLs from Vite `import.meta.url` at build time.
+
+**`camera/CameraController.ts`** — Presentation-only camera state machine (`free`, `drag`, `soft_follow`). Uses screen-space dead zone, configurable edge pan, direct middle-mouse drag, and follow target IDs. Future zoom/bounds should extend this module.
+
+**`animation/core/AnimationPoseSolver.ts`** — Builds per-entity layered poses from rig/skin data, combat track samples, Facing8 rules, and right-arm 2-bone IK. It must not globally rotate the character body.
+
+**`animation/core/CharacterAnimator.ts`** — Tracks frontend-only per-entity visual state from snapshots/combat events: facing, active attacks, block stance, hit-stop/shake hooks, and weapon settle triggers.
+
+**`render/CompositeCharacterRenderer.ts`** — Draws layered character quads with per-part pivot, rotation, tint, scale, Facing8 x-flip, and y-scale hooks using WebGL2. It is separate from the fallback GL_POINTS entity pass.
 
 ### Shaders
 
@@ -539,6 +557,12 @@ Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endia
 **`src/assets/entities_registry.json`**: `[{type, baseSpeed, spriteKey, width, height}]`. Types: player (w=40,h=40), chest (w=32,h=32), dropped_item (placeholder visual entry — backend item identity is preserved but world sprite is currently generic).
 
 **`src/assets/sprites_data.json`**: Sheets: `forest_env`/`player_sheet` (Tileset.png, 16px), `chests_sheet` (chestsAll.png, 16px). Tile sprites use `masks` dict; entity sprites use `coords`.
+
+**`src/assets/rigs/*.rig.json`**: Base modular rig definitions. Include logical part names, bind offsets, anchors, limb lengths, attachments, draw order, and Facing8 pose rules. Keep these reusable across variants generated from the same source rig.
+
+**`src/assets/skins/*.skin.json`**: Visual skin/variant definitions. Include texture sheet key/path, atlas rects, pivots, tints, scale, per-part scale, and small anchor overrides. New humanoid variants should mostly be new skins/variant entries, not solver changes.
+
+**`src/assets/animations/*.json`**: Animation-pack metadata boundary. Current runtime track definitions live in TypeScript under `animation/tracks/` for typed interpolation; keep high-frequency pose data out of FlatBuffers.
 
 ---
 

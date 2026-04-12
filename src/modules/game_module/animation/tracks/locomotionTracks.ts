@@ -21,36 +21,15 @@ export function evaluateMovePose(nowMs: number, speed01: number): LocomotionTrac
 
 export function evaluateBlockPose(direction: number): LocomotionTrackPose {
   switch (direction) {
-    case 1:
-      return {
-        rightHand: [-6, 12],
-        swordTip: [-4, -12],
-        torsoLean: -0.03,
-        shieldOffset: [0, -10],
-        shieldRotation: 0,
-      };
-    case 2:
-      return {
-        rightHand: [-9, 12],
-        swordTip: [-15, -10],
-        torsoLean: -0.06,
-        shieldOffset: [-8, -2],
-        shieldRotation: -0.35,
-      };
-    case 3:
-      return {
-        rightHand: [-4, 12],
-        swordTip: [8, -8],
-        torsoLean: 0.06,
-        shieldOffset: [8, -2],
-        shieldRotation: 0.35,
-      };
     case 4:
+    case 1:
+    case 2:
+    case 3:
       return {
         rightHand: [-6, 10],
         swordTip: [-2, -16],
         torsoLean: 0,
-        shieldOffset: [0, -4],
+        shieldOffset: [0, -6],
         shieldRotation: 0,
       };
     default:

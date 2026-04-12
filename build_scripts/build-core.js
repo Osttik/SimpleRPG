@@ -40,6 +40,10 @@ const flatcPath = ensureFlatc();
 const nodeVersion = process.versions.node;
 const cwd = process.cwd();
 
+// --- 0. GENERATE COMBAT/RIG CONTRACT ---
+console.log('\n--- Generating Combat Rig Contract ---');
+execSync('node build_scripts/generate-combat-rig-contract.js', { stdio: 'inherit', cwd });
+
 // --- 1. COMPILE FLAGS (For LSP Support) ---
 const nodeIncludePath = path.join(os.homedir(), '.cmake-js', 'node-x64', `v${nodeVersion}`, 'include', 'node').replace(/\\/g, '/');
 const compileFlags = [

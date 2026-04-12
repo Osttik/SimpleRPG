@@ -8,12 +8,17 @@ import {
 import { SpriteSystem } from '../../game_module/utils/SpriteSystem';
 import { RegistryManager } from '../../game_module/utils/RegistryManager';
 import { SnapshotInterpolator } from '../protocol/SnapshotInterpolator';
-import { EntityType } from '../protocol/StateParser';
+import { EntityType, type EntityState } from '../protocol/StateParser';
 import { loadWasm } from '../../../services/wasm-loader';
 import { CharacterAnimator } from '../../game_module/animation/core/CharacterAnimator';
 import { AnimationPoseSolver } from '../../game_module/animation/core/AnimationPoseSolver';
 import { CharacterRigRegistry, type ResolvedCharacterRigSkin } from '../../game_module/render/CharacterRigRegistry';
-import { CompositeCharacterRenderer } from '../../game_module/render/CompositeCharacterRenderer';
+import { CompositeCharacterRenderer, type CharacterRenderBatchItem } from '../../game_module/render/CompositeCharacterRenderer';
+import { CombatDebugOverlayRenderer } from '../../game_module/render/CombatDebugOverlayRenderer';
+import { CameraController } from '../../game_module/camera/CameraController';
+import { BodyStateCache } from '../../game_module/animation/core/BodyStateCache';
+import { resolvePoseLod } from '../../game_module/animation/core/PoseLod';
+import { animationMetrics } from '../../game_module/animation/debug/AnimationMetrics';
 
 // ─── State ───
 
@@ -35,6 +40,8 @@ const gameState: RenderGameState = {
 
 const interpolator = new SnapshotInterpolator();
 const characterAnimator = new CharacterAnimator();
+const bodyStateCache = new BodyStateCache();
+const cameraController = new CameraController();
 const poseSolvers = new Map<string, AnimationPoseSolver>();
 const TILE_SIZE = 40;
 const CHUNK_SIZE = 16;
@@ -53,6 +60,9 @@ const ENTITY_TYPE_NAMES: Record<number, string> = {
 let canvas: OffscreenCanvas | null = null;
 let gl: WebGL2RenderingContext | null = null;
 let compositeCharacterRenderer: CompositeCharacterRenderer | null = null;
+let combatDebugOverlayRenderer: CombatDebugOverlayRenderer | null = null;
+let latestEntities: Map<number, EntityState> | null = null;
+let combatDebugOverlayEnabled = import.meta.env.DEV && import.meta.env.VITE_DEBUG_COMBAT_RIG === '1';
 
 function initWebGL() {
   if (!canvas || !gl) return;
@@ -60,6 +70,7 @@ function initWebGL() {
   SpriteSystem.init(gl).catch(console.error);
   CharacterRigRegistry.init().catch(console.error);
   compositeCharacterRenderer = new CompositeCharacterRenderer(gl);
+  combatDebugOverlayRenderer = new CombatDebugOverlayRenderer(gl);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
@@ -111,14 +122,16 @@ function initWebGL() {
 
   const render = () => {
     if (!gl || !canvas) return;
+    animationMetrics.beginFrame();
 
     // ─── Get interpolated entities from snapshot buffer ───
     const entities = interpolator.getInterpolatedState();
+    latestEntities = entities;
     const myEntity = gameState.myNumericId ? entities?.get(gameState.myNumericId) : undefined;
-    if (myEntity) {
-      gameState.cameraX = myEntity.x - canvas.width / 2;
-      gameState.cameraY = myEntity.y - canvas.height / 2;
-    }
+    cameraController.setViewport(canvas.width, canvas.height);
+    cameraController.update(buildCameraTargets(entities), performance.now());
+    gameState.cameraX = cameraController.state.x;
+    gameState.cameraY = cameraController.state.y;
     const visibleMinX = gameState.cameraX - VIEWPORT_CULL_MARGIN;
     const visibleMinY = gameState.cameraY - VIEWPORT_CULL_MARGIN;
     const visibleMaxX = gameState.cameraX + canvas.width + VIEWPORT_CULL_MARGIN;
@@ -220,6 +233,19 @@ function initWebGL() {
     if (entities) {
       const renderClock = interpolator.getRenderClock();
       const activeEntityIds = new Set<number>();
+      let characterRenderItems: CharacterRenderBatchItem[] = [];
+      const viewportWidth = canvas.width;
+      const viewportHeight = canvas.height;
+      const flushRiggedCharacters = () => {
+        if (!compositeCharacterRenderer || characterRenderItems.length === 0) return;
+        compositeCharacterRenderer.drawBatch(characterRenderItems, gameState.cameraX, gameState.cameraY, viewportWidth, viewportHeight);
+        if (combatDebugOverlayEnabled && combatDebugOverlayRenderer) {
+          for (const item of characterRenderItems) {
+            combatDebugOverlayRenderer.draw(item.pose, gameState.cameraX, gameState.cameraY, viewportWidth, viewportHeight);
+          }
+        }
+        characterRenderItems = [];
+      };
       // Find my player's focused entity for highlight rendering
       let focusedEntityId = 0;
       if (myEntity) {
@@ -232,6 +258,8 @@ function initWebGL() {
           focusedNumericId: myEntity.focusedId,
           cameraX: gameState.cameraX,
           cameraY: gameState.cameraY,
+          cameraMode: cameraController.state.mode,
+          cameraFollowTargetId: cameraController.state.followTargetId,
         });
       }
 
@@ -273,12 +301,15 @@ function initWebGL() {
         if (rigSkin && compositeCharacterRenderer) {
           const visualState = characterAnimator.updateEntity(entity, renderClock);
           const solver = getPoseSolver(rigSkin);
-          const pose = solver.solve(entity, visualState, renderClock, characterAnimator.weaponLag);
-          compositeCharacterRenderer.draw(pose, rigSkin, gameState.cameraX, gameState.cameraY, canvas.width, canvas.height);
+          const lod = resolvePoseLod(screenX, screenY, canvas.width, canvas.height, entity.id === gameState.myNumericId || entity.id === focusedEntityId);
+          const pose = solver.solve(entity, visualState, bodyStateCache.get(entity.id), renderClock, characterAnimator.weaponLag, lod);
+          characterRenderItems.push({ pose, rigSkin });
+          animationMetrics.riggedEntitiesRendered++;
           characterAnimator.consumeImpactMarkers(entity.id);
           continue;
         }
 
+        flushRiggedCharacters();
         gl.useProgram(playerProgram);
         gl.enableVertexAttribArray(playerPosLoc);
         gl.bindBuffer(gl.ARRAY_BUFFER, playerPosBuffer);
@@ -331,8 +362,15 @@ function initWebGL() {
         gl.uniform4f(playerColorLoc, color[0], color[1], color[2], color[3]);
         gl.drawArrays(gl.POINTS, 0, 1);
       }
+      flushRiggedCharacters();
       characterAnimator.prune(activeEntityIds);
+      bodyStateCache.prune(activeEntityIds);
     }
+
+    animationMetrics.endFrame();
+    animationMetrics.publishIfDue((metrics) => {
+      self.postMessage({ type: 'animation_metrics', metrics });
+    }, performance.now());
 
     requestAnimationFrame(render);
   };
@@ -348,6 +386,32 @@ function getPoseSolver(rigSkin: ResolvedCharacterRigSkin): AnimationPoseSolver {
     poseSolvers.set(key, solver);
   }
   return solver;
+}
+
+function buildCameraTargets(entities: Map<number, EntityState> | null): Map<number, EntityState> {
+  return entities ?? new Map<number, EntityState>();
+}
+
+function hitTestEntity(screenX: number, screenY: number, entityTypeName?: string): EntityState | undefined {
+  if (!latestEntities) return undefined;
+
+  let best: EntityState | undefined;
+  let bestDistSq = Number.POSITIVE_INFINITY;
+  for (const entity of latestEntities.values()) {
+    const typeName = ENTITY_TYPE_NAMES[entity.type] || 'prop';
+    if (entityTypeName && typeName !== entityTypeName) continue;
+
+    const dx = screenX - (entity.x - gameState.cameraX);
+    const dy = screenY - (entity.y - gameState.cameraY);
+    const radius = Math.max(24, entity.radius || 20);
+    const distSq = dx * dx + dy * dy;
+    if (distSq <= radius * radius && distSq < bestDistSq) {
+      best = entity;
+      bestDistSq = distSq;
+    }
+  }
+
+  return best;
 }
 
 // Unpack RGBA8888 uint32 to [r, g, b, a] floats
@@ -378,6 +442,7 @@ self.onmessage = (event) => {
     loadWasm().then(() => {
       canvas = data.canvas;
       gl = canvas?.getContext('webgl2') || null;
+      if (canvas) cameraController.setViewport(canvas.width, canvas.height);
       if (gl) initWebGL();
     });
   } else if (data.type === 'resize') {
@@ -385,7 +450,26 @@ self.onmessage = (event) => {
       canvas.width = data.width;
       canvas.height = data.height;
       gl.viewport(0, 0, canvas.width, canvas.height);
+      cameraController.setViewport(canvas.width, canvas.height);
     }
+  } else if (data.type === 'camera_pointer_move') {
+    const x = Number(data.x || 0);
+    const y = Number(data.y || 0);
+    cameraController.setPointerPosition(x, y, true);
+    cameraController.dragTo(x, y);
+  } else if (data.type === 'camera_pointer_leave') {
+    cameraController.setPointerInside(false);
+  } else if (data.type === 'camera_drag_start') {
+    cameraController.beginDrag(Number(data.x || 0), Number(data.y || 0));
+  } else if (data.type === 'camera_drag_end') {
+    cameraController.endDrag();
+  } else if (data.type === 'camera_focus_at') {
+    const hit = hitTestEntity(Number(data.x || 0), Number(data.y || 0), data.entityType);
+    if (hit) {
+      cameraController.focusTarget(hit.id, hit);
+    }
+  } else if (data.type === 'set_debug_combat_overlay') {
+    combatDebugOverlayEnabled = Boolean(data.enabled);
   } else if (data.type === 'initPort') {
     const port = data.port;
     port.onmessage = (portEvent: MessageEvent) => {
@@ -422,8 +506,13 @@ self.onmessage = (event) => {
         gameState.myId = portData.id;
         gameState.myNumericId = typeof portData.id === 'number' ? portData.id : parseInt(portData.id);
         gameState.tileRegistry = portData.tileRegistry || {};
+        if (gameState.myNumericId) {
+          cameraController.focusTarget(gameState.myNumericId);
+        }
       } else if (portData.type === 'combat_events') {
-        characterAnimator.applyCombatEvents(portData.events ?? []);
+        const events = portData.events ?? [];
+        characterAnimator.applyCombatEvents(events, interpolator.getRenderClock());
+        bodyStateCache.applyCombatEvents(events);
       }
     };
   }

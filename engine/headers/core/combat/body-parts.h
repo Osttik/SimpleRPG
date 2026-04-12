@@ -2,27 +2,28 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "core/combat/combat-rig-contract.generated.h"
 
 enum class BodyPart : uint8_t
 {
-  Head = 0,
-  Neck,
-  Torso,
-  ChestVirtual,
-  BellyVirtual,
-  PelvisVirtual,
-  ShoulderL,
-  UpperArmL,
-  ForearmHandL,
-  ShoulderR,
-  UpperArmR,
-  ForearmHandR,
-  ThighL,
-  ShinFootL,
-  ThighR,
-  ShinFootR,
-  Shield,
-  Count
+  Head = CombatRigContract::BodyPartHead,
+  Neck = CombatRigContract::BodyPartNeck,
+  Torso = CombatRigContract::BodyPartTorso,
+  ChestVirtual = CombatRigContract::BodyPartChestVirtual,
+  BellyVirtual = CombatRigContract::BodyPartBellyVirtual,
+  PelvisVirtual = CombatRigContract::BodyPartPelvisVirtual,
+  ShoulderL = CombatRigContract::BodyPartShoulderL,
+  UpperArmL = CombatRigContract::BodyPartUpperArmL,
+  ForearmHandL = CombatRigContract::BodyPartForearmHandL,
+  ShoulderR = CombatRigContract::BodyPartShoulderR,
+  UpperArmR = CombatRigContract::BodyPartUpperArmR,
+  ForearmHandR = CombatRigContract::BodyPartForearmHandR,
+  ThighL = CombatRigContract::BodyPartThighL,
+  ShinFootL = CombatRigContract::BodyPartShinFootL,
+  ThighR = CombatRigContract::BodyPartThighR,
+  ShinFootR = CombatRigContract::BodyPartShinFootR,
+  Shield = CombatRigContract::BodyPartShield,
+  Count = CombatRigContract::BodyPartCount
 };
 
 enum class BodyLayer : uint8_t
@@ -75,4 +76,4 @@ enum FunctionalFlags : uint8_t
 };
 
 constexpr size_t BODY_PART_COUNT = static_cast<size_t>(BodyPart::Count);
-
+static_assert(BODY_PART_COUNT == CombatRigContract::BodyPartCount);

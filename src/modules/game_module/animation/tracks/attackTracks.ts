@@ -18,6 +18,7 @@ function sample(t: number, handX: number, handY: number, tipX: number, tipY: num
 export const attackTracks: Record<number, AttackTrackDefinition> = {
   [AttackDirection.SlashLeftToRight]: {
     id: AttackDirection.SlashLeftToRight,
+    visualTrackId: AttackDirection.SlashLeftToRight,
     name: 'slash_left_to_right',
     durationTicks: 30,
     kind: 'slash',
@@ -31,6 +32,7 @@ export const attackTracks: Record<number, AttackTrackDefinition> = {
   },
   [AttackDirection.SlashRightToLeft]: {
     id: AttackDirection.SlashRightToLeft,
+    visualTrackId: AttackDirection.SlashRightToLeft,
     name: 'slash_right_to_left',
     durationTicks: 30,
     kind: 'slash',
@@ -44,6 +46,7 @@ export const attackTracks: Record<number, AttackTrackDefinition> = {
   },
   [AttackDirection.RisingSlash]: {
     id: AttackDirection.RisingSlash,
+    visualTrackId: AttackDirection.RisingSlash,
     name: 'rising_slash',
     durationTicks: 20,
     kind: 'slash',
@@ -57,6 +60,7 @@ export const attackTracks: Record<number, AttackTrackDefinition> = {
   },
   [AttackDirection.OverheadSlash]: {
     id: AttackDirection.OverheadSlash,
+    visualTrackId: AttackDirection.OverheadSlash,
     name: 'overhead_slash',
     durationTicks: 40,
     kind: 'slash',
@@ -70,6 +74,7 @@ export const attackTracks: Record<number, AttackTrackDefinition> = {
   },
   [AttackDirection.ThrustFront]: {
     id: AttackDirection.ThrustFront,
+    visualTrackId: AttackDirection.ThrustFront,
     name: 'thrust_front',
     durationTicks: 20,
     kind: 'thrust',
@@ -85,6 +90,11 @@ export const attackTracks: Record<number, AttackTrackDefinition> = {
 
 export function getAttackTrack(direction: number): AttackTrackDefinition | undefined {
   return attackTracks[direction];
+}
+
+export function getAttackTrackByVisualId(visualTrackId: number, fallbackDirection: number): AttackTrackDefinition | undefined {
+  return Object.values(attackTracks).find((track) => track.visualTrackId === visualTrackId)
+    ?? getAttackTrack(fallbackDirection);
 }
 
 export function evaluateAttackTrack(track: AttackTrackDefinition, normalizedT: number): AttackTrackSample {

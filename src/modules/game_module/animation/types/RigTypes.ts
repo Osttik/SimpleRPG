@@ -28,6 +28,21 @@ export interface RigAttachmentDefinition {
   rotation?: number;
 }
 
+export interface CombatRigContract {
+  id?: string;
+  version?: number;
+  hash?: string;
+  units?: {
+    source: string;
+    frontendScale: number;
+    note?: string;
+  };
+  bodyPartToVisualParts?: Record<string, string[] | readonly string[]>;
+  bodyProportions?: Record<string, number>;
+  hurtboxes?: readonly unknown[];
+  routing?: unknown;
+}
+
 export interface Facing8PoseRule {
   partOffsets?: Record<string, Vec2>;
   anchorOverrides?: Record<string, Vec2>;
@@ -52,6 +67,7 @@ export interface CharacterRigDefinition {
   attachments: Record<string, RigAttachmentDefinition>;
   drawOrder: string[];
   facingRules: Record<Facing8, Facing8PoseRule>;
+  combatContract?: CombatRigContract;
 }
 
 export interface SkinPartDefinition {

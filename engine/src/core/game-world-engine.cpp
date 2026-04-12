@@ -400,14 +400,18 @@ void GameWorldEngine::WriteEntity(uint8_t *buf, size_t offset, const GameObject 
   auto *combatState = combatStateMgr ? combatStateMgr->Get(obj.Id) : nullptr;
 
   uint8_t attackDirection = 0;
+  uint8_t visualTrackId = 0;
   uint8_t attackTickIndex = 0;
+  uint8_t attackEpoch = 0;
   uint8_t blockDirection = 0;
   uint8_t visualFlags = 0;
 
   if (attack && attack->Active)
   {
     attackDirection = static_cast<uint8_t>(attack->Direction);
+    visualTrackId = attackDirection;
     attackTickIndex = attack->TickIndex;
+    attackEpoch = static_cast<uint8_t>(attack->Epoch & 0xff);
     visualFlags |= 0x01;
   }
 
@@ -417,10 +421,12 @@ void GameWorldEngine::WriteEntity(uint8_t *buf, size_t offset, const GameObject 
     visualFlags |= 0x02;
   }
 
-  reserved = static_cast<uint32_t>(attackDirection) |
+  reserved = (static_cast<uint32_t>(attackDirection & 0x0f)) |
+             (static_cast<uint32_t>(visualTrackId & 0x0f) << 4) |
              (static_cast<uint32_t>(attackTickIndex) << 8) |
-             (static_cast<uint32_t>(blockDirection) << 16) |
-             (static_cast<uint32_t>(visualFlags) << 24);
+             (static_cast<uint32_t>(attackEpoch) << 16) |
+             (static_cast<uint32_t>(blockDirection & 0x07) << 24) |
+             (static_cast<uint32_t>(visualFlags & 0x1f) << 27);
 
   std::memcpy(buf + offset + 0, &numericId, 4);
   std::memcpy(buf + offset + 4, &rawX, 4);

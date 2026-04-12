@@ -11,9 +11,11 @@
     "dev": "start_dev.bat npm run build:cpp && concurrently \"npm run dev:web\" \"npm run dev:server\" \"npm run start:nw\"",
     "dev:web": "vite --port 3000",
     "dev:server": "npm --prefix server run dev",
+    "generate:combat-rig": "node build_scripts/generate-combat-rig-contract.js",
+    "validate:combat-rig": "node build_scripts/generate-combat-rig-contract.js --check",
     "build:cpp": "node build_scripts/build-core.js",
     "clean": "powershell -Command \"Remove-Item -Recurse -Force build, build_wasm, engine/generated, src/generated\"",
-    "build": "tsc -b && vite build",
+    "build": "npm run validate:combat-rig && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

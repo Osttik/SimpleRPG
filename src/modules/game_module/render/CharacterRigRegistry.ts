@@ -1,5 +1,6 @@
 import testingDummyRig from '../../../assets/rigs/testing_dummy.rig.json';
 import testingDummySkin from '../../../assets/skins/testing_dummy.skin.json';
+import { COMBAT_RIG_CONTRACT_HASH, HUMANOID_COMBAT_RIG_CONTRACT } from '../animation/generated/combatRigContract';
 import { SpriteSystem } from '../utils/SpriteSystem';
 import type { CharacterRigDefinition, CharacterSkinDefinition, SkinPartDefinition } from '../animation/types/RigTypes';
 
@@ -22,7 +23,7 @@ export class CharacterRigRegistry {
   static init(): Promise<void> {
     if (this.initPromise) return this.initPromise;
 
-    this.rigs.set(testingDummyRig.id, testingDummyRig as unknown as CharacterRigDefinition);
+    this.rigs.set(testingDummyRig.id, applyGeneratedCombatContract(testingDummyRig as unknown as CharacterRigDefinition));
     this.skins.set(testingDummySkin.id, testingDummySkin as unknown as CharacterSkinDefinition);
 
     this.initPromise = this.loadSkin('testing_dummy').then(() => undefined);
@@ -88,4 +89,40 @@ export class CharacterRigRegistry {
     this.loaded.set(variantId, resolved);
     return resolved;
   }
+}
+
+function applyGeneratedCombatContract(rig: CharacterRigDefinition): CharacterRigDefinition {
+  if (rig.id !== HUMANOID_COMBAT_RIG_CONTRACT.id) return rig;
+
+  const generatedVisual = HUMANOID_COMBAT_RIG_CONTRACT.visual;
+  const parts = { ...rig.parts };
+  for (const [partName, length] of Object.entries(generatedVisual.partLengths)) {
+    parts[partName] = {
+      ...(parts[partName] ?? { bindOffset: [0, 0] }),
+      length: Number(length),
+    };
+  }
+
+  const patched: CharacterRigDefinition = {
+    ...rig,
+    parts,
+    anchors: generatedVisual.anchors as unknown as CharacterRigDefinition['anchors'],
+    limbs: generatedVisual.limbs as unknown as CharacterRigDefinition['limbs'],
+    attachments: generatedVisual.attachments as unknown as CharacterRigDefinition['attachments'],
+    combatContract: {
+      id: HUMANOID_COMBAT_RIG_CONTRACT.id,
+      version: HUMANOID_COMBAT_RIG_CONTRACT.version,
+      hash: HUMANOID_COMBAT_RIG_CONTRACT.hash,
+      units: HUMANOID_COMBAT_RIG_CONTRACT.units,
+      bodyPartToVisualParts: generatedVisual.bodyPartToVisualParts,
+      hurtboxes: HUMANOID_COMBAT_RIG_CONTRACT.hurtboxes,
+      routing: HUMANOID_COMBAT_RIG_CONTRACT.routing,
+    },
+  };
+
+  if (import.meta.env.DEV && patched.combatContract?.hash !== COMBAT_RIG_CONTRACT_HASH) {
+    throw new Error(`Combat rig contract hash mismatch for '${rig.id}'. Regenerate combat rig artifacts.`);
+  }
+
+  return patched;
 }

@@ -1,4 +1,5 @@
 import type { ColorRgba, Facing8, Vec2, Vec2Rect } from './RigTypes';
+import type { PoseLodTier } from '../core/PoseLod';
 
 export interface AnimationClock {
   tick: number;
@@ -20,6 +21,7 @@ export interface AttackTrackSample {
 
 export interface AttackTrackDefinition {
   id: number;
+  visualTrackId: number;
   name: string;
   durationTicks: number;
   kind: 'slash' | 'thrust' | 'recoil';
@@ -42,11 +44,15 @@ export interface CombatVisualEvent {
   partId: number;
   routedPartId: number;
   flags: number;
+  attackEpoch: number;
+  visualTrackId: number;
 }
 
 export interface ActiveAttackVisualState {
   attackType: number;
   direction: number;
+  visualTrackId: number;
+  epoch: number;
   startTick: number;
   durationTicks: number;
   stoppedTick?: number;
@@ -55,6 +61,10 @@ export interface ActiveAttackVisualState {
 
 export interface EntityVisualState {
   facingAngle: number;
+  lowerFacingAngle: number;
+  upperFacingAngle: number;
+  lowerFacing: Facing8;
+  upperFacing: Facing8;
   lastX: number;
   lastY: number;
   moving: boolean;
@@ -93,7 +103,16 @@ export interface CharacterPose {
   x: number;
   y: number;
   scale: number;
+  lod: PoseLodTier;
   parts: ResolvedPartPose[];
+  debug?: {
+    shoulder: Vec2;
+    elbow: Vec2;
+    wrist: Vec2;
+    weaponTip: Vec2;
+    shieldAnchor?: Vec2;
+    upperFacingAngle: number;
+  };
 }
 
 export const CombatVisualEventType = {

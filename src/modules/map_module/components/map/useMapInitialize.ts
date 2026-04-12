@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { useControls } from './useControls';
 import { interactionsState } from '@/store';
+import { isOverlayOpen } from '@/components/overlay';
+import { getRelativePositions } from './controls';
 
 export const useMapInitialize = () => {
   const [socketWorker, setSocketWorker] = useState<Worker | null>(null);
@@ -51,6 +53,9 @@ export const useMapInitialize = () => {
           gameState.camera.x = event.data.cameraX ?? gameState.camera.x;
           gameState.camera.y = event.data.cameraY ?? gameState.camera.y;
         }
+      } else if (event.data.type === 'animation_metrics') {
+        gameState.animationMetrics = event.data.metrics;
+        window.dispatchEvent(new Event('gameStateUpdate'));
       }
     };
 
@@ -68,6 +73,62 @@ export const useMapInitialize = () => {
       renderWorker.postMessage({ type: 'resize', width: w, height: h });
     };
     window.addEventListener('resize', handleResize);
+
+    let cameraDragActive = false;
+
+    const postCameraPointerMove = (event: MouseEvent) => {
+      if (isOverlayOpen()) {
+        cameraDragActive = false;
+        renderWorker.postMessage({ type: 'camera_pointer_leave' });
+        renderWorker.postMessage({ type: 'camera_drag_end' });
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const insideCanvas = event.clientX >= rect.left
+        && event.clientX <= rect.right
+        && event.clientY >= rect.top
+        && event.clientY <= rect.bottom;
+      if (!insideCanvas && !cameraDragActive) {
+        renderWorker.postMessage({ type: 'camera_pointer_leave' });
+        return;
+      }
+
+      const [x, y] = getRelativePositions(canvas, event.clientX, event.clientY);
+      renderWorker.postMessage({ type: 'camera_pointer_move', x, y });
+    };
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (event.button !== 1 || isOverlayOpen()) return;
+      event.preventDefault();
+      cameraDragActive = true;
+      const [x, y] = getRelativePositions(canvas, event.clientX, event.clientY);
+      renderWorker.postMessage({ type: 'camera_drag_start', x, y });
+    };
+
+    const handleMouseUp = (event: MouseEvent) => {
+      if (event.button !== 1) return;
+      event.preventDefault();
+      cameraDragActive = false;
+      renderWorker.postMessage({ type: 'camera_drag_end' });
+    };
+
+    const handleMouseLeave = () => {
+      if (cameraDragActive) return;
+      renderWorker.postMessage({ type: 'camera_pointer_leave' });
+    };
+
+    const handleDoubleClick = (event: MouseEvent) => {
+      if (isOverlayOpen()) return;
+      const [x, y] = getRelativePositions(canvas, event.clientX, event.clientY);
+      renderWorker.postMessage({ type: 'camera_focus_at', x, y, entityType: 'player' });
+    };
+
+    window.addEventListener('mousemove', postCameraPointerMove);
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('dblclick', handleDoubleClick);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
+    window.addEventListener('mouseup', handleMouseUp);
 
     // Handle JSON messages from SocketWorker to Main Thread
     localSocketWorker.onmessage = (event) => {
@@ -122,6 +183,11 @@ export const useMapInitialize = () => {
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('mousemove', postCameraPointerMove);
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('dblclick', handleDoubleClick);
+      canvas.removeEventListener('mouseleave', handleMouseLeave);
+      window.removeEventListener('mouseup', handleMouseUp);
       gameState.socketWorker = null;
       interactionsState.targets = [];
       interactionsState.selectedTargetId = null;

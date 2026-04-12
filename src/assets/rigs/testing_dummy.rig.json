@@ -41,6 +41,10 @@
     "shield_grip_l": {
       "part": "torso",
       "position": [10, 2]
+    },
+    "weapon_grip_r": {
+      "part": "forearm_r",
+      "position": [0, 0]
     }
   },
   "limbs": {
@@ -56,7 +60,7 @@
   "attachments": {
     "sword": {
       "part": "forearm_r",
-      "anchor": "hand_r",
+      "anchor": "weapon_grip_r",
       "offset": [0, 0],
       "rotation": 0
     },
@@ -65,6 +69,34 @@
       "anchor": "shield_grip_l",
       "offset": [0, 0],
       "rotation": 0
+    }
+  },
+  "combatContract": {
+    "id": "humanoid_base",
+    "version": 1,
+    "hash": "f9b6381ef2d2945c",
+    "units": {
+      "source": "gameplay_world_units",
+      "frontendScale": 1,
+      "note": "Generated from schema/combat-rig-contract.humanoid.json. Runtime rig data is patched from src/generated/combatRigContract.ts."
+    },
+    "bodyPartToVisualParts": {
+      "6": ["shield"],
+      "7": ["shield"],
+      "8": ["shield"],
+      "9": ["upper_arm_r", "forearm_r", "sword"],
+      "10": ["upper_arm_r", "forearm_r", "sword"],
+      "11": ["forearm_r", "sword"],
+      "16": ["shield"]
+    },
+    "bodyProportions": {
+      "torsoHalfWidth": 8,
+      "torsoHalfHeight": 10,
+      "headRadius": 6,
+      "rightUpperArmLength": 12,
+      "rightForearmLength": 12,
+      "shieldHalfWidth": 16,
+      "shieldHalfHeight": 24
     }
   },
   "drawOrder": [
