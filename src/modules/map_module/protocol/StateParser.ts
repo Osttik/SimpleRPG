@@ -12,6 +12,7 @@ export const MSG = {
   INIT:        0x10,
   INTERACTION: 0x11,
   COMBAT:      0x12,
+  BODY_STATE:  0x13,
 } as const;
 
 export const EntityType = {
@@ -34,6 +35,7 @@ export interface EntityState {
     animState: number;
     color: number;
     animAux?: number;
+    bodyStateVersion6?: number;
 }
 
 export interface GameSnapshot {
@@ -79,7 +81,8 @@ export function parseSnapshot(buffer: ArrayBuffer): GameSnapshot {
                 flags: e.flags ?? 0,
                 animState: e.animState ?? 0,
                 color: e.colorPacked ?? 0,
-                animAux: e.animAux ?? 0
+                animAux: e.animAux ?? 0,
+                bodyStateVersion6: e.bodyStateVersion6 ?? 0,
             });
         }
         return arr;

@@ -109,6 +109,7 @@ val decodeSnapshot(uintptr_t ptr, size_t length)
     p.set("animState", state->animState);
     p.set("colorPacked", state->colorPacked);
     p.set("animAux", state->pad);
+    p.set("bodyStateVersion6", (state->flags >> 2) & 0x3F);
     playersObj.set(std::to_string(state->id), p);
 
     offset += sizeof(EntityState);
@@ -133,6 +134,7 @@ val decodeSnapshot(uintptr_t ptr, size_t length)
     p.set("animState", state->animState);
     p.set("colorPacked", state->colorPacked);
     p.set("animAux", state->pad);
+    p.set("bodyStateVersion6", (state->flags >> 2) & 0x3F);
     propsObj.set(std::to_string(state->id), p);
 
     offset += sizeof(EntityState);

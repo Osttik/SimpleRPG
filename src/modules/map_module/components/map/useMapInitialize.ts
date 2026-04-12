@@ -36,6 +36,10 @@ export const useMapInitialize = () => {
     renderWorker.postMessage({ type: 'initCanvas', canvas: offscreen }, [offscreen]);
 
     renderWorker.onmessage = (event) => {
+      if (event.data.type === 'request_body_state') {
+        localSocketWorker.postMessage(event.data);
+        return;
+      }
       if (event.data.type === 'my_position') {
         if (gameState.myId) {
           if (!gameState.players[gameState.myId]) {

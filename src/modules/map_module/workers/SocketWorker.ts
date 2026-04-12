@@ -16,6 +16,8 @@ const INIT_FRAME_PREFIX_BYTES = 1;
 const INTERACTION_FRAME_PREFIX_BYTES = 1;
 const COMBAT_EVENT_HEADER_BYTES = 4;
 const COMBAT_EVENT_ENTRY_BYTES = 28;
+const BODY_STATE_MANIFEST_HEADER_BYTES = 4;
+const BODY_STATE_MANIFEST_ENTRY_BYTES = 16;
 
 const getHostname = () => {
   try {
@@ -136,6 +138,37 @@ function decodeCombatEvents(bytes: Uint8Array) {
   return { type: 'combat_events', events };
 }
 
+export interface BodyStateManifestEntry {
+  entityId: number;
+  bodyStateVersion: number;
+  shieldState: number;
+  functionalFlags: number;
+  disabledParts: number;
+  hiddenParts: number;
+}
+
+function decodeBodyStateManifest(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const count = view.getUint16(1, true);
+  const entries: BodyStateManifestEntry[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const offset = BODY_STATE_MANIFEST_HEADER_BYTES + (i * BODY_STATE_MANIFEST_ENTRY_BYTES);
+    if (offset + BODY_STATE_MANIFEST_ENTRY_BYTES > bytes.byteLength) break;
+
+    entries.push({
+      entityId: view.getUint32(offset + 0, true),
+      bodyStateVersion: view.getUint16(offset + 4, true),
+      shieldState: view.getUint8(offset + 6),
+      functionalFlags: view.getUint8(offset + 7),
+      disabledParts: view.getUint32(offset + 8, true),
+      hiddenParts: view.getUint32(offset + 12, true),
+    });
+  }
+
+  return { type: 'body_state_manifest', entries };
+}
+
 function connect() {
   socket = new WebSocket(resolvedWsUrl);
   socket.binaryType = 'arraybuffer';
@@ -176,6 +209,12 @@ function connect() {
         const combatEvents = decodeCombatEvents(bytes);
         renderPort?.postMessage(combatEvents);
         self.postMessage(combatEvents);
+        return;
+      }
+
+      if (firstByte === MSG.BODY_STATE) {
+        const manifest = decodeBodyStateManifest(bytes);
+        renderPort?.postMessage(manifest);
         return;
       }
 
@@ -251,6 +290,13 @@ self.onmessage = (event) => {
   } else if (event.data.type === 'equip_item') {
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'equip_item', itemIndex: Number(event.data.itemIndex) }));
+    }
+  } else if (event.data.type === 'request_body_state') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'request_body_state',
+        entityId: Number(event.data.entityId || 0),
+      }));
     }
   } else if (event.data.type === 'drop_item') {
     if (socket?.readyState === WebSocket.OPEN) {

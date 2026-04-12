@@ -43,6 +43,9 @@ const characterAnimator = new CharacterAnimator();
 const bodyStateCache = new BodyStateCache();
 const cameraController = new CameraController();
 const poseSolvers = new Map<string, AnimationPoseSolver>();
+let socketPort: MessagePort | null = null;
+let lastRepairRequestMs = 0;
+const REPAIR_REQUEST_COOLDOWN_MS = 500;
 const TILE_SIZE = 40;
 const CHUNK_SIZE = 16;
 const CHUNK_PIXEL_SIZE = CHUNK_SIZE * TILE_SIZE;
@@ -363,11 +366,31 @@ function initWebGL() {
         gl.drawArrays(gl.POINTS, 0, 1);
       }
       flushRiggedCharacters();
+
+      // ─── Body-state staleness detection ───
+      const now = performance.now();
+      if (now - lastRepairRequestMs > REPAIR_REQUEST_COOLDOWN_MS) {
+        for (const entity of sortedEntities) {
+          const bsv6 = entity.bodyStateVersion6 ?? 0;
+          if (bsv6 !== 0 && bodyStateCache.checkStaleness(entity.id, bsv6)) {
+            requestBodyStateRepair(entity.id);
+            lastRepairRequestMs = now;
+            break;
+          }
+        }
+      }
+
       characterAnimator.prune(activeEntityIds);
       bodyStateCache.prune(activeEntityIds);
+      bodyStateCache.resetDebugMetrics();
     }
 
     animationMetrics.endFrame();
+    const bodyDebug = bodyStateCache.getDebugMetrics();
+    animationMetrics.bodyStateManifestsReceived = bodyDebug.manifestsReceived;
+    animationMetrics.bodyStateRepairRequestsSent = bodyDebug.repairRequestsSent;
+    animationMetrics.bodyStateStalenessDetections = bodyDebug.staleBodyStateDetections;
+    animationMetrics.bodyStateEntitiesRenderedBeforeManifest = bodyDebug.entitiesRenderedBeforeManifest;
     animationMetrics.publishIfDue((metrics) => {
       self.postMessage({ type: 'animation_metrics', metrics });
     }, performance.now());
@@ -390,6 +413,11 @@ function getPoseSolver(rigSkin: ResolvedCharacterRigSkin): AnimationPoseSolver {
 
 function buildCameraTargets(entities: Map<number, EntityState> | null): Map<number, EntityState> {
   return entities ?? new Map<number, EntityState>();
+}
+
+function requestBodyStateRepair(entityId: number): void {
+  bodyStateCache.recordRepairRequest();
+  self.postMessage({ type: 'request_body_state', entityId });
 }
 
 function hitTestEntity(screenX: number, screenY: number, entityTypeName?: string): EntityState | undefined {
@@ -513,6 +541,9 @@ self.onmessage = (event) => {
         const events = portData.events ?? [];
         bodyStateCache.applyCombatEvents(events);
         characterAnimator.applyCombatEvents(events, interpolator.getRenderClock());
+      } else if (portData.type === 'body_state_manifest') {
+        const entries = portData.entries ?? [];
+        bodyStateCache.initFromManifest(entries);
       }
     };
   }

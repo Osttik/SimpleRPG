@@ -20,6 +20,7 @@ struct CombatBodyComponent : public Component
   std::array<CombatPartState, BODY_PART_COUNT> Parts{};
   uint8_t FunctionalStateFlags = FunctionalFlagNone;
   float32 MovementSpeedMultiplier = float32(1);
+  uint16_t BodyStateVersion = 0;
 
   CombatBodyComponent(GameObject *owner) : Component(owner) {}
 };
@@ -40,4 +41,9 @@ public:
   bool ApplyShieldIntegrityDamage(uint32_t entityId, float32 damage, float32 &remainingIntegrity, bool &brokenNow);
   bool IsShieldBroken(uint32_t entityId) const;
   void RecomputeFunctionalFlags(uint32_t entityId);
+  void BumpBodyStateVersion(uint32_t entityId);
+  uint16_t GetBodyStateVersion(uint32_t entityId) const;
+
+  uint32_t GetDisabledPartsMask(uint32_t entityId) const;
+  uint32_t GetHiddenPartsMask(uint32_t entityId) const;
 };

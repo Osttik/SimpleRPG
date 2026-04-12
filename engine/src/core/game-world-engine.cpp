@@ -390,6 +390,13 @@ void GameWorldEngine::WriteEntity(uint8_t *buf, size_t offset, const GameObject 
       flags |= 0x02;
   }
 
+  auto *combatBodyMgr = Ctx.GetManager<CombatBodyComponentManager>();
+  if (combatBodyMgr && combatBodyMgr->Has(obj.Id))
+  {
+    uint8_t bsv6 = static_cast<uint8_t>(combatBodyMgr->GetBodyStateVersion(obj.Id) & 0x3F);
+    flags |= static_cast<uint8_t>(bsv6 << 2);
+  }
+
   uint8_t animState = QuantizeFacingSector(obj.Transform.FacingDirection()) & 0x07;
   uint32_t colorPacked = 0;
   uint32_t reserved = 0;
@@ -483,4 +490,88 @@ void GameWorldEngine::SerializeSnapshot()
   std::memcpy(buf + 12, &destroyedCount, 2);
   uint16_t reservedPad = 0;
   std::memcpy(buf + 14, &reservedPad, 2);
+}
+
+// ─── Body-State Manifest Serialization ───
+
+std::vector<uint8_t> GameWorldEngine::SerializeBodyStateManifest()
+{
+  auto *bodyMgr = Managers.Get<CombatBodyComponentManager>();
+  if (!bodyMgr)
+  {
+    BodyStateManifestHeader header;
+    std::vector<uint8_t> empty(sizeof(header), 0);
+    std::memcpy(empty.data(), &header, sizeof(header));
+    return empty;
+  }
+
+  std::vector<BodyStateManifestEntry> entries;
+  for (const auto &[id, entity] : ObjectManager.GetEntities())
+  {
+    if (!bodyMgr->Has(id))
+      continue;
+
+    const auto *component = bodyMgr->Get(id);
+    if (!component)
+      continue;
+
+    BodyStateManifestEntry entry;
+    entry.entityId = id;
+    entry.bodyStateVersion = component->BodyStateVersion;
+    entry.shieldState = static_cast<uint8_t>(
+        ComputeShieldVisualState(component->Parts[CombatRigContract::Shield.PartId]));
+    entry.functionalFlags = component->FunctionalStateFlags;
+    entry.disabledParts = bodyMgr->GetDisabledPartsMask(id);
+    entry.hiddenParts = bodyMgr->GetHiddenPartsMask(id);
+    entries.push_back(entry);
+  }
+
+  BodyStateManifestHeader header;
+  header.entityCount = static_cast<uint16_t>(entries.size());
+
+  std::vector<uint8_t> bytes(sizeof(header) + entries.size() * sizeof(BodyStateManifestEntry), 0);
+  std::memcpy(bytes.data(), &header, sizeof(header));
+  if (!entries.empty())
+  {
+    std::memcpy(bytes.data() + sizeof(header), entries.data(),
+                entries.size() * sizeof(BodyStateManifestEntry));
+  }
+  return bytes;
+}
+
+std::vector<uint8_t> GameWorldEngine::SerializeEntityBodyState(uint32_t entityId)
+{
+  auto *bodyMgr = Managers.Get<CombatBodyComponentManager>();
+  BodyStateManifestHeader header;
+
+  if (!bodyMgr || !bodyMgr->Has(entityId))
+  {
+    std::vector<uint8_t> empty(sizeof(header), 0);
+    std::memcpy(empty.data(), &header, sizeof(header));
+    return empty;
+  }
+
+  const auto *component = bodyMgr->Get(entityId);
+  if (!component)
+  {
+    std::vector<uint8_t> empty(sizeof(header), 0);
+    std::memcpy(empty.data(), &header, sizeof(header));
+    return empty;
+  }
+
+  BodyStateManifestEntry entry;
+  entry.entityId = entityId;
+  entry.bodyStateVersion = component->BodyStateVersion;
+  entry.shieldState = static_cast<uint8_t>(
+      ComputeShieldVisualState(component->Parts[CombatRigContract::Shield.PartId]));
+  entry.functionalFlags = component->FunctionalStateFlags;
+  entry.disabledParts = bodyMgr->GetDisabledPartsMask(entityId);
+  entry.hiddenParts = bodyMgr->GetHiddenPartsMask(entityId);
+
+  header.entityCount = 1;
+
+  std::vector<uint8_t> bytes(sizeof(header) + sizeof(entry), 0);
+  std::memcpy(bytes.data(), &header, sizeof(header));
+  std::memcpy(bytes.data() + sizeof(header), &entry, sizeof(entry));
+  return bytes;
 }

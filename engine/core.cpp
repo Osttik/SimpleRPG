@@ -38,6 +38,8 @@ public:
                                               InstanceMethod("transferItem", &GameWorldWrapper::TransferItem),
                                               InstanceMethod("toggleEquipItem", &GameWorldWrapper::ToggleEquipItem),
                                               InstanceMethod("dropItem", &GameWorldWrapper::DropItem),
+                                              InstanceMethod("getBodyStateManifest", &GameWorldWrapper::GetBodyStateManifest),
+                                              InstanceMethod("getEntityBodyState", &GameWorldWrapper::GetEntityBodyState),
                                           });
         exports.Set("GameWorld", func);
         return exports;
@@ -524,6 +526,22 @@ private:
         state.Set("players", players);
         state.Set("destroyed", destroyed);
         return state;
+    }
+
+    Napi::Value GetBodyStateManifest(const Napi::CallbackInfo &info)
+    {
+        const auto bytes = core_->SerializeBodyStateManifest();
+        return Napi::Buffer<uint8_t>::Copy(info.Env(), bytes.data(), bytes.size());
+    }
+
+    Napi::Value GetEntityBodyState(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 1 || !info[0].IsNumber())
+            return info.Env().Null();
+
+        const uint32_t entityId = info[0].As<Napi::Number>().Uint32Value();
+        const auto bytes = core_->SerializeEntityBodyState(entityId);
+        return Napi::Buffer<uint8_t>::Copy(info.Env(), bytes.data(), bytes.size());
     }
 };
 

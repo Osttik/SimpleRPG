@@ -1,6 +1,13 @@
 import type { CombatVisualEvent } from '../types/AnimationTypes';
 import { CombatVisualEventType } from '../types/AnimationTypes';
 import { HUMANOID_COMBAT_RIG_CONTRACT } from '../generated/combatRigContract';
+import type { BodyStateManifestEntry } from '../../../map_module/workers/SocketWorker';
+
+export const ShieldVisualState = {
+  Intact: 0,
+  Damaged: 1,
+  Broken: 2,
+} as const;
 
 export interface BodyVisualState {
   hiddenParts: ReadonlySet<string>;
@@ -9,6 +16,8 @@ export interface BodyVisualState {
   shieldUnavailable: boolean;
   shieldIntegrity?: number;
   shieldBroken: boolean;
+  bodyStateVersion: number;
+  initialized: boolean;
 }
 
 interface MutableBodyVisualState {
@@ -19,6 +28,8 @@ interface MutableBodyVisualState {
   shieldIntegrity?: number;
   shieldBroken: boolean;
   lastShieldEventTick: number;
+  bodyStateVersion: number;
+  initialized: boolean;
 }
 
 const EMPTY_BODY_STATE: BodyVisualState = {
@@ -28,10 +39,55 @@ const EMPTY_BODY_STATE: BodyVisualState = {
   shieldUnavailable: false,
   shieldIntegrity: HUMANOID_COMBAT_RIG_CONTRACT.shield.defaultIntegrity,
   shieldBroken: false,
+  bodyStateVersion: 0,
+  initialized: false,
 };
 
 export class BodyStateCache {
   private readonly states = new Map<number, MutableBodyVisualState>();
+  private _manifestsReceived = 0;
+  private _repairRequestsSent = 0;
+  private _staleBodyStateDetections = 0;
+  private _entitiesRenderedBeforeManifest = 0;
+
+  initFromManifest(entries: readonly BodyStateManifestEntry[]): void {
+    this._manifestsReceived++;
+    for (const entry of entries) {
+      if (entry.entityId <= 0) continue;
+      const state = this.getOrCreateMutable(entry.entityId);
+
+      state.disabledParts.clear();
+      state.hiddenParts.clear();
+
+      for (let i = 0; i < 32; i++) {
+        if (entry.disabledParts & (1 << i)) {
+          state.disabledParts.add(i);
+        }
+        if (entry.hiddenParts & (1 << i)) {
+          for (const partName of mapBodyPartToVisualParts(i)) {
+            state.hiddenParts.add(partName);
+          }
+        }
+      }
+
+      state.legDamaged =
+        isAnyPartInMask(entry.disabledParts, 'leftLeg') ||
+        isAnyPartInMask(entry.disabledParts, 'rightLeg');
+
+      if (entry.shieldState === ShieldVisualState.Broken) {
+        markShieldUnavailable(state);
+      } else {
+        state.shieldBroken = false;
+        state.shieldUnavailable = false;
+        state.shieldIntegrity = entry.shieldState === ShieldVisualState.Intact
+          ? HUMANOID_COMBAT_RIG_CONTRACT.shield.defaultIntegrity
+          : (HUMANOID_COMBAT_RIG_CONTRACT.shield.defaultIntegrity * 0.5);
+      }
+
+      state.bodyStateVersion = entry.bodyStateVersion;
+      state.initialized = true;
+    }
+  }
 
   applyCombatEvents(events: readonly CombatVisualEvent[]): void {
     for (const event of events) {
@@ -44,12 +100,13 @@ export class BodyStateCache {
       const victimId = Number(event.victimId);
       if (!Number.isFinite(victimId) || victimId <= 0) continue;
 
-      const state = this.getMutable(victimId);
+      const state = this.getOrCreateMutable(victimId);
 
       if (event.eventType === CombatVisualEventType.ShieldDamaged) {
         if (event.tick < state.lastShieldEventTick) continue;
         state.lastShieldEventTick = event.tick;
         state.shieldIntegrity = Math.max(0, event.remainingHp);
+        state.bodyStateVersion++;
         continue;
       }
 
@@ -58,6 +115,7 @@ export class BodyStateCache {
         state.lastShieldEventTick = event.tick;
         state.shieldIntegrity = Math.max(0, event.remainingHp);
         markShieldUnavailable(state);
+        state.bodyStateVersion++;
         continue;
       }
 
@@ -75,11 +133,36 @@ export class BodyStateCache {
       if (isInGeneratedGroup(partId, 'blockRequired')) {
         markShieldUnavailable(state);
       }
+
+      state.bodyStateVersion++;
     }
   }
 
   get(entityId: number): BodyVisualState {
     return this.states.get(entityId) ?? EMPTY_BODY_STATE;
+  }
+
+  checkStaleness(entityId: number, snapshotVersion6: number): boolean {
+    const state = this.states.get(entityId);
+    if (!state) return false;
+    if (!state.initialized) return false;
+    const cachedVersion6 = state.bodyStateVersion & 0x3F;
+    if (cachedVersion6 !== snapshotVersion6) {
+      this._staleBodyStateDetections++;
+      return true;
+    }
+    return false;
+  }
+
+  recordRenderedBeforeManifest(entityId: number): void {
+    const state = this.states.get(entityId);
+    if (!state || !state.initialized) {
+      this._entitiesRenderedBeforeManifest++;
+    }
+  }
+
+  recordRepairRequest(): void {
+    this._repairRequestsSent++;
   }
 
   prune(activeIds: Set<number>): void {
@@ -88,7 +171,20 @@ export class BodyStateCache {
     }
   }
 
-  private getMutable(entityId: number): MutableBodyVisualState {
+  getDebugMetrics() {
+    return {
+      manifestsReceived: this._manifestsReceived,
+      repairRequestsSent: this._repairRequestsSent,
+      staleBodyStateDetections: this._staleBodyStateDetections,
+      entitiesRenderedBeforeManifest: this._entitiesRenderedBeforeManifest,
+    };
+  }
+
+  resetDebugMetrics(): void {
+    this._entitiesRenderedBeforeManifest = 0;
+  }
+
+  private getOrCreateMutable(entityId: number): MutableBodyVisualState {
     let state = this.states.get(entityId);
     if (!state) {
       state = {
@@ -99,6 +195,8 @@ export class BodyStateCache {
         shieldIntegrity: HUMANOID_COMBAT_RIG_CONTRACT.shield.defaultIntegrity,
         shieldBroken: false,
         lastShieldEventTick: 0,
+        bodyStateVersion: 0,
+        initialized: false,
       };
       this.states.set(entityId, state);
     }
@@ -113,6 +211,14 @@ function mapBodyPartToVisualParts(partId: number): readonly string[] {
 
 function isInGeneratedGroup(partId: number, group: keyof typeof HUMANOID_COMBAT_RIG_CONTRACT.functionalGroups): boolean {
   return (HUMANOID_COMBAT_RIG_CONTRACT.functionalGroups[group] as readonly number[]).includes(partId);
+}
+
+function isAnyPartInMask(mask: number, group: keyof typeof HUMANOID_COMBAT_RIG_CONTRACT.functionalGroups): boolean {
+  const parts = HUMANOID_COMBAT_RIG_CONTRACT.functionalGroups[group] as readonly number[];
+  for (const partId of parts) {
+    if (mask & (1 << partId)) return true;
+  }
+  return false;
 }
 
 function markShieldUnavailable(state: MutableBodyVisualState): void {

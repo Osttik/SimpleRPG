@@ -12,7 +12,7 @@
 //  16      4     focusedEntityId (uint32_t, 0 = none)
 //  20      1     entityType    (uint8_t: 0=player, 1=chest, 2=npc…)
 //  21      1     chunkZ        (int8_t)
-//  22      1     flags         (bitfield: bit0=isDestroyed, bit1=hasInventory…)
+//  22      1     flags         (bitfield: bit0=isDestroyed, bit1=hasInventory, bits2-7=bodyStateVersion mod 64)
 //  23      1     animState     (uint8_t)
 //  24      4     colorPacked   (uint32_t RGBA8888)
 //  28      4     animation aux:

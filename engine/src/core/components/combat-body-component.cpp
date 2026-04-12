@@ -88,6 +88,8 @@ bool CombatBodyComponentManager::ApplyDamage(uint32_t entityId, BodyPart part, f
   if (!state || damage <= float32(0))
     return false;
 
+  const uint8_t oldFlags = state->Flags;
+
   if (state->Hp > damage)
   {
     state->Hp -= damage;
@@ -100,6 +102,11 @@ bool CombatBodyComponentManager::ApplyDamage(uint32_t entityId, BodyPart part, f
   if (state->Hp <= float32(0))
   {
     state->Flags = static_cast<uint8_t>(state->Flags | PartFlagDisabled | PartFlagUnusable);
+  }
+
+  if (state->Flags != oldFlags)
+  {
+    BumpBodyStateVersion(entityId);
   }
 
   RecomputeFunctionalFlags(entityId);
@@ -136,6 +143,11 @@ bool CombatBodyComponentManager::ApplyShieldIntegrityDamage(uint32_t entityId, f
   }
 
   brokenNow = !wasBroken && isBroken;
+  if (brokenNow)
+  {
+    BumpBodyStateVersion(entityId);
+  }
+
   RecomputeFunctionalFlags(entityId);
   return true;
 }
@@ -200,4 +212,50 @@ void CombatBodyComponentManager::RecomputeFunctionalFlags(uint32_t entityId)
   {
     component->MovementSpeedMultiplier = float32(1);
   }
+}
+
+void CombatBodyComponentManager::BumpBodyStateVersion(uint32_t entityId)
+{
+  auto *component = Get(entityId);
+  if (!component)
+    return;
+  component->BodyStateVersion++;
+}
+
+uint16_t CombatBodyComponentManager::GetBodyStateVersion(uint32_t entityId) const
+{
+  const auto *component = Get(entityId);
+  if (!component)
+    return 0;
+  return component->BodyStateVersion;
+}
+
+uint32_t CombatBodyComponentManager::GetDisabledPartsMask(uint32_t entityId) const
+{
+  const auto *component = Get(entityId);
+  if (!component)
+    return 0;
+
+  uint32_t mask = 0;
+  for (size_t i = 0; i < BODY_PART_COUNT; ++i)
+  {
+    if (component->Parts[i].Flags & PartFlagDisabled)
+      mask |= (1u << i);
+  }
+  return mask;
+}
+
+uint32_t CombatBodyComponentManager::GetHiddenPartsMask(uint32_t entityId) const
+{
+  const auto *component = Get(entityId);
+  if (!component)
+    return 0;
+
+  uint32_t mask = 0;
+  for (size_t i = 0; i < BODY_PART_COUNT; ++i)
+  {
+    if (component->Parts[i].Flags & PartFlagHidden)
+      mask |= (1u << i);
+  }
+  return mask;
 }

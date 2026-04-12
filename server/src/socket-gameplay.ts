@@ -2,6 +2,7 @@ import { CHUNK_PIXEL_SIZE, GAME_TICK_RATE, GAME_TOPIC } from './config.js';
 import { physics } from './gamecore.js';
 import { buildInitMessage } from './init-message.js';
 import {
+  BODY_STATE_MANIFEST_MESSAGE_TYPE,
   CHUNK_MESSAGE_TYPE,
   INITIAL_CHUNK_MAX_Z_OFFSET,
   INITIAL_CHUNK_MIN_Z_OFFSET,
@@ -106,6 +107,15 @@ export function handleOpen(ws: WebSocket<SocketData>) {
   const centerCY = Math.floor(initialY / CHUNK_PIXEL_SIZE);
   const centerCZ = 0;
   streamChunksAround(ws, centerCX, centerCY, centerCZ, INITIAL_CHUNK_RADIUS);
+
+  try {
+    const manifestBuffer: Buffer | null = physics.getBodyStateManifest?.() ?? null;
+    if (manifestBuffer && manifestBuffer.length > 0) {
+      ws.send(manifestBuffer, true);
+    }
+  } catch (e) {
+    console.error(`Failed to send body state manifest to ${numericId}:`, e);
+  }
 }
 
 export function handleMessage(ws: WebSocket<SocketData>, message: ArrayBuffer, isBinary: boolean) {
@@ -176,6 +186,22 @@ export function handleMessage(ws: WebSocket<SocketData>, message: ArrayBuffer, i
         const payload = physics.getPlayerInventoryState(id);
         if (payload) {
           ws.send(JSON.stringify({ type: 'player_inventory', ...payload }), false);
+        }
+      }
+      return;
+    }
+
+    if (data.type === 'request_body_state') {
+      const entityId = Number(data.entityId || 0);
+      if (entityId > 0) {
+        const buf: Buffer | null = physics.getEntityBodyState?.(entityId) ?? null;
+        if (buf && buf.length > 0) {
+          ws.send(buf, true);
+        }
+      } else {
+        const buf: Buffer | null = physics.getBodyStateManifest?.() ?? null;
+        if (buf && buf.length > 0) {
+          ws.send(buf, true);
         }
       }
       return;

@@ -136,7 +136,7 @@ SimpleRPG/
     - Offset `+16`: `focusedId` (uint32_t)
     - Offset `+20`: `type` (uint8_t)
     - Offset `+21`: `chunkZ` (int8_t)
-    - Offset `+22`: `flags` (uint8_t)
+    - Offset `+22`: `flags` (uint8_t: bit0=isDestroyed, bit1=hasInventory, bits2-7=bodyStateVersion mod 64)
     - Offset `+23`: `animState` (uint8_t)
     - Offset `+24`: `color` (uint32_t, RGBA8888)
     - Offset `+28`: `animAux` (uint32_t, compact visual intent: attackDirection, attackTickIndex, blockDirection, visualFlags)
@@ -213,7 +213,15 @@ SimpleRPG/
 * **Frontend Body-State Cache**: `BodyStateCache` consumes rare `PartDisabled`, `ShieldDamaged`, and `ShieldBroken` events. It caches `shieldIntegrity`, `shieldBroken`, and `shieldUnavailable`; it hides generated broken shield visual parts and marks the shield part disabled locally. It also guards shield events by monotonic event tick so older shield damage does not overwrite newer shield state.
 * **Frontend Reaction and Pose Rules**: `CharacterAnimator` records shield damage/break/guard-crush metrics, applies guard-break recoil windows on `ShieldBroken`/`GuardCrushed`, and suppresses block-hold visual state during that window. `AnimationPoseSolver` only evaluates block pose and shield hold pose when the body-state cache says the shield is available and the guard-break window has expired.
 * **Debug and Metrics**: `CombatDebugOverlayRenderer` can show the generated shield anchor and marks it with integrity-colored point sizing in dev overlay mode. `AnimationMetrics` includes shield damage, shield break, and guard-crush event counters alongside existing animation/render counters.
-* **Persistence Limitation**: Broken shield state is rare persistent visual state and is intentionally not streamed every 60 Hz snapshot. A client that joins late or first observes an entity after its shield already broke may initially assume the default shield visual state until it receives a body-state event or a future low-frequency body-state sync/replay. The correct next fix is a low-frequency body visual state sync or event replay path, not adding shield integrity to `animAux`.
+* **Persistent Body-State Sync (Cold-Path Manifest)**:
+  * **Problem Solved**: Late-join / reconnect / chunk-enter clients previously depended on having witnessed rare combat events (ShieldBroken, PartDisabled) live. Without those events, entities rendered with default/healthy visuals.
+  * **Architecture**: A cold-path `0x13` body-state manifest message carries authoritative persistent visual/body state per entity. Sent on first join, reconnect, and as a repair response. Does NOT bloat the 60 Hz snapshot.
+  * **Staleness Detector**: Bits 2-7 of the snapshot `flags` byte (offset 22) carry a 6-bit `bodyStateVersion mod 64`. Client compares this against its `BodyStateCache` version — if mismatched, it requests a repair via `request_body_state` JSON.
+  * **Manifest Contents Per Entity (16 bytes)**: `entityId` (uint32), `bodyStateVersion` (uint16), `shieldState` (enum: intact/damaged/broken), `functionalFlags` (uint8), `disabledParts` bitmask (uint32), `hiddenParts` bitmask (uint32).
+  * **Server Flow**: `handleOpen` → InitMessage → chunks → body-state manifest. Repair: client sends `request_body_state` JSON → server responds with targeted `0x13` manifest.
+  * **Frontend Flow**: SocketWorker decodes `0x13` → forwards to RenderWorker → `BodyStateCache.initFromManifest()`. Subsequent rare combat events apply as deltas via `applyCombatEvents()`. RenderWorker checks snapshot `bodyStateVersion6` vs cache each frame and requests repair on mismatch (throttled).
+  * **Scope Boundary**: Manifest carries only persistent world-visual body/equipment state — NOT rich item metadata, inventory contents, or durability numbers. Those remain on-demand via existing inventory/UI paths.
+  * **Debug**: `AnimationMetrics` tracks `bodyStateManifestsReceived`, `bodyStateRepairRequestsSent`, `bodyStateStalenessDetections`, `bodyStateEntitiesRenderedBeforeManifest`.
 
 ---
 
@@ -421,6 +429,8 @@ Class `GameWorldWrapper : Napi::ObjectWrap<GameWorldWrapper>`, exposed as `new g
 | `dropItem(playerId, slot, idx)` | `→ boolean` | Removes item from inventory, spawns DroppedItem world prop near player |
 | `equipItem(playerId, slot, idx)` | `→ boolean` | EquipmentComponentManager: equip item from inventory slot |
 | `unequipItem(playerId, handSlot)` | `→ boolean` | EquipmentComponentManager: unequip from HandPrimary/HandSecondary |
+| `getBodyStateManifest()` | `→ Buffer` | Serializes body-state manifest for all entities with combat body components |
+| `getEntityBodyState(entityId)` | `→ Buffer\|null` | Serializes body-state manifest for a single entity (repair response) |
 
 **Inventory object shape** (per inventory in loot/refresh responses):
 `items[]: {id, name, spriteKey, quantity, stackable, maxStack, volume, weight, price, equipped, equippedSlot}` where `id` = array index (stable for UI row selection), `price` comes from `MerchantValueFeature`, `equipped` is boolean, `equippedSlot` is slot name or null. Plus `currentVolume`, `maxVolume`, `currentWeight`.
@@ -436,7 +446,7 @@ Loaded as ES6 module via `ModuleFactory` from `build_wasm/gamecore_wasm.js`. `.w
 | `encodeMove(dx,dy,seq)` | `→ Uint8Array(5)` | Must `.slice(0,5)` — raw return is a view into full WASM heap |
 | `encodeInteract()` | `→ Uint8Array(1)` | |
 | `encodeTransfer(targetId,from,to,idx)` | `→ Uint8Array(10)` | Must `.slice(0,10)` |
-| `decodeSnapshot(ptr, length)` | `→ {tick, players:{id:{numericId,x,y,radius,focusedIdNum,typeId,z,flags,animState}}, destroyed:[]}` | x/y/radius = raw/65536.0 |
+| `decodeSnapshot(ptr, length)` | `→ {tick, players:{id:{numericId,x,y,radius,focusedIdNum,typeId,z,flags,animState,bodyStateVersion6}}, destroyed:[]}` | x/y/radius = raw/65536.0; bodyStateVersion6 = (flags>>2)&0x3F |
 | `allocateBuffer(size)` | `→ number (ptr)` | malloc in WASM heap |
 | `freeBuffer(ptr)` | `→ void` | |
 | `getBufferView(ptr, size)` | `→ Uint8Array` | **Live view** into WASM heap — invalid after next WASM allocation |
@@ -462,8 +472,8 @@ The server is split into focused modules. `index.ts` is the bootstrap entry that
 | `types.ts` | Shared server-side TypeScript types |
 
 **Connection lifecycle** (in `socket-gameplay.ts`):
-- **open**: `addPlayer(randomX, randomY)` → subscribe to `GAME_TOPIC` → send `InitMessage` → send surrounding 3×3×2 chunks.
-- **message**: Binary ≤ `0x03` → `processInput`; `0x03` also responds with `open_loot`. JSON `interact_target` → `interactTarget` → `open_loot` or pickup result. JSON `transfer_item` → `transferItem` → `open_loot`. JSON `drop_item` → `dropItem` → refresh. JSON `equip_item`/`unequip_item` → equipment actions → player inventory refresh. JSON `get_player_inventory` → `getPlayerInventory` → send current player inventory. JSON `ping` → `pong`.
+- **open**: `addPlayer(randomX, randomY)` → subscribe to `GAME_TOPIC` → send `InitMessage` → send surrounding 3×3×2 chunks → send body-state manifest (`0x13`) for all entities with combat body state.
+- **message**: Binary ≤ `0x03` → `processInput`; `0x03` also responds with `open_loot`. JSON `interact_target` → `interactTarget` → `open_loot` or pickup result. JSON `transfer_item` → `transferItem` → `open_loot`. JSON `drop_item` → `dropItem` → refresh. JSON `equip_item`/`unequip_item` → equipment actions → player inventory refresh. JSON `get_player_inventory` → `getPlayerInventory` → send current player inventory. JSON `request_body_state` → `getEntityBodyState` or `getBodyStateManifest` → send `0x13` manifest. JSON `ping` → `pong`.
 - **close**: `removePlayer(id)`.
 
 **Game loop (60Hz)**: `physics.tick()` → `getBinaryState()` → `app.publish(GAME_TOPIC, buf, true)` → for each socket: `getInteractionOptions(id)` → send JSON `interaction_options`.
@@ -489,12 +499,13 @@ The server is split into focused modules. `index.ts` is the bootstrap entry that
 | `0x10` | S→C | FlatBuffer | InitMessage |
 | `0x11` | S→C | FlatBuffer | InteractionResponse |
 | `0x12` | S→C | Binary | Combat events: `[header 4B][count * 28B CombatEventWire]`, including attack, hit/block, part disabled, shield damaged/broken, and guard-crush transitions |
+| `0x13` | S→C | Binary | Body-state manifest: `[1B type][2B count LE][1B reserved][count * 16B entries]`. Per-entry: `[4B entityId][2B bodyStateVersion][1B shieldState][1B functionalFlags][4B disabledParts bitmask][4B hiddenParts bitmask]` |
 | `0x01` | C→S | Binary | Move: `[type:u8, dx:i8, dy:i8, seq:u16LE]` — 5 bytes |
 | `0x02` | C→S | Binary | Interact — 1 byte |
 | `0x03` | C→S | Binary | Transfer: `[type:u8, targetId:u32LE, from:u8, to:u8, idx:u16LE, pad:u8]` — 10 bytes |
-| `{...}` | Both | JSON | `ping/pong`, `interaction_options`, `open_loot`, `interact_target`, `transfer_item`, `drop_item`, `equip_item`, `unequip_item`, `get_player_inventory` |
+| `{...}` | Both | JSON | `ping/pong`, `interaction_options`, `open_loot`, `interact_target`, `transfer_item`, `drop_item`, `equip_item`, `unequip_item`, `get_player_inventory`, `request_body_state` |
 
-Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endian). Chunk by `view[0] === 0x01`. FlatBuffers by `view[0] === 0x10|0x11`. JSON by `JSON.parse` attempt.
+Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endian). Chunk by `view[0] === 0x01`. FlatBuffers by `view[0] === 0x10|0x11`. Body-state manifest by `view[0] === 0x13`. JSON by `JSON.parse` attempt.
 
 ---
 
@@ -554,7 +565,7 @@ Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endia
 
 **`animation/core/CharacterAnimator.ts`** — Tracks frontend-only per-entity visual state from snapshots/combat events: facing, active attacks, block stance, hit-stop/shake hooks, and weapon settle triggers.
 
-**`animation/core/BodyStateCache.ts`** - Caches rare persistent body visual state from combat events. Tracks disabled body parts, hidden visual parts, leg-damaged presentation, shield integrity, shield broken/unavailable state, and monotonic shield event ticks. Do not stream this state in snapshots; add a low-frequency body-state sync/replay path if late joiners need immediate persistent-state reconstruction.
+**`animation/core/BodyStateCache.ts`** - Caches persistent body visual state. Initialized from `0x13` body-state manifest on connect/visibility, then updated by rare combat event deltas. Tracks `bodyStateVersion` per entity for staleness detection against the 6-bit version in snapshot `flags`. Provides `initFromManifest()` for bulk initialization and `checkStaleness()` for repair triggering. Debug metrics track manifests received, repair requests, and staleness detections.
 
 **`animation/debug/AnimationMetrics.ts`** - Development metrics for animation/render behavior. Includes rigged entity counts, IK solve counts, instanced quad/draw call counters, facing switch rate, late/stale combat event counters, attack epoch reset counters, shield damage/break/guard-crush counters, and average animation update cost.
 

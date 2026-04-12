@@ -13,6 +13,10 @@ export interface AnimationMetricsSnapshot {
   shieldBreakEvents: number;
   guardCrushEvents: number;
   averageAnimationUpdateMs: number;
+  bodyStateManifestsReceived: number;
+  bodyStateRepairRequestsSent: number;
+  bodyStateStalenessDetections: number;
+  bodyStateEntitiesRenderedBeforeManifest: number;
 }
 
 export class AnimationMetrics {
@@ -36,6 +40,10 @@ export class AnimationMetrics {
   shieldDamageEvents = 0;
   shieldBreakEvents = 0;
   guardCrushEvents = 0;
+  bodyStateManifestsReceived = 0;
+  bodyStateRepairRequestsSent = 0;
+  bodyStateStalenessDetections = 0;
+  bodyStateEntitiesRenderedBeforeManifest = 0;
 
   beginFrame(): void {
     this.frameStartMs = performance.now();
@@ -81,6 +89,10 @@ export class AnimationMetrics {
       shieldBreakEvents: this.shieldBreakEvents,
       guardCrushEvents: this.guardCrushEvents,
       averageAnimationUpdateMs: this.frameCostSamples > 0 ? this.frameCostTotalMs / this.frameCostSamples : 0,
+      bodyStateManifestsReceived: this.bodyStateManifestsReceived,
+      bodyStateRepairRequestsSent: this.bodyStateRepairRequestsSent,
+      bodyStateStalenessDetections: this.bodyStateStalenessDetections,
+      bodyStateEntitiesRenderedBeforeManifest: this.bodyStateEntitiesRenderedBeforeManifest,
     };
   }
 

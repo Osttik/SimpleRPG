@@ -8,6 +8,7 @@
 #include "core/physics-system.h"
 #include "core/snapshot-buffer.h"
 #include "core/combat/body-parts.h"
+#include "core/combat/body-state-manifest.h"
 #include "core/combat/combat-events.h"
 #include "core/entity-type.h"
 #include "game/managers/player-manager.h"
@@ -58,6 +59,9 @@ public:
   void Tick();
 
   void SerializeSnapshot();
+
+  std::vector<uint8_t> SerializeBodyStateManifest();
+  std::vector<uint8_t> SerializeEntityBodyState(uint32_t entityId);
 
   static EntityType ResolveEntityType(const std::string &typeStr);
 
