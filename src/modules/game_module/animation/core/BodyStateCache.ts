@@ -7,6 +7,8 @@ export interface BodyVisualState {
   disabledParts: ReadonlySet<number>;
   legDamaged: boolean;
   shieldUnavailable: boolean;
+  shieldIntegrity?: number;
+  shieldBroken: boolean;
 }
 
 interface MutableBodyVisualState {
@@ -14,6 +16,9 @@ interface MutableBodyVisualState {
   disabledParts: Set<number>;
   legDamaged: boolean;
   shieldUnavailable: boolean;
+  shieldIntegrity?: number;
+  shieldBroken: boolean;
+  lastShieldEventTick: number;
 }
 
 const EMPTY_BODY_STATE: BodyVisualState = {
@@ -21,6 +26,8 @@ const EMPTY_BODY_STATE: BodyVisualState = {
   disabledParts: new Set<number>(),
   legDamaged: false,
   shieldUnavailable: false,
+  shieldIntegrity: HUMANOID_COMBAT_RIG_CONTRACT.shield.defaultIntegrity,
+  shieldBroken: false,
 };
 
 export class BodyStateCache {
@@ -28,12 +35,32 @@ export class BodyStateCache {
 
   applyCombatEvents(events: readonly CombatVisualEvent[]): void {
     for (const event of events) {
-      if (event.eventType !== CombatVisualEventType.PartDisabled) continue;
+      if (
+        event.eventType !== CombatVisualEventType.PartDisabled &&
+        event.eventType !== CombatVisualEventType.ShieldDamaged &&
+        event.eventType !== CombatVisualEventType.ShieldBroken
+      ) continue;
 
       const victimId = Number(event.victimId);
       if (!Number.isFinite(victimId) || victimId <= 0) continue;
 
       const state = this.getMutable(victimId);
+
+      if (event.eventType === CombatVisualEventType.ShieldDamaged) {
+        if (event.tick < state.lastShieldEventTick) continue;
+        state.lastShieldEventTick = event.tick;
+        state.shieldIntegrity = Math.max(0, event.remainingHp);
+        continue;
+      }
+
+      if (event.eventType === CombatVisualEventType.ShieldBroken) {
+        if (event.tick < state.lastShieldEventTick) continue;
+        state.lastShieldEventTick = event.tick;
+        state.shieldIntegrity = Math.max(0, event.remainingHp);
+        markShieldUnavailable(state);
+        continue;
+      }
+
       const partId = event.routedPartId;
       state.disabledParts.add(partId);
 
@@ -46,8 +73,7 @@ export class BodyStateCache {
       }
 
       if (isInGeneratedGroup(partId, 'blockRequired')) {
-        state.shieldUnavailable = true;
-        state.hiddenParts.add('shield');
+        markShieldUnavailable(state);
       }
     }
   }
@@ -70,6 +96,9 @@ export class BodyStateCache {
         disabledParts: new Set<number>(),
         legDamaged: false,
         shieldUnavailable: false,
+        shieldIntegrity: HUMANOID_COMBAT_RIG_CONTRACT.shield.defaultIntegrity,
+        shieldBroken: false,
+        lastShieldEventTick: 0,
       };
       this.states.set(entityId, state);
     }
@@ -84,4 +113,14 @@ function mapBodyPartToVisualParts(partId: number): readonly string[] {
 
 function isInGeneratedGroup(partId: number, group: keyof typeof HUMANOID_COMBAT_RIG_CONTRACT.functionalGroups): boolean {
   return (HUMANOID_COMBAT_RIG_CONTRACT.functionalGroups[group] as readonly number[]).includes(partId);
+}
+
+function markShieldUnavailable(state: MutableBodyVisualState): void {
+  state.shieldUnavailable = true;
+  state.shieldBroken = true;
+  const shieldPartId = HUMANOID_COMBAT_RIG_CONTRACT.shield.partId;
+  state.disabledParts.add(shieldPartId);
+  for (const partName of HUMANOID_COMBAT_RIG_CONTRACT.shield.brokenVisualParts ?? ['shield']) {
+    state.hiddenParts.add(partName);
+  }
 }

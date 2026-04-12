@@ -14,6 +14,8 @@ Multiplayer 2D RPG: React/WebGL frontend, Node.js WebSocket server, deterministi
 * **Install deps**: `npm install` (custom script bypasses broken node-gyp auto-builds)
 * **Server only**: `npm --prefix server run dev`
 * **Generate Schema**: `powershell ./schema/generate.ps1` (Generates C++ and TS from `schema/messages.fbs`)
+* **Generate Combat Rig Contract**: `npm run generate:combat-rig` (Generates C++/TS/docs from `schema/combat-rig-contract.humanoid.json`)
+* **Validate Combat Rig Contract**: `npm run validate:combat-rig` (Checks generated C++/TS/docs and base rig metadata/hash for drift)
 
 ## File Layout
 ```
@@ -177,6 +179,41 @@ SimpleRPG/
 * **Facing8 Top-Down Rendering**: Character body/head/shield use snapped `N/NE/E/SE/S/SW/W/NW` rig rules (offsets, flips, draw order, y-scale hooks). Do not rotate the whole character composite like a clock hand; only procedural parts such as arm segments and weapons rotate freely.
 * **Layer Tinting**: `tileFragment.glsl` applies `tint = max(0.2, 1.0 + cz * 0.4)` for `cz < 0` — cz=-1 → 0.6, cz=-2 → 0.2 (floor), cz=0 → 1.0.
 * **Render Sort**: Entities are sorted by `z` then by `y` so lower screen-position entities render over higher ones (correct top-down overlap).
+
+### 7. Combat Rig Contract, Shield Integrity, and Visual Body State
+* **Canonical Source**: `schema/combat-rig-contract.humanoid.json` is the authored combat-rig contract for humanoids. It is the source for generated C++ combat data, frontend rig/combat manifest data, and generated docs. Do not hand-maintain mirrored body-part IDs, hurtboxes, anchors, shield defaults, or visual mappings in separate runtime files.
+* **Generation Outputs**:
+  * `engine/headers/core/combat/combat-rig-contract.generated.h`
+  * `src/modules/game_module/animation/generated/combatRigContract.ts`
+  * `docs/combat-rig-contract.generated.md`
+  * `src/assets/rigs/testing_dummy.rig.json` combat metadata/hash is refreshed by `build_scripts/generate-combat-rig-contract.js`
+* **Contract Hash/Drift Check**: The combat-rig generator computes a stable 16-char SHA-256 hash from the normalized contract. `npm run validate:combat-rig` fails if generated artifacts or the base rig `combatContract.hash`/shield metadata are stale. `npm run build` runs this validator before TypeScript/Vite build. `build_scripts/build-core.js` regenerates the contract before native/WASM builds.
+* **Shield Structural Defaults**: The humanoid contract contains a top-level `shield` block:
+  * `part`: generated body part key, currently `Shield`
+  * `partId`: generated in TS/C++ normalization, currently `16`
+  * `functionalGroup`: currently `blockRequired`
+  * `maxIntegrity`: persistent shield condition cap, currently `96`
+  * `defaultIntegrity`: spawned/default shield condition, currently `96`
+  * `stopPower`: immediate shield energy absorption baseline, currently `26`
+  * `breakThreshold`: integrity threshold at/below which the shield is disabled, currently `1`
+  * `disabledVisualParts` / `brokenVisualParts`: visual part names hidden or swapped by frontend body-state cache, currently `["shield"]`
+* **Shield Integrity Is Not Shield HP**: `CombatPartState` now has both body-part HP (`Hp`, `MaxHp`) and shield structural condition (`Integrity`, `MaxIntegrity`). Shield break is driven by `Integrity <= CombatRigContract::Shield.BreakThreshold`, then the shield part is flagged `PartFlagDisabled | PartFlagUnusable | PartFlagHidden`, and blocking is disabled through generated `BlockRequiredParts`.
+* **Weapon-vs-Shield Data Lives in Attack Definitions**: Weapon/shield behavior is not authored in the humanoid rig contract. `engine/headers/core/combat/attack-definitions.h` defines `ShieldInteractionProfile` on `AttackDefinition`:
+  * `ShieldDamageMultiplier`
+  * `ShieldPenetrationMultiplier`
+  * `ShieldStopPowerBonus`
+  * `BluntThroughBlockRatio`
+  These are fixed-point `float32` values and are assigned in `engine/src/core/combat/attack-definitions.cpp` per attack direction/style. Future weapon classes should extend combat/weapon definitions here or in a focused weapon-definition layer, not by adding weapon behavior to the humanoid rig contract.
+* **Authoritative Shield Impact Flow**: `ActiveAttackComponentManager::Tick` resolves shield candidates before body candidates. A valid block requires `CombatStateComponent.Blocking`, compatible block direction, `CombatBodyComponentManager::CanBlock`, shield hurtbox intersection, and the shield not already hit by this active attack. The shield stop cost is `shield StopPower + ShieldProfile.ShieldStopPowerBonus`. Residual energy is `remainingEnergy - stopCost` clamped at zero. Shield integrity damage is computed from weapon-scaled impact damage plus optional residual-energy penetration. If integrity crosses the break threshold, C++ emits shield break events and refreshes combat availability. Conservative blunt-through behavior may emit `GuardCrushed` and apply small routed body damage for profiles that opt into `BluntThroughBlockRatio`.
+* **Combat Event Contract**: Combat events remain sparse `0x12` frames. The event wire stays 28 bytes; the 32-byte snapshot stride is unchanged. New event types:
+  * `ShieldDamaged = 5`: `damageRaw` = integrity damage, `remainingHpRaw` = remaining shield integrity
+  * `ShieldBroken = 6`: persistent shield break/disable; flags include `StateChanged` and `ShieldBroken`
+  * `GuardCrushed = 7`: guarded passthrough/reaction event; `partId` is shield, `routedPartId` is the affected body part
+  New flags are `CombatEventFlagShieldBroken`, `CombatEventFlagGuardCrushed`, and `CombatEventFlagPassthrough`.
+* **Frontend Body-State Cache**: `BodyStateCache` consumes rare `PartDisabled`, `ShieldDamaged`, and `ShieldBroken` events. It caches `shieldIntegrity`, `shieldBroken`, and `shieldUnavailable`; it hides generated broken shield visual parts and marks the shield part disabled locally. It also guards shield events by monotonic event tick so older shield damage does not overwrite newer shield state.
+* **Frontend Reaction and Pose Rules**: `CharacterAnimator` records shield damage/break/guard-crush metrics, applies guard-break recoil windows on `ShieldBroken`/`GuardCrushed`, and suppresses block-hold visual state during that window. `AnimationPoseSolver` only evaluates block pose and shield hold pose when the body-state cache says the shield is available and the guard-break window has expired.
+* **Debug and Metrics**: `CombatDebugOverlayRenderer` can show the generated shield anchor and marks it with integrity-colored point sizing in dev overlay mode. `AnimationMetrics` includes shield damage, shield break, and guard-crush event counters alongside existing animation/render counters.
+* **Persistence Limitation**: Broken shield state is rare persistent visual state and is intentionally not streamed every 60 Hz snapshot. A client that joins late or first observes an entity after its shield already broke may initially assume the default shield visual state until it receives a body-state event or a future low-frequency body-state sync/replay. The correct next fix is a low-frequency body visual state sync or event replay path, not adding shield integrity to `animAux`.
 
 ---
 
@@ -451,6 +488,7 @@ The server is split into focused modules. `index.ts` is the bootstrap entry that
 | `0x01` | S→C | Binary | Chunk: `[1B type][4B cx][4B cy][4B cz][8192B tiles][4096B visuals]` |
 | `0x10` | S→C | FlatBuffer | InitMessage |
 | `0x11` | S→C | FlatBuffer | InteractionResponse |
+| `0x12` | S→C | Binary | Combat events: `[header 4B][count * 28B CombatEventWire]`, including attack, hit/block, part disabled, shield damaged/broken, and guard-crush transitions |
 | `0x01` | C→S | Binary | Move: `[type:u8, dx:i8, dy:i8, seq:u16LE]` — 5 bytes |
 | `0x02` | C→S | Binary | Interact — 1 byte |
 | `0x03` | C→S | Binary | Transfer: `[type:u8, targetId:u32LE, from:u8, to:u8, idx:u16LE, pad:u8]` — 10 bytes |
@@ -516,7 +554,13 @@ Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endia
 
 **`animation/core/CharacterAnimator.ts`** — Tracks frontend-only per-entity visual state from snapshots/combat events: facing, active attacks, block stance, hit-stop/shake hooks, and weapon settle triggers.
 
+**`animation/core/BodyStateCache.ts`** - Caches rare persistent body visual state from combat events. Tracks disabled body parts, hidden visual parts, leg-damaged presentation, shield integrity, shield broken/unavailable state, and monotonic shield event ticks. Do not stream this state in snapshots; add a low-frequency body-state sync/replay path if late joiners need immediate persistent-state reconstruction.
+
+**`animation/debug/AnimationMetrics.ts`** - Development metrics for animation/render behavior. Includes rigged entity counts, IK solve counts, instanced quad/draw call counters, facing switch rate, late/stale combat event counters, attack epoch reset counters, shield damage/break/guard-crush counters, and average animation update cost.
+
 **`render/CompositeCharacterRenderer.ts`** — Draws layered character quads with per-part pivot, rotation, tint, scale, Facing8 x-flip, and y-scale hooks using WebGL2. It is separate from the fallback GL_POINTS entity pass.
+
+**`render/CombatDebugOverlayRenderer.ts`** - Development-only generated combat-rig overlay. Draws hurtboxes, routed torso/head regions, IK joints, weapon hilt/tip path helpers, shield anchor, and shield integrity/broken-state marker. Keep this out of production behavior and use it for contract validation/debugging only.
 
 ### Shaders
 

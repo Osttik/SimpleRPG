@@ -29,8 +29,15 @@ void CombatBodyComponentManager::ResetToDefault(CombatBodyComponent &component) 
     state.Hp = float32(definition.MaxHp);
     state.MaxHp = float32(definition.MaxHp);
     state.StopPower = float32(definition.StopPower);
+    state.Integrity = float32(0);
+    state.MaxIntegrity = float32(0);
     state.Flags = PartFlagNone;
   }
+
+  CombatPartState &shield = component.Parts[CombatRigContract::Shield.PartId];
+  shield.Integrity = float32(CombatRigContract::Shield.DefaultIntegrity);
+  shield.MaxIntegrity = float32(CombatRigContract::Shield.MaxIntegrity);
+  shield.StopPower = float32(CombatRigContract::Shield.StopPower);
   component.FunctionalStateFlags = FunctionalFlagNone;
   component.MovementSpeedMultiplier = float32(1);
 }
@@ -99,6 +106,49 @@ bool CombatBodyComponentManager::ApplyDamage(uint32_t entityId, BodyPart part, f
   return true;
 }
 
+bool CombatBodyComponentManager::ApplyShieldIntegrityDamage(uint32_t entityId, float32 damage, float32 &remainingIntegrity, bool &brokenNow)
+{
+  remainingIntegrity = float32(0);
+  brokenNow = false;
+
+  auto *state = GetPartState(entityId, BodyPart::Shield);
+  if (!state || damage <= float32(0))
+    return false;
+
+  const bool wasBroken = state->Integrity <= float32(CombatRigContract::Shield.BreakThreshold) ||
+                         (state->Flags & PartFlagDisabled) != 0;
+
+  if (state->Integrity > damage)
+  {
+    state->Integrity -= damage;
+  }
+  else
+  {
+    state->Integrity = float32(0);
+  }
+  remainingIntegrity = state->Integrity;
+
+  const bool isBroken = state->Integrity <= float32(CombatRigContract::Shield.BreakThreshold);
+  if (isBroken)
+  {
+    state->Flags = static_cast<uint8_t>(state->Flags | PartFlagDisabled | PartFlagUnusable | PartFlagHidden);
+    state->Hp = float32(0);
+  }
+
+  brokenNow = !wasBroken && isBroken;
+  RecomputeFunctionalFlags(entityId);
+  return true;
+}
+
+bool CombatBodyComponentManager::IsShieldBroken(uint32_t entityId) const
+{
+  const auto *state = GetPartState(entityId, BodyPart::Shield);
+  if (!state)
+    return true;
+  return state->Integrity <= float32(CombatRigContract::Shield.BreakThreshold) ||
+         (state->Flags & PartFlagDisabled) != 0;
+}
+
 void CombatBodyComponentManager::RecomputeFunctionalFlags(uint32_t entityId)
 {
   auto *component = Get(entityId);
@@ -110,6 +160,8 @@ void CombatBodyComponentManager::RecomputeFunctionalFlags(uint32_t entityId)
   const auto isDisabled = [&](BodyPart part) -> bool
   {
     const auto &state = component->Parts[static_cast<size_t>(part)];
+    if (part == BodyPart::Shield && state.Integrity <= float32(CombatRigContract::Shield.BreakThreshold))
+      return true;
     return state.Hp <= float32(0) || (state.Flags & PartFlagDisabled) != 0;
   };
 

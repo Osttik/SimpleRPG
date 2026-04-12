@@ -38,6 +38,9 @@ export interface AnimationMetricsView {
   lateCombatEventsDiscarded: number;
   staleCombatEventsDiscarded: number;
   attackVisualResetsDueToEpochMismatch: number;
+  shieldDamageEvents: number;
+  shieldBreakEvents: number;
+  guardCrushEvents: number;
   averageAnimationUpdateMs: number;
 }
 

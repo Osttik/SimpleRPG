@@ -19,6 +19,21 @@ namespace
     return sample;
   }
 
+  float32 Ratio(int percent)
+  {
+    return float32(percent) / float32(100);
+  }
+
+  ShieldInteractionProfile MakeShieldProfile(int damagePercent, int penetrationPercent, int stopPowerBonus, int bluntThroughPercent)
+  {
+    ShieldInteractionProfile profile;
+    profile.ShieldDamageMultiplier = Ratio(damagePercent);
+    profile.ShieldPenetrationMultiplier = Ratio(penetrationPercent);
+    profile.ShieldStopPowerBonus = float32(stopPowerBonus);
+    profile.BluntThroughBlockRatio = Ratio(bluntThroughPercent);
+    return profile;
+  }
+
   uint64_t BuildActiveMask(uint8_t fromInclusive, uint8_t toInclusive)
   {
     uint64_t mask = 0;
@@ -37,6 +52,7 @@ namespace
     def.TotalTicks = 30;
     def.ActiveMask = BuildActiveMask(8, 20);
     def.BaseDamage = float32(18);
+    def.ShieldProfile = MakeShieldProfile(100, 0, 18, 0);
 
     const AttackStepSample samples[] = {
         MakeStep(-9, -4, -20, 18, 8, 65),
@@ -99,6 +115,7 @@ namespace
     def.TotalTicks = 20;
     def.ActiveMask = BuildActiveMask(5, 15);
     def.BaseDamage = float32(20);
+    def.ShieldProfile = MakeShieldProfile(110, 5, 20, 0);
 
     const AttackStepSample samples[] = {
         MakeStep(4, -10, 14, -26, 10, 70),
@@ -138,6 +155,7 @@ namespace
     def.TotalTicks = 40;
     def.ActiveMask = BuildActiveMask(12, 26);
     def.BaseDamage = float32(24);
+    def.ShieldProfile = MakeShieldProfile(125, 10, 24, 8);
 
     const AttackStepSample samples[] = {
         MakeStep(0, -8, 0, 28, 8, 60),
@@ -197,6 +215,7 @@ namespace
     def.TotalTicks = 20;
     def.ActiveMask = BuildActiveMask(4, 13);
     def.BaseDamage = float32(16);
+    def.ShieldProfile = MakeShieldProfile(75, 15, 40, 0);
 
     const AttackStepSample samples[] = {
         MakeStep(0, -4, 0, 10, 9, 75),
@@ -254,4 +273,3 @@ const AttackDefinition &GetAttackDefinition(AttackDirection direction)
     return thrust;
   }
 }
-

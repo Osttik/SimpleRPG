@@ -11,6 +11,7 @@ import { WeaponLagSolver } from './WeaponLagSolver';
 const DEFAULT_FACING_ANGLE = 0;
 const BLOCK_HOLD_TICKS = 8;
 const SHAKE_TICKS = 8;
+const GUARD_BREAK_RECOIL_TICKS = 14;
 const HIT_STOP_TICKS = 2;
 const RECOVERY_TICKS = 6;
 const MAX_REACTION_LATENESS_TICKS = 45;
@@ -41,6 +42,10 @@ export class CharacterAnimator {
 
     this.reconcileSnapshotAttack(state, intent, clock);
     this.reconcileSnapshotBlock(state, intent, clock);
+    if (clock.tick <= state.guardBreakUntilTick) {
+      state.blockingDirection = 0;
+      state.blockUntilTick = 0;
+    }
 
     state.lastX = entity.x;
     state.lastY = entity.y;
@@ -62,7 +67,24 @@ export class CharacterAnimator {
         continue;
       }
 
-      if (event.eventType === CombatVisualEventType.HitLanded || event.eventType === CombatVisualEventType.Blocked) {
+      if (event.eventType === CombatVisualEventType.ShieldDamaged) {
+        const attackerState = attackerId > 0 ? this.getState(attackerId, Number.NaN, Number.NaN) : undefined;
+        if (attackerState?.activeAttack && !sameAttackEpoch(attackerState.activeAttack.epoch, event.attackEpoch)) {
+          animationMetrics.staleCombatEventsDiscarded++;
+          continue;
+        }
+        animationMetrics.shieldDamageEvents++;
+        continue;
+      }
+
+      if (
+        event.eventType === CombatVisualEventType.HitLanded ||
+        event.eventType === CombatVisualEventType.Blocked ||
+        event.eventType === CombatVisualEventType.ShieldBroken ||
+        event.eventType === CombatVisualEventType.GuardCrushed
+      ) {
+        if (event.eventType === CombatVisualEventType.ShieldBroken) animationMetrics.shieldBreakEvents++;
+        if (event.eventType === CombatVisualEventType.GuardCrushed) animationMetrics.guardCrushEvents++;
         this.applyReactionEvent(event, attackerId, victimId, clock);
       }
     }
@@ -138,6 +160,12 @@ export class CharacterAnimator {
   }
 
   private reconcileSnapshotBlock(state: EntityVisualState, intent: AnimationIntent, clock: AnimationClock): void {
+    if (clock.tick <= state.guardBreakUntilTick) {
+      state.blockingDirection = 0;
+      state.blockUntilTick = 0;
+      return;
+    }
+
     if (intent.blockActive && intent.blockDirection !== 0) {
       state.blockingDirection = intent.blockDirection;
       state.blockUntilTick = Math.max(state.blockUntilTick, Math.floor(clock.tick) + BLOCK_HOLD_TICKS);
@@ -209,6 +237,11 @@ export class CharacterAnimator {
       const victimState = this.getState(victimId, Number.NaN, Number.NaN);
       victimState.shakeUntilTick = Math.max(victimState.shakeUntilTick, event.tick + SHAKE_TICKS);
       victimState.shakeSeed = ((victimId * 1103515245) + event.tick) & 0xffff;
+      if (event.eventType === CombatVisualEventType.ShieldBroken || event.eventType === CombatVisualEventType.GuardCrushed) {
+        victimState.guardBreakUntilTick = Math.max(victimState.guardBreakUntilTick, event.tick + GUARD_BREAK_RECOIL_TICKS);
+        victimState.blockingDirection = 0;
+        victimState.blockUntilTick = 0;
+      }
       victimState.impactMarkers.push(makeImpactMarker(event, victimId));
       if (victimState.impactMarkers.length > 8) {
         victimState.impactMarkers.shift();
@@ -239,6 +272,7 @@ export class CharacterAnimator {
         moving: false,
         blockingDirection: 0,
         blockUntilTick: 0,
+        guardBreakUntilTick: 0,
         shakeUntilTick: 0,
         shakeSeed: entityId & 0xff,
         impactMarkers: [],
@@ -277,11 +311,15 @@ function decodeFacingAngle(animState: number, fallback: number): number {
 }
 
 function makeImpactMarker(event: CombatVisualEvent, entityId: number): ImpactMarker {
+  const isBlockLike = event.eventType === CombatVisualEventType.Blocked ||
+    event.eventType === CombatVisualEventType.ShieldDamaged ||
+    event.eventType === CombatVisualEventType.ShieldBroken ||
+    event.eventType === CombatVisualEventType.GuardCrushed;
   return {
     tick: event.tick,
     entityId,
     x: 0,
     y: 0,
-    type: event.eventType === CombatVisualEventType.Blocked ? 'block' : 'hit',
+    type: isBlockLike ? 'block' : 'hit',
   };
 }

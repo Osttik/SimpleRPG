@@ -126,6 +126,18 @@ export class CombatDebugOverlayRenderer {
     gl.uniform1f(this.pointSizeLoc, 5);
     gl.uniform4f(this.colorLoc, 1.0, 0.95, 0.2, 0.95);
     gl.drawArrays(gl.POINTS, 0, pointFloats / 2);
+
+    if (debug.shieldAnchor && debug.shieldIntegrity != null) {
+      const maxIntegrity = Math.max(1, HUMANOID_COMBAT_RIG_CONTRACT.shield.maxIntegrity);
+      const normalizedIntegrity = Math.max(0, Math.min(1, debug.shieldIntegrity / maxIntegrity));
+      const shieldPoint = toScreen(debug.shieldAnchor);
+      this.pointData[0] = shieldPoint[0];
+      this.pointData[1] = shieldPoint[1];
+      gl.bufferData(gl.ARRAY_BUFFER, this.pointData.subarray(0, 2), gl.DYNAMIC_DRAW);
+      gl.uniform1f(this.pointSizeLoc, debug.shieldBroken ? 9 : 5 + ((1 - normalizedIntegrity) * 4));
+      gl.uniform4f(this.colorLoc, 1.0, normalizedIntegrity, 0.12, 0.95);
+      gl.drawArrays(gl.POINTS, 0, 1);
+    }
   }
 }
 

@@ -95,5 +95,15 @@
     "rightLeg": ["ThighR", "ShinFootR"],
     "attackRequired": ["ShoulderR", "UpperArmR", "ForearmHandR"],
     "blockRequired": ["ShoulderL", "UpperArmL", "ForearmHandL", "Shield"]
+  },
+  "shield": {
+    "part": "Shield",
+    "functionalGroup": "blockRequired",
+    "maxIntegrity": 96,
+    "defaultIntegrity": 96,
+    "stopPower": 26,
+    "breakThreshold": 1,
+    "disabledVisualParts": ["shield"],
+    "brokenVisualParts": ["shield"]
   }
 }

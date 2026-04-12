@@ -511,8 +511,8 @@ self.onmessage = (event) => {
         }
       } else if (portData.type === 'combat_events') {
         const events = portData.events ?? [];
-        characterAnimator.applyCombatEvents(events, interpolator.getRenderClock());
         bodyStateCache.applyCombatEvents(events);
+        characterAnimator.applyCombatEvents(events, interpolator.getRenderClock());
       }
     };
   }

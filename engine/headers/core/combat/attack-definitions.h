@@ -21,6 +21,14 @@ struct AttackStepSample
   float32 DamageMultiplier = float32(1);
 };
 
+struct ShieldInteractionProfile
+{
+  float32 ShieldDamageMultiplier = float32(1);
+  float32 ShieldPenetrationMultiplier = float32(0);
+  float32 ShieldStopPowerBonus = float32(0);
+  float32 BluntThroughBlockRatio = float32(0);
+};
+
 struct AttackDefinition
 {
   AttackType Type = AttackType::None;
@@ -28,6 +36,7 @@ struct AttackDefinition
   uint8_t TotalTicks = 0;
   uint64_t ActiveMask = 0;
   float32 BaseDamage = float32(0);
+  ShieldInteractionProfile ShieldProfile{};
   std::array<AttackStepSample, MAX_ATTACK_TICKS> Steps{};
 
   bool IsActive(uint8_t step) const
@@ -39,4 +48,3 @@ struct AttackDefinition
 };
 
 const AttackDefinition &GetAttackDefinition(AttackDirection direction);
-

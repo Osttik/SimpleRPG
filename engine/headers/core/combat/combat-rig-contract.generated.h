@@ -6,7 +6,7 @@
 namespace CombatRigContract
 {
 constexpr const char *ContractId = "humanoid_base";
-constexpr const char *ContractHash = "f9b6381ef2d2945c";
+constexpr const char *ContractHash = "796130ca252b0e01";
 constexpr uint32_t ContractVersion = 1;
 constexpr float FrontendScale = 1;
 
@@ -52,6 +52,15 @@ struct HurtboxDefinition
   int16_t B;
   int16_t C;
   int16_t D;
+};
+
+struct ShieldStructuralDefaults
+{
+  uint8_t PartId;
+  int16_t MaxIntegrity;
+  int16_t DefaultIntegrity;
+  int16_t StopPower;
+  int16_t BreakThreshold;
 };
 
 constexpr std::array<BodyPartDefinition, BodyPartCount> BodyParts = {{
@@ -101,4 +110,12 @@ constexpr uint8_t BellyVirtualPart = 4;
 constexpr uint8_t PelvisVirtualPart = 5;
 constexpr int16_t ChestMinYExclusive = 4;
 constexpr int16_t PelvisMaxYExclusive = -4;
+
+constexpr ShieldStructuralDefaults Shield = {
+    16,
+    96,
+    96,
+    26,
+    1,
+};
 }

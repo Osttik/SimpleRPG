@@ -15,7 +15,10 @@ enum class CombatEventType : uint8_t
   HitLanded = 1,
   Blocked = 2,
   AttackStopped = 3,
-  PartDisabled = 4
+  PartDisabled = 4,
+  ShieldDamaged = 5,
+  ShieldBroken = 6,
+  GuardCrushed = 7
 };
 
 enum CombatEventFlags : uint8_t
@@ -25,7 +28,10 @@ enum CombatEventFlags : uint8_t
   CombatEventFlagEnergyStopped = 1 << 1,
   CombatEventFlagShieldMatched = 1 << 2,
   CombatEventFlagNaturalEnd = 1 << 3,
-  CombatEventFlagStateChanged = 1 << 4
+  CombatEventFlagStateChanged = 1 << 4,
+  CombatEventFlagShieldBroken = 1 << 5,
+  CombatEventFlagGuardCrushed = 1 << 6,
+  CombatEventFlagPassthrough = 1 << 7
 };
 
 #pragma pack(push, 1)

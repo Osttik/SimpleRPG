@@ -2,7 +2,7 @@
 
 Contract: `humanoid_base`
 Version: `1`
-Hash: `f9b6381ef2d2945c`
+Hash: `796130ca252b0e01`
 Units: `gameplay_world_units`; frontend scale `1`
 
 | ID | Part | Layer | HP | Stop |
@@ -24,5 +24,11 @@ Units: `gameplay_world_units`; frontend scale `1`
 | 14 | ThighR | outer | 34 | 11 |
 | 15 | ShinFootR | outer | 30 | 9 |
 | 16 | Shield | outer | 48 | 26 |
+
+## Shield Structural Defaults
+
+| Part | Functional Group | Max Integrity | Default Integrity | Stop Power | Break Threshold | Disabled Visuals | Broken Visuals |
+|---|---|---:|---:|---:|---:|---|---|
+| Shield | blockRequired | 96 | 96 | 26 | 1 | shield | shield |
 
 Generated from [schema/combat-rig-contract.humanoid.json](../schema/combat-rig-contract.humanoid.json). Do not edit generated artifacts directly.

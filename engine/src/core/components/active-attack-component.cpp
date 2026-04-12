@@ -15,8 +15,6 @@ namespace
   constexpr float32 BLADE_HALF_WIDTH = float32(2);
   constexpr float32 BODY_AABB_HALF_WIDTH = float32(34);
   constexpr float32 BODY_AABB_HALF_HEIGHT = float32(38);
-  constexpr float32 THRUST_SHIELD_STOP_BONUS = float32(40);
-  constexpr float32 SHIELD_STOP_BONUS = float32(18);
 
   struct Basis2
   {
@@ -525,10 +523,8 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
               candidate.ProgressKey = SegmentDistanceSquared(prevTipLocal, currTipLocal, shieldCenter);
               candidate.BladeDistanceKey = bladeDistance;
               candidate.Damage = ComputeDamage(definition, currentStep, bladeT, CombatEventFlagNone, currentStep.Energy);
-              candidate.StopCost = shieldState->StopPower + SHIELD_STOP_BONUS;
-              if (definition.Type == AttackType::Thrust)
-                candidate.StopCost += THRUST_SHIELD_STOP_BONUS;
-              candidate.RemainingHp = shieldState->Hp;
+              candidate.StopCost = shieldState->StopPower + definition.ShieldProfile.ShieldStopPowerBonus;
+              candidate.RemainingHp = shieldState->Integrity;
               candidate.Flags = CombatEventFlagShieldMatched;
               candidate.IsShield = true;
             }
@@ -596,6 +592,134 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
           break;
         }
 
+        if (candidate.IsShield)
+        {
+          auto *shieldState = bodyMgr->GetPartState(candidate.VictimId, BodyPart::Shield);
+          if (!shieldState || bodyMgr->IsShieldBroken(candidate.VictimId))
+            continue;
+          if (AlreadyHitPart(*attack, candidate.VictimId, BodyPart::Shield))
+            continue;
+
+          const float32 residualEnergy = remainingEnergy > candidate.StopCost
+                                             ? remainingEnergy - candidate.StopCost
+                                             : float32(0);
+          float32 shieldDamage = candidate.Damage * definition.ShieldProfile.ShieldDamageMultiplier;
+          if (residualEnergy > float32(0) && definition.ShieldProfile.ShieldPenetrationMultiplier > float32(0))
+          {
+            shieldDamage += residualEnergy * definition.ShieldProfile.ShieldPenetrationMultiplier;
+          }
+
+          float32 remainingIntegrity = shieldState->Integrity;
+          bool shieldBroken = false;
+          bodyMgr->ApplyShieldIntegrityDamage(candidate.VictimId, shieldDamage, remainingIntegrity, shieldBroken);
+          if (stateMgr)
+            stateMgr->RefreshAvailability(candidate.VictimId, bodyMgr);
+          RecordHit(*attack, candidate.VictimId, BodyPart::Shield);
+
+          const uint8_t shieldFlags = static_cast<uint8_t>(
+              candidate.Flags |
+              (shieldBroken ? CombatEventFlagShieldBroken : CombatEventFlagNone) |
+              (residualEnergy > float32(0) ? CombatEventFlagPassthrough : CombatEventFlagNone));
+
+          engine.CombatEvents.Push(CombatEventWire{
+              engine.TickCount,
+              attackerId,
+              candidate.VictimId,
+              shieldDamage.raw_value(),
+              remainingIntegrity.raw_value(),
+              static_cast<uint8_t>(CombatEventType::Blocked),
+              static_cast<uint8_t>(BodyPart::Shield),
+              static_cast<uint8_t>(BodyPart::Shield),
+              shieldFlags,
+              attack->Epoch,
+              GetVisualTrackId(definition),
+              0});
+
+          engine.CombatEvents.Push(CombatEventWire{
+              engine.TickCount,
+              attackerId,
+              candidate.VictimId,
+              shieldDamage.raw_value(),
+              remainingIntegrity.raw_value(),
+              static_cast<uint8_t>(CombatEventType::ShieldDamaged),
+              static_cast<uint8_t>(BodyPart::Shield),
+              static_cast<uint8_t>(BodyPart::Shield),
+              shieldFlags,
+              attack->Epoch,
+              GetVisualTrackId(definition),
+              0});
+
+          if (shieldBroken)
+          {
+            engine.CombatEvents.Push(CombatEventWire{
+                engine.TickCount,
+                attackerId,
+                candidate.VictimId,
+                shieldDamage.raw_value(),
+                remainingIntegrity.raw_value(),
+                static_cast<uint8_t>(CombatEventType::ShieldBroken),
+                static_cast<uint8_t>(BodyPart::Shield),
+                static_cast<uint8_t>(BodyPart::Shield),
+                static_cast<uint8_t>(shieldFlags | CombatEventFlagStateChanged),
+                attack->Epoch,
+                GetVisualTrackId(definition),
+                0});
+          }
+
+          if (residualEnergy > float32(0) && definition.ShieldProfile.BluntThroughBlockRatio > float32(0))
+          {
+            auto *torsoState = bodyMgr->GetPartState(candidate.VictimId, BodyPart::Torso);
+            const bool torsoWasDisabled = torsoState && ((torsoState->Flags & PartFlagDisabled) != 0 || torsoState->Hp <= float32(0));
+            const float32 throughDamage = candidate.Damage * definition.ShieldProfile.BluntThroughBlockRatio;
+            if (torsoState && throughDamage > float32(0))
+            {
+              bodyMgr->ApplyDamage(candidate.VictimId, BodyPart::Torso, throughDamage);
+              if (stateMgr)
+                stateMgr->RefreshAvailability(candidate.VictimId, bodyMgr);
+              torsoState = bodyMgr->GetPartState(candidate.VictimId, BodyPart::Torso);
+              RecordHit(*attack, candidate.VictimId, BodyPart::Torso);
+
+              engine.CombatEvents.Push(CombatEventWire{
+                  engine.TickCount,
+                  attackerId,
+                  candidate.VictimId,
+                  throughDamage.raw_value(),
+                  torsoState ? torsoState->Hp.raw_value() : 0,
+                  static_cast<uint8_t>(CombatEventType::GuardCrushed),
+                  static_cast<uint8_t>(BodyPart::Shield),
+                  static_cast<uint8_t>(BodyPart::Torso),
+                  static_cast<uint8_t>(shieldFlags | CombatEventFlagGuardCrushed | CombatEventFlagPassthrough),
+                  attack->Epoch,
+                  GetVisualTrackId(definition),
+                  0});
+
+              if (!torsoWasDisabled && torsoState && torsoState->Hp <= float32(0))
+              {
+                engine.CombatEvents.Push(CombatEventWire{
+                    engine.TickCount,
+                    attackerId,
+                    candidate.VictimId,
+                    0,
+                    0,
+                    static_cast<uint8_t>(CombatEventType::PartDisabled),
+                    static_cast<uint8_t>(BodyPart::Torso),
+                    static_cast<uint8_t>(BodyPart::Torso),
+                    CombatEventFlagStateChanged,
+                    attack->Epoch,
+                    GetVisualTrackId(definition),
+                    0});
+              }
+            }
+          }
+
+          remainingEnergy = residualEnergy;
+          if (remainingEnergy <= float32(0))
+          {
+            StopAttack(attackerId, static_cast<uint8_t>(CombatEventFlagEnergyStopped | candidate.Flags), engine);
+          }
+          continue;
+        }
+
         auto *partState = bodyMgr->GetPartState(candidate.VictimId, candidate.RoutedPart);
         if (!partState || partState->Hp <= float32(0))
           continue;
@@ -605,7 +729,8 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
         const bool wasDisabled = (partState->Flags & PartFlagDisabled) != 0 || partState->Hp <= float32(0);
         const float32 appliedDamage = candidate.Damage;
         bodyMgr->ApplyDamage(candidate.VictimId, candidate.RoutedPart, appliedDamage);
-        stateMgr->RefreshAvailability(candidate.VictimId, bodyMgr);
+        if (stateMgr)
+          stateMgr->RefreshAvailability(candidate.VictimId, bodyMgr);
         partState = bodyMgr->GetPartState(candidate.VictimId, candidate.RoutedPart);
         RecordHit(*attack, candidate.VictimId, candidate.RoutedPart);
 

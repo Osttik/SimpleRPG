@@ -49,10 +49,15 @@ for (const [target, content] of outputs) {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, content);
 }
+updateFrontendRigMetadata(normalized, hash);
 console.log(`Generated combat rig contract ${normalized.id}@${hash}.`);
 
 function normalizeContract(value) {
   const partIdByKey = Object.fromEntries(value.bodyParts.map((part) => [part.key, part.id]));
+  const shield = {
+    ...value.shield,
+    partId: partIdByKey[value.shield.part],
+  };
   const visualMappings = {};
   for (const [partKey, visualParts] of Object.entries(value.visual.bodyPartToVisualParts ?? {})) {
     visualMappings[partIdByKey[partKey]] = visualParts;
@@ -73,6 +78,7 @@ function normalizeContract(value) {
     functionalGroupsById: Object.fromEntries(
       Object.entries(value.functionalGroups).map(([key, parts]) => [key, parts.map((part) => partIdByKey[part])]),
     ),
+    shield,
     partIdByKey,
   };
 }
@@ -100,6 +106,20 @@ function validateContract(value) {
       if (!keys.has(part)) throw new Error(`Functional group ${group} references unknown part ${part}`);
     }
   }
+  const shield = value.shield;
+  if (!shield) throw new Error('Missing shield structural defaults');
+  if (!keys.has(shield.part)) throw new Error(`Shield defaults reference unknown part ${shield.part}`);
+  if (!value.functionalGroups?.[shield.functionalGroup]?.includes(shield.part)) {
+    throw new Error(`Shield part ${shield.part} must belong to functional group ${shield.functionalGroup}`);
+  }
+  for (const field of ['maxIntegrity', 'defaultIntegrity', 'stopPower', 'breakThreshold']) {
+    if (!Number.isInteger(shield[field]) || shield[field] < 0) {
+      throw new Error(`Shield ${field} must be a non-negative integer`);
+    }
+  }
+  if (shield.defaultIntegrity > shield.maxIntegrity) {
+    throw new Error('Shield defaultIntegrity cannot exceed maxIntegrity');
+  }
 }
 
 function frontendRigMatchesGenerated(value, hash) {
@@ -110,10 +130,38 @@ function frontendRigMatchesGenerated(value, hash) {
   if (JSON.stringify(rig.anchors) !== JSON.stringify(value.visual.anchors)) return false;
   if (JSON.stringify(rig.limbs) !== JSON.stringify(value.visual.limbs)) return false;
   if (JSON.stringify(rig.attachments) !== JSON.stringify(value.visual.attachments)) return false;
+  if (JSON.stringify(rig.combatContract?.shield) !== JSON.stringify(value.shield)) return false;
   for (const [partName, length] of Object.entries(value.visual.partLengths)) {
     if (rig.parts?.[partName]?.length !== length) return false;
   }
   return true;
+}
+
+function updateFrontendRigMetadata(value, hash) {
+  if (!fs.existsSync(frontendRigPath)) return;
+  const rig = JSON.parse(fs.readFileSync(frontendRigPath, 'utf8'));
+  rig.id = value.id;
+  rig.anchors = value.visual.anchors;
+  rig.limbs = value.visual.limbs;
+  rig.attachments = value.visual.attachments;
+  for (const [partName, length] of Object.entries(value.visual.partLengths)) {
+    rig.parts ??= {};
+    rig.parts[partName] ??= {};
+    rig.parts[partName].length = length;
+  }
+  rig.combatContract = {
+    ...(rig.combatContract ?? {}),
+    id: value.id,
+    version: value.version,
+    hash,
+    units: {
+      ...value.units,
+      note: 'Generated from schema/combat-rig-contract.humanoid.json. Runtime rig data is patched from src/generated/combatRigContract.ts.',
+    },
+    bodyPartToVisualParts: value.visual.bodyPartToVisualPartsById,
+    shield: value.shield,
+  };
+  fs.writeFileSync(frontendRigPath, `${JSON.stringify(rig, null, 2)}\n`);
 }
 
 function renderCpp(value, hash) {
@@ -135,6 +183,7 @@ function renderCpp(value, hash) {
   const chest = value.partIdByKey.ChestVirtual;
   const belly = value.partIdByKey.BellyVirtual;
   const pelvis = value.partIdByKey.PelvisVirtual;
+  const shield = value.shield;
 
   return `#pragma once
 
@@ -176,6 +225,15 @@ struct HurtboxDefinition
   int16_t D;
 };
 
+struct ShieldStructuralDefaults
+{
+  uint8_t PartId;
+  int16_t MaxIntegrity;
+  int16_t DefaultIntegrity;
+  int16_t StopPower;
+  int16_t BreakThreshold;
+};
+
 constexpr std::array<BodyPartDefinition, BodyPartCount> BodyParts = {{
 ${bodyParts}
 }};
@@ -194,6 +252,14 @@ constexpr uint8_t BellyVirtualPart = ${belly};
 constexpr uint8_t PelvisVirtualPart = ${pelvis};
 constexpr int16_t ChestMinYExclusive = 4;
 constexpr int16_t PelvisMaxYExclusive = -4;
+
+constexpr ShieldStructuralDefaults Shield = {
+    ${shield.partId},
+    ${shield.maxIntegrity},
+    ${shield.defaultIntegrity},
+    ${shield.stopPower},
+    ${shield.breakThreshold},
+};
 }
 `;
 }
@@ -236,6 +302,7 @@ export const HUMANOID_COMBAT_RIG_CONTRACT = ${JSON.stringify({
       bodyPartToVisualParts: value.visual.bodyPartToVisualPartsById,
     },
     functionalGroups: value.functionalGroupsById,
+    shield: value.shield,
   }, null, 2)} as const;
 `;
 }
@@ -244,6 +311,7 @@ function renderDoc(value, hash) {
   const rows = value.bodyParts
     .map((part) => `| ${part.id} | ${part.key} | ${part.layer} | ${part.maxHp} | ${part.stopPower} |`)
     .join('\n');
+  const shield = value.shield;
   return `# Generated Combat Rig Contract
 
 Contract: \`${value.id}\`
@@ -254,6 +322,12 @@ Units: \`${value.units.source}\`; frontend scale \`${value.units.frontendScale}\
 | ID | Part | Layer | HP | Stop |
 |---:|---|---|---:|---:|
 ${rows}
+
+## Shield Structural Defaults
+
+| Part | Functional Group | Max Integrity | Default Integrity | Stop Power | Break Threshold | Disabled Visuals | Broken Visuals |
+|---|---|---:|---:|---:|---:|---|---|
+| ${shield.part} | ${shield.functionalGroup} | ${shield.maxIntegrity} | ${shield.defaultIntegrity} | ${shield.stopPower} | ${shield.breakThreshold} | ${(shield.disabledVisualParts ?? []).join(', ')} | ${(shield.brokenVisualParts ?? []).join(', ')} |
 
 Generated from [schema/combat-rig-contract.humanoid.json](../schema/combat-rig-contract.humanoid.json). Do not edit generated artifacts directly.
 `;

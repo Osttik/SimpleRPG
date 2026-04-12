@@ -40,6 +40,8 @@ export interface CombatVisualEvent {
   tick: number;
   attackerId: string;
   victimId: string;
+  damage: number;
+  remainingHp: number;
   eventType: number;
   partId: number;
   routedPartId: number;
@@ -71,6 +73,7 @@ export interface EntityVisualState {
   activeAttack?: ActiveAttackVisualState;
   blockingDirection: number;
   blockUntilTick: number;
+  guardBreakUntilTick: number;
   shakeUntilTick: number;
   shakeSeed: number;
   impactMarkers: ImpactMarker[];
@@ -111,6 +114,8 @@ export interface CharacterPose {
     wrist: Vec2;
     weaponTip: Vec2;
     shieldAnchor?: Vec2;
+    shieldIntegrity?: number;
+    shieldBroken?: boolean;
     upperFacingAngle: number;
   };
 }
@@ -121,6 +126,9 @@ export const CombatVisualEventType = {
   Blocked: 2,
   AttackStopped: 3,
   PartDisabled: 4,
+  ShieldDamaged: 5,
+  ShieldBroken: 6,
+  GuardCrushed: 7,
 } as const;
 
 export const AttackDirection = {

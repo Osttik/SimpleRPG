@@ -34,12 +34,14 @@ export class AnimationPoseSolver {
     const baseScale = this.skin.scale;
     const lowerFacing = visualState.lowerFacing;
     const upperFacing = visualState.upperFacing;
-    const drawFacing = visualState.activeAttack || visualState.blockingDirection ? upperFacing : lowerFacing;
+    const canHoldShieldBlock = !bodyState.shieldUnavailable && clock.tick > visualState.guardBreakUntilTick;
+    const blockPoseActive = visualState.blockingDirection !== 0 && canHoldShieldBlock;
+    const drawFacing = visualState.activeAttack || blockPoseActive ? upperFacing : lowerFacing;
     const lowerFacingRule = this.rig.facingRules[lowerFacing] ?? this.rig.facingRules.S;
     const upperFacingRule = this.rig.facingRules[upperFacing] ?? this.rig.facingRules.S;
     const drawFacingRule = this.rig.facingRules[drawFacing] ?? this.rig.facingRules.S;
     const attackPose = this.evaluateCombatPose(visualState, clock);
-    const locomotionPose = visualState.blockingDirection
+    const locomotionPose = blockPoseActive
       ? evaluateBlockPose(visualState.blockingDirection)
       : visualState.moving
         ? evaluateMovePose(clock.nowMs, 1)
@@ -97,8 +99,8 @@ export class AnimationPoseSolver {
         ));
       } else if (partName === 'shield') {
         if (bodyState.shieldUnavailable) continue;
-        const shieldFacing = visualState.blockingDirection ? upperFacing : lowerFacing;
-        const shieldRule = visualState.blockingDirection ? upperFacingRule : lowerFacingRule;
+        const shieldFacing = blockPoseActive ? upperFacing : lowerFacing;
+        const shieldRule = blockPoseActive ? upperFacingRule : lowerFacingRule;
         const shieldBase = scaleVec2(getAnchor(this.rig, this.skin, shieldRule, 'shield_grip_l'), baseScale);
         const shieldPoseOffset = transformFacingOffset(scaleVec2(pose.shieldOffset, baseScale), shieldFacing);
         const shieldAnchor = applyScreenOffset(rootX, rootY, addVec2(shieldBase, shieldPoseOffset), shieldRule.yScale ?? 1);
@@ -125,6 +127,8 @@ export class AnimationPoseSolver {
         wrist: limb.wrist,
         weaponTip: tipTarget,
         shieldAnchor: debugShieldAnchor,
+        shieldIntegrity: bodyState.shieldIntegrity,
+        shieldBroken: bodyState.shieldBroken,
         upperFacingAngle: facingToAngle(upperFacing),
       } : undefined,
     };

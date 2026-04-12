@@ -10,6 +10,8 @@ struct CombatPartState
   float32 Hp = float32(0);
   float32 MaxHp = float32(0);
   float32 StopPower = float32(0);
+  float32 Integrity = float32(0);
+  float32 MaxIntegrity = float32(0);
   uint8_t Flags = PartFlagNone;
 };
 
@@ -35,6 +37,7 @@ public:
   const CombatPartState *GetPartState(uint32_t entityId, BodyPart part) const;
 
   bool ApplyDamage(uint32_t entityId, BodyPart part, float32 damage);
+  bool ApplyShieldIntegrityDamage(uint32_t entityId, float32 damage, float32 &remainingIntegrity, bool &brokenNow);
+  bool IsShieldBroken(uint32_t entityId) const;
   void RecomputeFunctionalFlags(uint32_t entityId);
 };
-

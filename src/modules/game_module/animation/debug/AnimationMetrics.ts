@@ -9,6 +9,9 @@ export interface AnimationMetricsSnapshot {
   lateCombatEventsDiscarded: number;
   staleCombatEventsDiscarded: number;
   attackVisualResetsDueToEpochMismatch: number;
+  shieldDamageEvents: number;
+  shieldBreakEvents: number;
+  guardCrushEvents: number;
   averageAnimationUpdateMs: number;
 }
 
@@ -30,6 +33,9 @@ export class AnimationMetrics {
   lateCombatEventsDiscarded = 0;
   staleCombatEventsDiscarded = 0;
   attackVisualResetsDueToEpochMismatch = 0;
+  shieldDamageEvents = 0;
+  shieldBreakEvents = 0;
+  guardCrushEvents = 0;
 
   beginFrame(): void {
     this.frameStartMs = performance.now();
@@ -71,6 +77,9 @@ export class AnimationMetrics {
       lateCombatEventsDiscarded: this.lateCombatEventsDiscarded,
       staleCombatEventsDiscarded: this.staleCombatEventsDiscarded,
       attackVisualResetsDueToEpochMismatch: this.attackVisualResetsDueToEpochMismatch,
+      shieldDamageEvents: this.shieldDamageEvents,
+      shieldBreakEvents: this.shieldBreakEvents,
+      guardCrushEvents: this.guardCrushEvents,
       averageAnimationUpdateMs: this.frameCostSamples > 0 ? this.frameCostTotalMs / this.frameCostSamples : 0,
     };
   }

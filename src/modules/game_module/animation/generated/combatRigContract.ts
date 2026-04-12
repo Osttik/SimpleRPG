@@ -1,6 +1,6 @@
 export const COMBAT_RIG_CONTRACT_ID = 'humanoid_base';
 export const COMBAT_RIG_CONTRACT_VERSION = 1;
-export const COMBAT_RIG_CONTRACT_HASH = 'f9b6381ef2d2945c';
+export const COMBAT_RIG_CONTRACT_HASH = '796130ca252b0e01';
 
 export const BodyPart = {
   Head: 0,
@@ -66,7 +66,7 @@ export const HUMANOID_COMBAT_RIG_CONTRACT = {
   "schema": "simple-rpg.combat-rig-contract.v1",
   "id": "humanoid_base",
   "version": 1,
-  "hash": "f9b6381ef2d2945c",
+  "hash": "796130ca252b0e01",
   "units": {
     "source": "gameplay_world_units",
     "frontendScale": 1,
@@ -530,5 +530,20 @@ export const HUMANOID_COMBAT_RIG_CONTRACT = {
       8,
       16
     ]
+  },
+  "shield": {
+    "part": "Shield",
+    "functionalGroup": "blockRequired",
+    "maxIntegrity": 96,
+    "defaultIntegrity": 96,
+    "stopPower": 26,
+    "breakThreshold": 1,
+    "disabledVisualParts": [
+      "shield"
+    ],
+    "brokenVisualParts": [
+      "shield"
+    ],
+    "partId": 16
   }
 } as const;
