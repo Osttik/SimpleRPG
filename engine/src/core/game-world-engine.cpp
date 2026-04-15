@@ -313,7 +313,7 @@ void GameWorldEngine::SetTileRegistry(const std::vector<TileDef> &registry)
 {
   for (const auto &def : registry)
   {
-    TileRegistry::RegisterTile(def.id, def.name, def.collide);
+    TileRegistry::RegisterTile(def.id, def.name, def.gameplay);
   }
 }
 
@@ -338,16 +338,19 @@ void GameWorldEngine::Tick()
   // 2. Physics Update (passes dirty set for optimized AABB tree updates)
   Physics.Tick(World.ChunkManager.get(), ObjectManager.GetDirtyIds());
 
-  // 3. Resolve combat using the post-physics transforms for this server tick.
+  // 3. Resolve discrete layer transitions after XY collision. The entity is still on exactly one layer.
+  Layers.Tick(*this);
+
+  // 4. Resolve combat using the post-physics transforms for this server tick.
   if (attackMgr && combatBodyMgr)
   {
     attackMgr->Tick(*this, combatBodyMgr, combatStateMgr);
   }
 
-  // 4. Cleanup destroyed (also removes components from all managers)
+  // 5. Cleanup destroyed (also removes components from all managers)
   ObjectManager.CleanupDestroyed();
 
-  // 5. Clear dirty flags for next tick
+  // 6. Clear dirty flags for next tick
   ObjectManager.ClearDirty();
 
   TickCount++;

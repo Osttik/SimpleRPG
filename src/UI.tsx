@@ -9,6 +9,8 @@ import { InventoryComponent } from './modules/ui_module/components/inventory';
 import { LootUI } from './modules/ui_module/components/loot_ui';
 import { InteractionUIModal } from './modules/ui_module/components/interaction-ui-modal';
 import { CombatDebugPanel } from './modules/ui_module/components/combat_debug_panel';
+import { WorldLayerDebugPanel } from './modules/ui_module/components/world_layer_debug_panel';
+import { WorldLayerDebugOverlay } from './modules/ui_module/components/world_layer_debug_overlay';
 
 export const UIComponent = () => {
   const { setMenuState } = useMenuActions();
@@ -26,11 +28,13 @@ export const UIComponent = () => {
   return (
     <div className="absolute w-screen h-screen overflow-hidden pointer-events-none z-50 flex flex-col p-10 bg-transparent">
       <audio ref={audioRef} src={gameMusicFile} loop />
+      <WorldLayerDebugOverlay />
       <div className='flex flex-row gap-2 w-full'>
         <div className='flex flex-row gap-2 flex-1 justify-start'>
           <GameInternalState className="absolute pointer-events-auto" />
           <div className="absolute top-14 pointer-events-none">
             <CombatDebugPanel />
+            <WorldLayerDebugPanel />
           </div>
         </div>
         <div className='flex flex-row gap-2 flex-1 justify-center'>

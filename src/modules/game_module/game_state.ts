@@ -4,6 +4,7 @@ import type { InventoryItemView, InventoryMetaView } from "../ui_module/componen
 interface IPlayer {
   x: number;
   y: number;
+  z?: number;
   color: number[];
   type: string;
   focusedId: string;
@@ -44,6 +45,66 @@ export interface AnimationMetricsView {
   averageAnimationUpdateMs: number;
 }
 
+export interface WorldLayerFootprintSampleView {
+  tileX: number;
+  tileY: number;
+  z: number;
+  tileId: number;
+  support: boolean;
+  fallThrough: boolean;
+  blocked: boolean;
+}
+
+export interface WorldLayerConnectorCandidateView {
+  tileX: number;
+  tileY: number;
+  sourceZ: number;
+  destinationZ: number;
+  type: number;
+  triggerMinX: number;
+  triggerMinY: number;
+  triggerMaxX: number;
+  triggerMaxY: number;
+  allowedEnterDirectionMask: number;
+  allowedMovementDirectionMask: number;
+  triggerHit: boolean;
+  directionAllowed: boolean;
+  destinationSupportOk: boolean;
+  destinationBlockedOk: boolean;
+  selected: boolean;
+  accepted: boolean;
+  rejectionReason: string;
+}
+
+export interface WorldLayerLandingCandidateView {
+  candidateZ: number;
+  supportOk: boolean;
+  blocked: boolean;
+  accepted: boolean;
+}
+
+export interface WorldLayerDebugView {
+  tick: number;
+  entityId: number;
+  sourceZ: number;
+  resolvedZ: number;
+  transitioned: boolean;
+  fell: boolean;
+  phase: string;
+  reason: string;
+  supportSamples: WorldLayerFootprintSampleView[];
+  connectorCandidates: WorldLayerConnectorCandidateView[];
+  landingCandidates: WorldLayerLandingCandidateView[];
+}
+
+export interface WorldLayerValidationIssueView {
+  tileX: number;
+  tileY: number;
+  tileZ: number;
+  code: string;
+  message: string;
+}
+
 interface IGameState {
   canvasRef: RefObject<HTMLCanvasElement | null> | null;
   myId: string | null;
@@ -66,6 +127,9 @@ interface IGameState {
   combatEventLog: CombatEventView[];
   animationMetrics?: AnimationMetricsView;
   camera: { x: number; y: number };
+  visibleLayers?: { min: number; max: number };
+  worldLayerDebug?: WorldLayerDebugView | null;
+  worldLayerValidationIssues: WorldLayerValidationIssueView[];
 }
 
 export interface ChunkData {
@@ -100,4 +164,7 @@ export const gameState: IGameState = {
   combatBodies: {},
   combatEventLog: [],
   camera: { x: 0, y: 0 },
+  visibleLayers: { min: -3, max: 3 },
+  worldLayerDebug: null,
+  worldLayerValidationIssues: [],
 };

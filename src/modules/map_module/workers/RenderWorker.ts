@@ -15,6 +15,14 @@ import { AnimationPoseSolver } from '../../game_module/animation/core/AnimationP
 import { CharacterRigRegistry, type ResolvedCharacterRigSkin } from '../../game_module/render/CharacterRigRegistry';
 import { CompositeCharacterRenderer, type CharacterRenderBatchItem } from '../../game_module/render/CompositeCharacterRenderer';
 import { CombatDebugOverlayRenderer } from '../../game_module/render/CombatDebugOverlayRenderer';
+import {
+  getRoofFadeStrength,
+  getUpperTileOcclusionWeight,
+  getVisibleLayerWindow,
+  isLayerVisible,
+  RENDER_LAYER_RADIUS,
+  TILE_RENDER_FLOATS,
+} from '../../game_module/render/LayerPresentation';
 import { CameraController } from '../../game_module/camera/CameraController';
 import { BodyStateCache } from '../../game_module/animation/core/BodyStateCache';
 import { resolvePoseLod } from '../../game_module/animation/core/PoseLod';
@@ -43,7 +51,6 @@ const characterAnimator = new CharacterAnimator();
 const bodyStateCache = new BodyStateCache();
 const cameraController = new CameraController();
 const poseSolvers = new Map<string, AnimationPoseSolver>();
-let socketPort: MessagePort | null = null;
 let lastRepairRequestMs = 0;
 const REPAIR_REQUEST_COOLDOWN_MS = 500;
 const TILE_SIZE = 40;
@@ -99,7 +106,9 @@ function initWebGL() {
   const tileBasePosLoc = gl.getAttribLocation(tileProgram, "a_position");
   const tileInstPosLoc = gl.getAttribLocation(tileProgram, "a_instancePosition");
   const tileSpriteIdLoc = gl.getAttribLocation(tileProgram, "a_spriteId");
-  const tileCzLoc = gl.getAttribLocation(tileProgram, "a_cz");
+  const tileLayerOffsetLoc = gl.getAttribLocation(tileProgram, "a_layerOffset");
+  const tileRoofFadeLoc = gl.getAttribLocation(tileProgram, "a_roofFade");
+  const tileOcclusionLoc = gl.getAttribLocation(tileProgram, "a_occlusion");
   const tileResLoc = gl.getUniformLocation(tileProgram, "u_resolution");
   const tileSizeLoc = gl.getUniformLocation(tileProgram, "u_tileSize");
 
@@ -117,11 +126,49 @@ function initWebGL() {
   const instanceBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer);
   const MAX_INSTANCES = 100000;
-  gl.bufferData(gl.ARRAY_BUFFER, MAX_INSTANCES * 4 * 4, gl.DYNAMIC_DRAW);
-  const instanceData = new Float32Array(MAX_INSTANCES * 4);
+  gl.bufferData(gl.ARRAY_BUFFER, MAX_INSTANCES * TILE_RENDER_FLOATS * 4, gl.DYNAMIC_DRAW);
+  const lowerInstanceData = new Float32Array(MAX_INSTANCES * TILE_RENDER_FLOATS);
+  const upperInstanceData = new Float32Array(MAX_INSTANCES * TILE_RENDER_FLOATS);
 
   const pointSize = 40.0;
   const tileSize = TILE_SIZE;
+  const drawTileInstances = (instanceData: Float32Array, instanceCount: number) => {
+    if (instanceCount <= 0) return;
+    const ctx = gl!;
+
+    ctx.bindBuffer(ctx.ARRAY_BUFFER, instanceBuffer);
+    ctx.bufferSubData(ctx.ARRAY_BUFFER, 0, instanceData.subarray(0, instanceCount * TILE_RENDER_FLOATS));
+
+    const stride = TILE_RENDER_FLOATS * 4;
+
+    ctx.enableVertexAttribArray(tileInstPosLoc);
+    ctx.vertexAttribPointer(tileInstPosLoc, 2, ctx.FLOAT, false, stride, 0);
+    ctx.vertexAttribDivisor(tileInstPosLoc, 1);
+
+    ctx.enableVertexAttribArray(tileSpriteIdLoc);
+    ctx.vertexAttribPointer(tileSpriteIdLoc, 1, ctx.FLOAT, false, stride, 8);
+    ctx.vertexAttribDivisor(tileSpriteIdLoc, 1);
+
+    ctx.enableVertexAttribArray(tileLayerOffsetLoc);
+    ctx.vertexAttribPointer(tileLayerOffsetLoc, 1, ctx.FLOAT, false, stride, 12);
+    ctx.vertexAttribDivisor(tileLayerOffsetLoc, 1);
+
+    ctx.enableVertexAttribArray(tileRoofFadeLoc);
+    ctx.vertexAttribPointer(tileRoofFadeLoc, 1, ctx.FLOAT, false, stride, 16);
+    ctx.vertexAttribDivisor(tileRoofFadeLoc, 1);
+
+    ctx.enableVertexAttribArray(tileOcclusionLoc);
+    ctx.vertexAttribPointer(tileOcclusionLoc, 1, ctx.FLOAT, false, stride, 20);
+    ctx.vertexAttribDivisor(tileOcclusionLoc, 1);
+
+    ctx.drawArraysInstanced(ctx.TRIANGLES, 0, 6, instanceCount);
+
+    ctx.vertexAttribDivisor(tileInstPosLoc, 0);
+    ctx.vertexAttribDivisor(tileSpriteIdLoc, 0);
+    ctx.vertexAttribDivisor(tileLayerOffsetLoc, 0);
+    ctx.vertexAttribDivisor(tileRoofFadeLoc, 0);
+    ctx.vertexAttribDivisor(tileOcclusionLoc, 0);
+  };
 
   const render = () => {
     if (!gl || !canvas) return;
@@ -131,6 +178,8 @@ function initWebGL() {
     const entities = interpolator.getInterpolatedState();
     latestEntities = entities;
     const myEntity = gameState.myNumericId ? entities?.get(gameState.myNumericId) : undefined;
+    const currentLayer = myEntity?.chunkZ ?? 0;
+    const visibleLayerWindow = getVisibleLayerWindow(currentLayer);
     cameraController.setViewport(canvas.width, canvas.height);
     cameraController.update(buildCameraTargets(entities), performance.now());
     gameState.cameraX = cameraController.state.x;
@@ -159,10 +208,13 @@ function initWebGL() {
     gl.enableVertexAttribArray(tileBasePosLoc);
     gl.vertexAttribPointer(tileBasePosLoc, 2, gl.FLOAT, false, 0, 0);
 
-    let instanceCount = 0;
+    let lowerInstanceCount = 0;
+    let upperInstanceCount = 0;
     
     const chunks = Array.from(gameState.chunks.entries());
     chunks.sort((a,b) => parseInt(a[0].split(',')[2]) - parseInt(b[0].split(',')[2]));
+    const roofFadePlayerX = myEntity?.x ?? (gameState.cameraX + canvas.width / 2);
+    const roofFadePlayerY = myEntity?.y ?? (gameState.cameraY + canvas.height / 2);
 
     for (const [key, tiles] of chunks) {
       const [strCx, strCy, strCz] = key.split(',');
@@ -185,46 +237,61 @@ function initWebGL() {
         const tileType = raw[t];
         if (tileType === 0) continue;
 
-        if (instanceCount >= MAX_INSTANCES) break;
-
         const mask = visual[t];
         const spriteId = SpriteSystem.getSpriteId(tileType, mask);
 
         const x = t % 16;
         const y = Math.floor(t / 16) % 16;
-        
-        instanceData[instanceCount * 4 + 0] = chunkBaseX + x * tileSize - gameState.cameraX;
-        instanceData[instanceCount * 4 + 1] = chunkBaseY + y * tileSize - gameState.cameraY;
-        instanceData[instanceCount * 4 + 2] = spriteId;
-        instanceData[instanceCount * 4 + 3] = cz;
-        instanceCount++;
+        const localZ = Math.floor(t / (16 * 16));
+        const worldLayer = cz * CHUNK_SIZE + localZ;
+        if (!isLayerVisible(worldLayer, visibleLayerWindow)) continue;
+
+        const worldX = chunkBaseX + x * tileSize;
+        const worldY = chunkBaseY + y * tileSize;
+        const layerOffset = worldLayer - currentLayer;
+        const tileLogic = RegistryManager.getTileLogic(tileType);
+        const roofFade = getRoofFadeStrength(
+          worldX + tileSize / 2,
+          worldY + tileSize / 2,
+          roofFadePlayerX,
+          roofFadePlayerY,
+          layerOffset,
+          tileSize,
+          {
+            roof: Boolean(tileLogic?.roof),
+            occludes: Boolean(tileLogic?.occludes),
+          },
+        );
+        const occlusion = getUpperTileOcclusionWeight({
+          roof: Boolean(tileLogic?.roof),
+          occludes: Boolean(tileLogic?.occludes),
+        });
+
+        if (layerOffset > 0) {
+          if (upperInstanceCount >= MAX_INSTANCES) continue;
+          const base = upperInstanceCount * TILE_RENDER_FLOATS;
+          upperInstanceData[base + 0] = worldX - gameState.cameraX;
+          upperInstanceData[base + 1] = worldY - gameState.cameraY;
+          upperInstanceData[base + 2] = spriteId;
+          upperInstanceData[base + 3] = layerOffset;
+          upperInstanceData[base + 4] = roofFade;
+          upperInstanceData[base + 5] = occlusion;
+          upperInstanceCount++;
+        } else {
+          if (lowerInstanceCount >= MAX_INSTANCES) continue;
+          const base = lowerInstanceCount * TILE_RENDER_FLOATS;
+          lowerInstanceData[base + 0] = worldX - gameState.cameraX;
+          lowerInstanceData[base + 1] = worldY - gameState.cameraY;
+          lowerInstanceData[base + 2] = spriteId;
+          lowerInstanceData[base + 3] = layerOffset;
+          lowerInstanceData[base + 4] = roofFade;
+          lowerInstanceData[base + 5] = occlusion;
+          lowerInstanceCount++;
+        }
       }
     }
 
-    if (instanceCount > 0) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer);
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, instanceData.subarray(0, instanceCount * 4));
-
-      const stride = 4 * 4;
-      
-      gl.enableVertexAttribArray(tileInstPosLoc);
-      gl.vertexAttribPointer(tileInstPosLoc, 2, gl.FLOAT, false, stride, 0);
-      gl.vertexAttribDivisor(tileInstPosLoc, 1);
-
-      gl.enableVertexAttribArray(tileSpriteIdLoc);
-      gl.vertexAttribPointer(tileSpriteIdLoc, 1, gl.FLOAT, false, stride, 8);
-      gl.vertexAttribDivisor(tileSpriteIdLoc, 1);
-
-      gl.enableVertexAttribArray(tileCzLoc);
-      gl.vertexAttribPointer(tileCzLoc, 1, gl.FLOAT, false, stride, 12);
-      gl.vertexAttribDivisor(tileCzLoc, 1);
-
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, instanceCount);
-      
-      gl.vertexAttribDivisor(tileInstPosLoc, 0);
-      gl.vertexAttribDivisor(tileSpriteIdLoc, 0);
-      gl.vertexAttribDivisor(tileCzLoc, 0);
-    }
+    drawTileInstances(lowerInstanceData, lowerInstanceCount);
 
     // ─── Entity Rendering (from binary interpolated state) ───
     gl.useProgram(playerProgram);
@@ -258,11 +325,14 @@ function initWebGL() {
           type: 'my_position',
           x: myEntity.x,
           y: myEntity.y,
+          z: myEntity.chunkZ,
           focusedNumericId: myEntity.focusedId,
           cameraX: gameState.cameraX,
           cameraY: gameState.cameraY,
           cameraMode: cameraController.state.mode,
           cameraFollowTargetId: cameraController.state.followTargetId,
+          visibleLayerMin: currentLayer - RENDER_LAYER_RADIUS,
+          visibleLayerMax: currentLayer + RENDER_LAYER_RADIUS,
         });
       }
 
@@ -273,8 +343,11 @@ function initWebGL() {
 
       for (const entity of sortedEntities) {
         activeEntityIds.add(entity.id);
+        if (!isLayerVisible(entity.chunkZ, visibleLayerWindow)) {
+          continue;
+        }
         const screenX = entity.x - gameState.cameraX;
-        const screenY = entity.y - gameState.cameraY;
+        const screenY = entity.y - gameState.cameraY - ((entity.chunkZ - currentLayer) * 8);
         if (screenX < -pointSize * 2 || screenX > canvas.width + pointSize * 2 || screenY < -pointSize * 2 || screenY > canvas.height + pointSize * 2) {
           continue;
         }
@@ -384,6 +457,20 @@ function initWebGL() {
       bodyStateCache.prune(activeEntityIds);
       bodyStateCache.resetDebugMetrics();
     }
+
+    gl.useProgram(tileProgram);
+    gl.uniform2f(tileResLoc, canvas.width, canvas.height);
+    gl.uniform1f(tileSizeLoc, tileSize);
+    if (SpriteSystem.textureArray) {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, SpriteSystem.textureArray);
+      const texLoc = gl.getUniformLocation(tileProgram, "u_textures");
+      gl.uniform1i(texLoc, 0);
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+    gl.enableVertexAttribArray(tileBasePosLoc);
+    gl.vertexAttribPointer(tileBasePosLoc, 2, gl.FLOAT, false, 0, 0);
+    drawTileInstances(upperInstanceData, upperInstanceCount);
 
     animationMetrics.endFrame();
     const bodyDebug = bodyStateCache.getDebugMetrics();

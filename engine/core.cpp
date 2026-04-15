@@ -40,6 +40,9 @@ public:
                                               InstanceMethod("dropItem", &GameWorldWrapper::DropItem),
                                               InstanceMethod("getBodyStateManifest", &GameWorldWrapper::GetBodyStateManifest),
                                               InstanceMethod("getEntityBodyState", &GameWorldWrapper::GetEntityBodyState),
+                                              InstanceMethod("setLayerDebugEnabled", &GameWorldWrapper::SetLayerDebugEnabled),
+                                              InstanceMethod("getLayerDebugState", &GameWorldWrapper::GetLayerDebugState),
+                                              InstanceMethod("getLayerValidationIssues", &GameWorldWrapper::GetLayerValidationIssues),
                                           });
         exports.Set("GameWorld", func);
         return exports;
@@ -51,6 +54,79 @@ public:
     }
 
 private:
+    bool GetBool(const Napi::Object &obj, const char *name, bool fallback) const
+    {
+        if (!obj.Has(name))
+            return fallback;
+        Napi::Value value = obj.Get(name);
+        return value.IsBoolean() ? value.As<Napi::Boolean>().Value() : fallback;
+    }
+
+    int32_t GetInt(const Napi::Object &obj, const char *name, int32_t fallback) const
+    {
+        if (!obj.Has(name))
+            return fallback;
+        Napi::Value value = obj.Get(name);
+        return value.IsNumber() ? value.As<Napi::Number>().Int32Value() : fallback;
+    }
+
+    TileConnectorType ParseConnectorType(const std::string &value) const
+    {
+        if (value == "ladder")
+            return TileConnectorType::Ladder;
+        if (value == "stairs")
+            return TileConnectorType::Stairs;
+        if (value == "hatch")
+            return TileConnectorType::Hatch;
+        if (value == "drop")
+            return TileConnectorType::Drop;
+        return TileConnectorType::None;
+    }
+
+    TileConnectorDef ParseConnector(const Napi::Object &obj, const TileConnectorDef &fallback) const
+    {
+        TileConnectorDef connector = fallback;
+        if (obj.Has("type") && obj.Get("type").IsString())
+            connector.Type = ParseConnectorType(obj.Get("type").As<Napi::String>().Utf8Value());
+
+        connector.DeltaZ = static_cast<int8_t>(GetInt(obj, "deltaZ", connector.DeltaZ));
+        connector.AllowedEnterDirectionMask = static_cast<uint8_t>(GetInt(obj, "allowedEnterDirectionMask", connector.AllowedEnterDirectionMask));
+        connector.AllowedMovementDirectionMask = static_cast<uint8_t>(GetInt(obj, "allowedMovementDirectionMask", connector.AllowedMovementDirectionMask));
+        connector.AutoTrigger = GetBool(obj, "autoTrigger", connector.AutoTrigger);
+        connector.RequireDestinationSupport = GetBool(obj, "requireDestinationSupport", connector.RequireDestinationSupport);
+        connector.RequireDestinationNotBlocked = GetBool(obj, "requireDestinationNotBlocked", connector.RequireDestinationNotBlocked);
+        connector.CooldownTicks = static_cast<uint8_t>(GetInt(obj, "cooldownTicks", connector.CooldownTicks));
+        connector.OneWay = GetBool(obj, "oneWay", connector.OneWay);
+        connector.Bidirectional = GetBool(obj, "bidirectional", connector.Bidirectional);
+
+        if (obj.Has("triggerBounds") && obj.Get("triggerBounds").IsObject())
+        {
+            Napi::Object bounds = obj.Get("triggerBounds").As<Napi::Object>();
+            connector.TriggerMinX = static_cast<int16_t>(GetInt(bounds, "minX", connector.TriggerMinX));
+            connector.TriggerMinY = static_cast<int16_t>(GetInt(bounds, "minY", connector.TriggerMinY));
+            connector.TriggerMaxX = static_cast<int16_t>(GetInt(bounds, "maxX", connector.TriggerMaxX));
+            connector.TriggerMaxY = static_cast<int16_t>(GetInt(bounds, "maxY", connector.TriggerMaxY));
+        }
+
+        return connector;
+    }
+
+    TileGameplayDef ParseTileGameplay(const Napi::Object &obj) const
+    {
+        TileGameplayDef gameplay;
+        const bool collide = GetBool(obj, "collide", false);
+        gameplay.Collide = collide;
+        gameplay.Support = GetBool(obj, "support", !collide);
+        gameplay.FallThrough = GetBool(obj, "fallThrough", !gameplay.Support);
+        gameplay.Roof = GetBool(obj, "roof", false);
+        gameplay.Occludes = GetBool(obj, "occludes", collide || gameplay.Roof);
+
+        if (obj.Has("connector") && obj.Get("connector").IsObject())
+            gameplay.Connector = ParseConnector(obj.Get("connector").As<Napi::Object>(), gameplay.Connector);
+
+        return gameplay;
+    }
+
     Napi::Object BuildInventoryObject(Napi::Env env, uint32_t ownerId, Inventory *inventory) const
     {
         Napi::Object out = Napi::Object::New(env);
@@ -470,7 +546,7 @@ private:
                 TileDef def;
                 def.id = obj.Get("id").As<Napi::Number>().Uint32Value();
                 def.name = obj.Get("name").As<Napi::String>().Utf8Value();
-                def.collide = obj.Has("collide") ? obj.Get("collide").As<Napi::Boolean>().Value() : false;
+                def.gameplay = ParseTileGameplay(obj);
                 definitions.push_back(def);
             }
         }
@@ -542,6 +618,111 @@ private:
         const uint32_t entityId = info[0].As<Napi::Number>().Uint32Value();
         const auto bytes = core_->SerializeEntityBodyState(entityId);
         return Napi::Buffer<uint8_t>::Copy(info.Env(), bytes.data(), bytes.size());
+    }
+
+    Napi::Value SetLayerDebugEnabled(const Napi::CallbackInfo &info)
+    {
+        const bool enabled = info.Length() > 0 && info[0].IsBoolean() && info[0].As<Napi::Boolean>().Value();
+        core_->Layers.SetDebugEnabled(enabled);
+        return info.Env().Undefined();
+    }
+
+    Napi::Value GetLayerDebugState(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 1 || !info[0].IsNumber())
+            return info.Env().Null();
+
+        const uint32_t entityId = info[0].As<Napi::Number>().Uint32Value();
+        const WorldLayerDebugState *debug = core_->Layers.GetDebugState(entityId);
+        if (!debug)
+            return info.Env().Null();
+
+        Napi::Env env = info.Env();
+        Napi::Object out = Napi::Object::New(env);
+        out.Set("tick", Napi::Number::New(env, debug->Tick));
+        out.Set("entityId", Napi::Number::New(env, debug->EntityId));
+        out.Set("sourceZ", Napi::Number::New(env, debug->SourceZ));
+        out.Set("resolvedZ", Napi::Number::New(env, debug->ResolvedZ));
+        out.Set("transitioned", Napi::Boolean::New(env, debug->Transitioned));
+        out.Set("fell", Napi::Boolean::New(env, debug->Fell));
+        out.Set("phase", Napi::String::New(env, debug->Phase));
+        out.Set("reason", Napi::String::New(env, debug->Reason));
+
+        Napi::Array samples = Napi::Array::New(env, debug->SupportSamples.size());
+        for (uint32_t i = 0; i < debug->SupportSamples.size(); ++i)
+        {
+            const auto &sample = debug->SupportSamples[i];
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("tileX", Napi::Number::New(env, sample.TileX));
+            row.Set("tileY", Napi::Number::New(env, sample.TileY));
+            row.Set("z", Napi::Number::New(env, sample.Z));
+            row.Set("tileId", Napi::Number::New(env, sample.TileId));
+            row.Set("support", Napi::Boolean::New(env, sample.Support));
+            row.Set("fallThrough", Napi::Boolean::New(env, sample.FallThrough));
+            row.Set("blocked", Napi::Boolean::New(env, sample.Blocked));
+            samples.Set(i, row);
+        }
+        out.Set("supportSamples", samples);
+
+        Napi::Array connectors = Napi::Array::New(env, debug->ConnectorCandidates.size());
+        for (uint32_t i = 0; i < debug->ConnectorCandidates.size(); ++i)
+        {
+            const auto &candidate = debug->ConnectorCandidates[i];
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("tileX", Napi::Number::New(env, candidate.TileX));
+            row.Set("tileY", Napi::Number::New(env, candidate.TileY));
+            row.Set("sourceZ", Napi::Number::New(env, candidate.SourceZ));
+            row.Set("destinationZ", Napi::Number::New(env, candidate.DestinationZ));
+            row.Set("type", Napi::Number::New(env, static_cast<uint8_t>(candidate.Type)));
+            row.Set("triggerMinX", Napi::Number::New(env, candidate.TriggerMinX));
+            row.Set("triggerMinY", Napi::Number::New(env, candidate.TriggerMinY));
+            row.Set("triggerMaxX", Napi::Number::New(env, candidate.TriggerMaxX));
+            row.Set("triggerMaxY", Napi::Number::New(env, candidate.TriggerMaxY));
+            row.Set("allowedEnterDirectionMask", Napi::Number::New(env, candidate.AllowedEnterDirectionMask));
+            row.Set("allowedMovementDirectionMask", Napi::Number::New(env, candidate.AllowedMovementDirectionMask));
+            row.Set("triggerHit", Napi::Boolean::New(env, candidate.TriggerHit));
+            row.Set("directionAllowed", Napi::Boolean::New(env, candidate.DirectionAllowed));
+            row.Set("destinationSupportOk", Napi::Boolean::New(env, candidate.DestinationSupportOk));
+            row.Set("destinationBlockedOk", Napi::Boolean::New(env, candidate.DestinationBlockedOk));
+            row.Set("selected", Napi::Boolean::New(env, candidate.Selected));
+            row.Set("accepted", Napi::Boolean::New(env, candidate.Accepted));
+            row.Set("rejectionReason", Napi::String::New(env, candidate.RejectionReason));
+            connectors.Set(i, row);
+        }
+        out.Set("connectorCandidates", connectors);
+
+        Napi::Array landings = Napi::Array::New(env, debug->LandingCandidates.size());
+        for (uint32_t i = 0; i < debug->LandingCandidates.size(); ++i)
+        {
+            const auto &candidate = debug->LandingCandidates[i];
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("candidateZ", Napi::Number::New(env, candidate.CandidateZ));
+            row.Set("supportOk", Napi::Boolean::New(env, candidate.SupportOk));
+            row.Set("blocked", Napi::Boolean::New(env, candidate.Blocked));
+            row.Set("accepted", Napi::Boolean::New(env, candidate.Accepted));
+            landings.Set(i, row);
+        }
+        out.Set("landingCandidates", landings);
+
+        return out;
+    }
+
+    Napi::Value GetLayerValidationIssues(const Napi::CallbackInfo &info)
+    {
+        const auto issues = core_->Layers.ValidateLoadedWorld(*core_->World.ChunkManager);
+        Napi::Array result = Napi::Array::New(info.Env(), issues.size());
+        for (uint32_t i = 0; i < issues.size(); ++i)
+        {
+            const auto &issue = issues[i];
+            Napi::Object row = Napi::Object::New(info.Env());
+            row.Set("tileX", Napi::Number::New(info.Env(), issue.TileX));
+            row.Set("tileY", Napi::Number::New(info.Env(), issue.TileY));
+            row.Set("tileZ", Napi::Number::New(info.Env(), issue.TileZ));
+            row.Set("code", Napi::String::New(info.Env(), issue.Code));
+            row.Set("message", Napi::String::New(info.Env(), issue.Message));
+            result.Set(i, row);
+        }
+        return result;
     }
 };
 

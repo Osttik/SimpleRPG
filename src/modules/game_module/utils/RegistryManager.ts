@@ -6,6 +6,10 @@ export interface LogicData {
     id?: number;
     name?: string;
     collide?: boolean | string;
+    support?: boolean;
+    fallThrough?: boolean;
+    roof?: boolean;
+    occludes?: boolean;
     type?: string;
     baseSpeed?: number;
     width?: number;

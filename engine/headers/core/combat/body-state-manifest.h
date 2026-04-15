@@ -4,6 +4,7 @@
 #include <cstring>
 #include <vector>
 #include "core/combat/body-parts.h"
+#include "core/components/combat-body-component.h"
 #include "math/number.h"
 
 // ─── Body-State Manifest Wire Format ────────────────────────────────────────

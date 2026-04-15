@@ -228,7 +228,13 @@ function connect() {
       return;
     }
 
-    if (data.type === 'interaction_options' || data.type === 'open_loot' || data.type === 'player_inventory') {
+    if (
+      data.type === 'interaction_options' ||
+      data.type === 'open_loot' ||
+      data.type === 'player_inventory' ||
+      data.type === 'world_layer_debug' ||
+      data.type === 'world_layer_validation'
+    ) {
       self.postMessage(data);
       return;
     }

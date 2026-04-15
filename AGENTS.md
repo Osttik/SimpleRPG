@@ -50,9 +50,10 @@ SimpleRPG/
 │   │   │   │   └── dropped-item-component.h # World-dropped item: stores item data on prop
 │   │   │   ├── game-object-physics.h # GameObjectPhysics: AABB tree wrapper
 │   │   │   ├── chunk.h            # Chunk: 16x16x16 uint16_t tiles + visual masks
-│   │   │   ├── tile-registry.h    # TileRegistry: numeric ID to string mapping
+│   │   │   ├── tile-registry.h    # TileRegistry: numeric ID to gameplay/visual metadata mapping
 │   │   │   ├── entity-type.h      # EntityType: Numeric IDs for Entity classes (incl. DroppedItem)
 │   │   │   ├── world.h            # WorldManager: Chunk mapping + procedural gen
+│   │   │   ├── world-layer-system.h # WorldLayerSystem: discrete Z connector/fall resolution
 │   │   │   └── constants.h        # Shared physics constants (TILE_SIZE, etc.)
 │   │   ├── game/
 │   │   │   ├── entities/
@@ -169,7 +170,18 @@ SimpleRPG/
 7. **Pickup Interaction**: Dropped items appear in the interaction menu (`InteractionType::Pickup`). Pickup is blocked if the player's inventory cannot accept the item (volume/weight). On confirm, the world prop is destroyed and the item moves to the player backpack.
 8. **Drop Action**: Player can drop a selected item (`R` key). The item is removed from inventory and spawned as a `DroppedItem` world prop near the player.
 
-### 6. Sprite & Asset System
+### 6. Layered World & Vertical Connectors
+* **Discrete Gameplay Layer**: `Transform.Position().Z` is the authoritative integer gameplay layer. X/Y movement remains free-pixel fixed-point. An entity occupies exactly one gameplay layer per tick.
+* **Chunk Layer Mapping**: Chunks remain `16x16x16`. A tile's world layer is `chunkCz * 16 + localZ`; chunk relevance naturally extends to `(cx, cy, cz)`.
+* **Same-Layer Gameplay Only**: Entity collision, combat, and interaction/focus remain same-layer only. Do not add cross-layer combat, through-floor checks, dual-layer occupancy, or transition immunity.
+* **Tile Gameplay Metadata**: `tiles_registry.json` feeds `TileRegistry` metadata: `collide`, `support`, `fallThrough`, `roof`, `occludes`, and optional `connector`. Tiles are not just visual IDs.
+* **Connector Metadata**: Connectors support `type` (`ladder`, `stairs`, `hatch`, `drop`), signed `deltaZ`, `allowedEnterDirectionMask`, `allowedMovementDirectionMask`, `autoTrigger`, destination support/blocking requirements, local `triggerBounds`, `cooldownTicks`, and one-way/bidirectional authoring hints. Direction mask bits: north=1, south=2, west=4, east=8, any=15.
+* **Authoritative Transition Rule**: `WorldLayerSystem` runs after XY physics and before combat. It commits a Z change only when the entity is inside trigger bounds, movement masks match, cooldown is inactive, and the destination layer is supported and unblocked. Commit is atomic: no mid-transition gameplay state.
+* **Falling/Drop Rule**: If support is missing and the current tile allows fall-through, `WorldLayerSystem` searches downward for the first supported, unblocked layer and snaps the entity there. This is discrete landing resolution, not gravity simulation.
+* **Frontend Presentation**: RenderWorker renders current layer plus up to three below and three above. Lower layers darken; upper layers haze and alpha-fade; above-player tiles get a strong local roof fade around the player's position.
+* **Detailed Contract**: See `docs/layered-world-v1.md` for the exact v1 metadata and transition contract.
+
+### 7. Sprite & Asset System
 * **AssetManager**: Async `ImageBitmap` cache. De-duplicates concurrent requests. URLs resolved at Vite build time via `import.meta.url` (Worker-safe).
 * **RegistryManager**: Merges `tiles_registry.json`, `entities_registry.json`, `sprites_data.json` into `tilesById` and `entitiesByType` maps.
 * **TileDataManager**: `Float32Array` lookup indexed by `(tileId * 256) + mask` → sprite layer index. O(1).
@@ -177,10 +189,10 @@ SimpleRPG/
 * Prefer generating modular sprites from reusable 3D source assets rendered into 2D/pixelized parts instead of redrawing the same sprite pieces by hand for each variant.
 * **Modular Character Animation**: Frontend-only, data-driven rig/skin/track system under `src/modules/game_module/animation/` and `src/modules/game_module/render/`. C++ sends only compact intent (`animState`, `animAux`, combat events); RenderWorker reconstructs IK, weapon, shield, and layered sprite poses locally.
 * **Facing8 Top-Down Rendering**: Character body/head/shield use snapped `N/NE/E/SE/S/SW/W/NW` rig rules (offsets, flips, draw order, y-scale hooks). Do not rotate the whole character composite like a clock hand; only procedural parts such as arm segments and weapons rotate freely.
-* **Layer Tinting**: `tileFragment.glsl` applies `tint = max(0.2, 1.0 + cz * 0.4)` for `cz < 0` — cz=-1 → 0.6, cz=-2 → 0.2 (floor), cz=0 → 1.0.
+* **Layer Tinting/Fade**: `LayerPresentation.ts` computes visible layer windows and local roof fade strength; `tileFragment.glsl` darkens lower layers, hazes upper layers, and fades above-player roof/floor tiles. This is client presentation only.
 * **Render Sort**: Entities are sorted by `z` then by `y` so lower screen-position entities render over higher ones (correct top-down overlap).
 
-### 7. Combat Rig Contract, Shield Integrity, and Visual Body State
+### 8. Combat Rig Contract, Shield Integrity, and Visual Body State
 * **Canonical Source**: `schema/combat-rig-contract.humanoid.json` is the authored combat-rig contract for humanoids. It is the source for generated C++ combat data, frontend rig/combat manifest data, and generated docs. Do not hand-maintain mirrored body-part IDs, hurtboxes, anchors, shield defaults, or visual mappings in separate runtime files.
 * **Generation Outputs**:
   * `engine/headers/core/combat/combat-rig-contract.generated.h`
@@ -231,7 +243,7 @@ The engine has moved from a monolithic design to a **Delegated ECS-Lite Architec
 ### 1. Hierarchy Structure
 * **`GameManager` (Global):** Routes players to the right `GameInstance`.
 * **`GameInstance` (Logical Group):** A collection of maps/zones.
-* **`GameWorldEngine` (The Zone):** Container owning all systems: `GameObjectManager`, `PhysicsSystem`, `SnapshotBuffer`, `ComponentsManagersRegistry`, `PlayerManager`, `PropManager`.
+* **`GameWorldEngine` (The Zone):** Container owning all systems: `GameObjectManager`, `PhysicsSystem`, `WorldLayerSystem`, `SnapshotBuffer`, `ComponentsManagersRegistry`, `PlayerManager`, `PropManager`.
 
 ### 2. Component System
 * **`GameObject`**: Data-only entity — `TransformData Transform`, `unique_ptr<Shape> BoundingBox` (set once by builder via `READ_ONLY_COMPONENT`), `string Type` ("player"/"chest"/"npc"/"dropped_item"), `float32 Radius`, `uint32_t FocusedObjectId` (0=none), `bool IsStaticProp`, `bool IsPendingDestruction`.
@@ -395,10 +407,12 @@ Items are **compositional** — no inheritance tree:
 - **DroppedItemBuilder**: Small circle collider, `IsStaticProp=true`, `DroppedItemComponent` (stores the dropped `Item`), `InteractableTarget` (Pickup). Radius from `gameplay-constants.h`.
 
 ### PhysicsSystem & WorldManager
-- **Tick order per 60Hz**: `UpdateFocus` for all non-static entities → `Physics.Tick` → `ObjectManager.CleanupDestroyed` → `ClearDirty` → `TickCount++`.
-- **WorldManager** chunk generation: `cz<0` = full stone, `cz=0 z=0` = full grass, `cz=0 z=1` = stone border walls with air gates at midpoints, else air.
-- **Chunk key**: `(cx, cy, cz)` tuple. Lazy-generated on first access. `CHUNK_SIZE=16`. Tiles: 4096 × uint16. Visual masks: 4096 × uint8.
+- **Tick order per 60Hz**: `UpdateFocus` for all non-static entities → `Physics.Tick` → `WorldLayerSystem.Tick` → combat tick → `ObjectManager.CleanupDestroyed` → `ClearDirty` → `TickCount++`.
+- **WorldManager** chunk generation: `cz<0` = full stone, `cz=0 z=0` = full grass, `cz=0 z=1` = stone border walls with air gates at midpoints plus v1 test upper-floor/connector tiles in chunk `(0,0,0)`, else air.
+- **Chunk key**: `(cx, cy, cz)` tuple. Lazy-generated on first access. `CHUNK_SIZE=16`. Tiles: 4096 × uint16. Visual masks: 4096 × uint8. World layer = `chunkCz * 16 + localZ`.
 - **Visual mask bits**: `N=bit0, NE=1, E=2, SE=3, S=4, SW=5, W=6, NW=7`. Corner bits suppressed if adjacent cardinal neighbors don't both match.
+- **WorldLayerSystem**: Dedicated discrete Z resolver. Uses `MoveComponent.LastInputX/Y` and tile connector metadata to apply automatic vertical transitions after XY collision and before combat. Applies a short per-entity cooldown to prevent immediate connector bounce and prunes cooldowns for destroyed entities.
+- **Support/fall checks**: `WorldManager::HasSupportAt` and `AllowsFallThroughAt` query tile gameplay metadata at the entity center tile. `WorldManager::CheckTileBlocked` reuses current-layer AABB tile collision for destination validation.
 
 ---
 
@@ -419,7 +433,7 @@ Class `GameWorldWrapper : Napi::ObjectWrap<GameWorldWrapper>`, exposed as `new g
 | `getState()` | `→ Object` | JSON `{players:{id:{x,y,radius,z,type,focusedId}}, destroyed:[]}` |
 | `getChunk(cx,cy,cz)` | `→ Buffer` | 8192 bytes (4096 × uint16 tile IDs) |
 | `getChunkVisuals(cx,cy,cz)` | `→ Buffer` | 4096 bytes visual masks |
-| `setTileRegistry(arr)` | `→ void` | Array `[{id,name,collide}]` → TileRegistry::RegisterTile each |
+| `setTileRegistry(arr)` | `→ void` | Array of tile metadata (`id`, `name`, `collide`, `support`, `fallThrough`, `roof`, `occludes`, optional `connector`) → TileRegistry::RegisterTile each |
 | `getTileRegistry()` | `→ Object` | `{numericId: "name"}` |
 | `getInteractionOptions(playerId)` | `→ Object` | `{targets:[{targetId,nameKey,interactions:[{interactionId,nameKey}]}],selectedTargetId}` |
 | `interactTarget(playerId, targetId)` | `→ Object\|null` | Validates CanInteract, sets FocusedObjectId, returns loot state or executes pickup |
@@ -519,7 +533,7 @@ Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endia
 
 **`SocketWorker.ts`** — Network I/O only. Receives binary frames and routes: snapshots → RenderWorker via MessagePort (zero-copy), chunks → RenderWorker, combat events → RenderWorker and main thread, FlatBuffers → decode → main thread, JSON → main thread. Encodes outgoing binary packets (move, interact, transfer, attack, block). Handles drop/equip/unequip/inventory-refresh JSON messages. Never touches DOM or WebGL.
 
-**`RenderWorker.ts`** — WebGL2 only. Owns OffscreenCanvas, shader programs, `SpriteSystem`, `SnapshotInterpolator`, `CameraController`, modular character renderer, chunk map. Runs rAF loop. Sorts entities by `z` then `y` before drawing. Posts `{type:'my_position', x, y, focusedNumericId, cameraX, cameraY}` to main thread every frame. MAX_INSTANCES = 100,000 tiles per draw call (instanced rendering).
+**`RenderWorker.ts`** — WebGL2 only. Owns OffscreenCanvas, shader programs, `SpriteSystem`, `SnapshotInterpolator`, `CameraController`, modular character renderer, chunk map. Runs rAF loop. Sorts entities by `z` then `y` before drawing. Renders current layer ±3 using `LayerPresentation.ts`, interpreting tile world layer as `chunkCz * 16 + localZ`. Posts `{type:'my_position', x, y, z, focusedNumericId, cameraX, cameraY, visibleLayerMin, visibleLayerMax}` to main thread every frame. MAX_INSTANCES = 100,000 tiles per draw call (instanced rendering).
 
 ### Protocol (`src/modules/map_module/protocol/`)
 
@@ -531,7 +545,7 @@ Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endia
 
 ### State
 
-**`game_state.ts`** (singleton, not reactive) — Fields: `myId:string|null`, `players:Record<string,{x,y,color,type,focusedId}>`, `chunks:Map<"cx,cy,cz",{raw:Uint16Array,visual:Uint8Array}>`, `tileRegistry:Record<number,string>`, `ping`, `mousePosition`, `canvasWidth/Height`, `lootingTargetId` (truthy = loot UI open), `playerInventory/chestInventory`, `*InventoryMeta:{currentVolume,maxVolume,currentWeight}`, `focusedId`, `socketWorker`. Mutations dispatch `window.Event('gameStateUpdate')`.
+**`game_state.ts`** (singleton, not reactive) — Fields: `myId:string|null`, `players:Record<string,{x,y,z?,color,type,focusedId}>`, `chunks:Map<"cx,cy,cz",{raw:Uint16Array,visual:Uint8Array}>`, `tileRegistry:Record<number,string>`, `ping`, `mousePosition`, `canvasWidth/Height`, `lootingTargetId` (truthy = loot UI open), `playerInventory/chestInventory`, `*InventoryMeta:{currentVolume,maxVolume,currentWeight}`, `focusedId`, `visibleLayers`, `socketWorker`. Mutations dispatch `window.Event('gameStateUpdate')`.
 
 **`store/index.ts`** — Redux: `{menu:{isMenuOpen}, ui:{isInventoryOpen}}`. Built via `SliceBuilder` auto-generating `set_<param>` reducers. Valtio: `interactionsState = proxy({targets:[{targetId,nameKey,interactions:[{interactionId,nameKey}]}], selectedTargetId:null})` — consumed by `InteractionUIModal` via `useSnapshot`.
 
@@ -559,6 +573,8 @@ Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endia
 
 **`AssetManager.ts`** — `ImageBitmap` cache keyed by sheet name. De-duplicates concurrent requests via pending promise map. URLs from Vite `import.meta.url` at build time.
 
+**`render/LayerPresentation.ts`** — Client-only layered-world presentation helpers. Defines `RENDER_LAYER_RADIUS = 3`, visible layer windows, and local roof fade strength around the player. It must not become gameplay authority.
+
 **`camera/CameraController.ts`** — Presentation-only camera state machine (`free`, `drag`, `soft_follow`). Uses screen-space dead zone, configurable edge pan, direct middle-mouse drag, and follow target IDs. Future zoom/bounds should extend this module.
 
 **`animation/core/AnimationPoseSolver.ts`** — Builds per-entity layered poses from rig/skin data, combat track samples, Facing8 rules, and right-arm 2-bone IK. It must not globally rotate the character body.
@@ -577,7 +593,7 @@ Disambiguation: Snapshot by `view.getUint32(0, false) === 0x53525047` (big-endia
 
 **Entity pass**: GL_POINTS. Vertex maps pixel coords to clip space. Fragment: textured sprite (`u_useTexture=true`) or fallback smooth circle (`smoothstep` alpha). Focused entity gets +10px highlight ring.
 
-**Tile pass**: Instanced triangles (`drawArraysInstanced`). Per-instance data: `[worldX, worldY, spriteId, cz]`. Fragment samples `sampler2DArray` and applies underground tint.
+**Tile pass**: Instanced triangles (`drawArraysInstanced`). Per-instance data: `[worldX, worldY, spriteId, layerOffset, roofFade]`. Fragment samples `sampler2DArray`; lower layers darken, upper layers haze/alpha-fade, and above-player local roof/floor tiles fade aggressively.
 
 ### UI Components (`src/modules/ui_module/components/`)
 
@@ -652,18 +668,20 @@ WS server:   ws://localhost:3001
 
 6. **TypedComponentManager gaps**: Pool indexed by entity Id (starts at 1); may have nullptr gaps. Always `Has(id)` before `Get(id)`.
 
-7. **Z-layer semantics**: `int32_t Z` is a layer index, not fixed-point. `cz<0`=underground, `cz=0`=surface, `cz>0`=above (z=1 walls).
+7. **Z-layer semantics**: `int32_t Z` is an authoritative gameplay layer index, not fixed-point. Entity `chunkZ` in snapshots carries this discrete layer. Chunk `cz` is a 16-layer chunk coordinate; tile world layer is `chunkCz * 16 + localZ`.
 
-8. **Visual mask corner suppression**: Corner bits suppressed if their two adjacent cardinal neighbors don't both match — prevents diagonal-only connections.
+8. **Layer transition semantics**: Automatic vertical connectors never create mid-transition immunity, dual-layer occupancy, or client authority. One tick means one authoritative layer. Combat/collision/interaction stay same-layer only.
 
-9. **PrimeReact DataTable stable IDs**: Item `id` must equal array index in inventory for row selection to work. This applies to both standalone inventory and loot views.
+9. **Visual mask corner suppression**: Corner bits suppressed if their two adjacent cardinal neighbors don't both match — prevents diagonal-only connections.
 
-10. **`@most/core` stream disposal**: Streams are lazy. Subscriptions return `Disposable` — must dispose on component unmount to avoid event leaks.
+10. **PrimeReact DataTable stable IDs**: Item `id` must equal array index in inventory for row selection to work. This applies to both standalone inventory and loot views.
 
-11. **Overlay input blocking**: When any overlay is open (tracked via the shared overlay component's global state), all gameplay input — WASD movement, left-click interaction, right-click movement — is disabled. Control state is explicitly cleared when an overlay opens, so no residual movement bleeds through.
+11. **`@most/core` stream disposal**: Streams are lazy. Subscriptions return `Disposable` — must dispose on component unmount to avoid event leaks.
 
-12. **Equipment depends on inventory**: `EquipmentComponent` creation throws if the entity has no `InventoryComponent`. Never add equipment to an entity without inventory. Inventory removal events automatically unequip the removed item — do not manually sync these.
+12. **Overlay input blocking**: When any overlay is open (tracked via the shared overlay component's global state), all gameplay input — WASD movement, left-click interaction, right-click movement — is disabled. Control state is explicitly cleared when an overlay opens, so no residual movement bleeds through.
 
-13. **Dropped item visuals are placeholder**: `entities_registry.json` has a generic entry for `dropped_item`. Backend item identity (name, spriteKey, etc.) is preserved in `DroppedItemComponent`, but the world rendering does not yet use the item's actual sprite. Do not assume world visual = item visual.
+13. **Equipment depends on inventory**: `EquipmentComponent` creation throws if the entity has no `InventoryComponent`. Never add equipment to an entity without inventory. Inventory removal events automatically unequip the removed item — do not manually sync these.
 
-14. **Item composition vs inheritance**: Items are `Item` instances with `ItemFeature` attachments, not subclasses. Do not create new item subclasses. Add new behavior via a new `ItemFeature` type. Price comes from `MerchantValueFeature`, not from ad hoc `(weight + volume) * 25` math in the UI.
+14. **Dropped item visuals are placeholder**: `entities_registry.json` has a generic entry for `dropped_item`. Backend item identity (name, spriteKey, etc.) is preserved in `DroppedItemComponent`, but the world rendering does not yet use the item's actual sprite. Do not assume world visual = item visual.
+
+15. **Item composition vs inheritance**: Items are `Item` instances with `ItemFeature` attachments, not subclasses. Do not create new item subclasses. Add new behavior via a new `ItemFeature` type. Price comes from `MerchantValueFeature`, not from ad hoc `(weight + volume) * 25` math in the UI.

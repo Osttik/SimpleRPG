@@ -2,14 +2,18 @@
 in vec2 a_position;
 in vec2 a_instancePosition;
 in float a_spriteId;
-in float a_cz;
+in float a_layerOffset;
+in float a_roofFade;
+in float a_occlusion;
 
 uniform vec2 u_resolution;
 uniform float u_tileSize;
 
 out vec2 v_uv;
 out float v_spriteId;
-out float v_cz;
+out float v_layerOffset;
+out float v_roofFade;
+out float v_occlusion;
 
 void main() {
   vec2 worldPos = a_position * u_tileSize + a_instancePosition;
@@ -21,5 +25,7 @@ void main() {
   gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
   v_uv = a_position;
   v_spriteId = a_spriteId;
-  v_cz = a_cz;
+  v_layerOffset = a_layerOffset;
+  v_roofFade = a_roofFade;
+  v_occlusion = a_occlusion;
 }

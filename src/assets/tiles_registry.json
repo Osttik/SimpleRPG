@@ -1,5 +1,124 @@
 [
-  { "id": 1, "name": "grass", "collide": false, "spriteKey": "grass" },
-  { "id": 2, "name": "stone", "collide": true, "spriteKey": "stone" },
-  { "id": 3, "name": "dark_grass", "collide": false, "spriteKey": "dark_grass" }
+  { "id": 1, "name": "grass", "collide": false, "support": true, "fallThrough": false, "spriteKey": "grass" },
+  { "id": 2, "name": "stone", "collide": true, "support": false, "fallThrough": false, "occludes": true, "spriteKey": "stone" },
+  { "id": 3, "name": "dark_grass", "collide": false, "support": true, "fallThrough": false, "spriteKey": "dark_grass" },
+  {
+    "id": 4,
+    "name": "ladder_up",
+    "collide": false,
+    "support": true,
+    "fallThrough": false,
+    "spriteKey": "grass",
+    "connector": {
+      "type": "ladder",
+      "deltaZ": 1,
+      "allowedEnterDirectionMask": 15,
+      "allowedMovementDirectionMask": 1,
+      "autoTrigger": true,
+      "requireDestinationSupport": true,
+      "requireDestinationNotBlocked": true,
+      "triggerBounds": { "minX": 14, "minY": 8, "maxX": 26, "maxY": 26 },
+      "cooldownTicks": 10,
+      "bidirectional": false
+    }
+  },
+  {
+    "id": 5,
+    "name": "ladder_down",
+    "collide": false,
+    "support": true,
+    "fallThrough": false,
+    "spriteKey": "grass",
+    "connector": {
+      "type": "ladder",
+      "deltaZ": -1,
+      "allowedEnterDirectionMask": 15,
+      "allowedMovementDirectionMask": 2,
+      "autoTrigger": true,
+      "requireDestinationSupport": true,
+      "requireDestinationNotBlocked": true,
+      "triggerBounds": { "minX": 14, "minY": 14, "maxX": 26, "maxY": 32 },
+      "cooldownTicks": 10,
+      "bidirectional": false
+    }
+  },
+  {
+    "id": 6,
+    "name": "stairs_up",
+    "collide": false,
+    "support": true,
+    "fallThrough": false,
+    "spriteKey": "dark_grass",
+    "connector": {
+      "type": "stairs",
+      "deltaZ": 1,
+      "allowedEnterDirectionMask": 15,
+      "allowedMovementDirectionMask": 2,
+      "autoTrigger": true,
+      "requireDestinationSupport": true,
+      "requireDestinationNotBlocked": true,
+      "triggerBounds": { "minX": 6, "minY": 16, "maxX": 34, "maxY": 38 },
+      "cooldownTicks": 8
+    }
+  },
+  {
+    "id": 7,
+    "name": "stairs_down",
+    "collide": false,
+    "support": true,
+    "fallThrough": false,
+    "spriteKey": "dark_grass",
+    "connector": {
+      "type": "stairs",
+      "deltaZ": -1,
+      "allowedEnterDirectionMask": 15,
+      "allowedMovementDirectionMask": 1,
+      "autoTrigger": true,
+      "requireDestinationSupport": true,
+      "requireDestinationNotBlocked": true,
+      "triggerBounds": { "minX": 6, "minY": 2, "maxX": 34, "maxY": 24 },
+      "cooldownTicks": 8
+    }
+  },
+  {
+    "id": 8,
+    "name": "hatch_down",
+    "collide": false,
+    "support": true,
+    "fallThrough": false,
+    "spriteKey": "stone",
+    "connector": {
+      "type": "hatch",
+      "deltaZ": -1,
+      "allowedEnterDirectionMask": 15,
+      "allowedMovementDirectionMask": 15,
+      "autoTrigger": true,
+      "requireDestinationSupport": true,
+      "requireDestinationNotBlocked": true,
+      "triggerBounds": { "minX": 12, "minY": 12, "maxX": 28, "maxY": 28 },
+      "cooldownTicks": 12,
+      "oneWay": true
+    }
+  },
+  {
+    "id": 9,
+    "name": "drop_down",
+    "collide": false,
+    "support": false,
+    "fallThrough": true,
+    "spriteKey": "stone",
+    "connector": {
+      "type": "drop",
+      "deltaZ": -1,
+      "allowedEnterDirectionMask": 15,
+      "allowedMovementDirectionMask": 15,
+      "autoTrigger": true,
+      "requireDestinationSupport": true,
+      "requireDestinationNotBlocked": true,
+      "triggerBounds": { "minX": 8, "minY": 8, "maxX": 32, "maxY": 32 },
+      "cooldownTicks": 10,
+      "oneWay": true
+    }
+  },
+  { "id": 10, "name": "temporary_roof", "collide": false, "support": false, "fallThrough": true, "roof": true, "occludes": true, "spriteKey": "stone" }
 ]

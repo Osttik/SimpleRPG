@@ -76,6 +76,16 @@ if(NOT EMSCRIPTEN)
   target_link_libraries(gamecore_node PRIVATE game_logic ${CMAKE_JS_LIB})
   set_target_properties(gamecore_node PROPERTIES PREFIX "" SUFFIX ".node" OUTPUT_NAME "gamecore")
   target_compile_definitions(gamecore_node PRIVATE NAPI_DISABLE_CPP_EXCEPTIONS)
+
+  enable_testing()
+  add_executable(game_logic_tests "engine/tests/world-layer-system-tests.cpp")
+  target_include_directories(game_logic_tests PRIVATE
+    "engine/headers"
+    "engine/generated"
+    "${flatbuffers_SOURCE_DIR}/include"
+  )
+  target_link_libraries(game_logic_tests PRIVATE game_logic)
+  add_test(NAME game_logic_tests COMMAND game_logic_tests)
 endif()
 
 if(EMSCRIPTEN)

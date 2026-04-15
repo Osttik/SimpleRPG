@@ -7,6 +7,7 @@
 #include "core/game-world.h"
 #include "core/physics-system.h"
 #include "core/snapshot-buffer.h"
+#include "core/world-layer-system.h"
 #include "core/combat/body-parts.h"
 #include "core/combat/body-state-manifest.h"
 #include "core/combat/combat-events.h"
@@ -18,7 +19,7 @@ struct TileDef
 {
   uint16_t id;
   std::string name;
-  bool collide;
+  TileGameplayDef gameplay;
 };
 
 class GameWorldEngine : public WithId
@@ -26,6 +27,7 @@ class GameWorldEngine : public WithId
 public:
   GameWorld World;
   PhysicsSystem Physics;
+  WorldLayerSystem Layers;
   SnapshotBuffer Snapshot;
   CombatEventBuffer CombatEvents;
   GameObjectManager ObjectManager;

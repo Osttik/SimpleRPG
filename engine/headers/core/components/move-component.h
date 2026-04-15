@@ -8,6 +8,8 @@ const float32 SPEED(5);
 struct MoveComponent : public Component
 {
   float32 Speed = SPEED;
+  float32 LastInputX = float32(0);
+  float32 LastInputY = float32(0);
 
   MoveComponent(GameObject *owner) : Component(owner) {}
 };

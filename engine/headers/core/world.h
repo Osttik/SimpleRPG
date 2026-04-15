@@ -1,6 +1,7 @@
 #pragma once
 #include <unordered_map>
 #include <tuple>
+#include <vector>
 #include "core/chunk.h"
 #include "math/aabb.h"
 #include "math/point.h"
@@ -22,10 +23,15 @@ public:
 
   Chunk *GetChunk(int32_t cx, int32_t cy, int32_t cz);
 
-  uint16_t GetTileAt(int32_t worldX, int32_t worldY, int32_t worldZ);
+  uint16_t GetTileAt(int32_t worldX, int32_t worldY, int32_t worldZ) const;
+  void SetTileAt(int32_t worldX, int32_t worldY, int32_t worldZ, uint16_t tileId);
   void NotifyTileChanged(int32_t worldX, int32_t worldY, int32_t worldZ);
 
   bool CheckTileCollision(const aabb::AABB &box, int32_t z, Point &resolution);
+  bool CheckTileBlocked(const aabb::AABB &box, int32_t z);
+  bool HasSupportAt(int32_t tileX, int32_t tileY, int32_t z) const;
+  bool AllowsFallThroughAt(int32_t tileX, int32_t tileY, int32_t z) const;
+  std::vector<std::tuple<int32_t, int32_t, int32_t>> GetLoadedChunkCoords() const;
 
 private:
   void GenerateChunk(int32_t cx, int32_t cy, int32_t cz, Chunk *chunk);

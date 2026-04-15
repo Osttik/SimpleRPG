@@ -10,3 +10,4 @@ export const GAME_TICK_RATE = 1000 / 60;
 export const TILE_SIZE = 40;
 export const CHUNK_PIXEL_SIZE = 16 * TILE_SIZE;
 export const GAME_TOPIC = 'game';
+export const WORLD_LAYER_DEBUG_ENABLED = process.env.WORLD_LAYER_DEBUG === '1';

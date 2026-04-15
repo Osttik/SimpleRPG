@@ -10,6 +10,9 @@ void MoveComponentManager::Move(uint32_t entityId, float32 dx, float32 dy)
     return;
 
   GameObject *obj = comp->Owner;
+  comp->LastInputX = dx;
+  comp->LastInputY = dy;
+
   auto prevPos = obj->Transform.Position();
   float32 speedScale = float32(1);
   if (obj->Context)

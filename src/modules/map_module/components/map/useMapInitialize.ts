@@ -43,10 +43,11 @@ export const useMapInitialize = () => {
       if (event.data.type === 'my_position') {
         if (gameState.myId) {
           if (!gameState.players[gameState.myId]) {
-            gameState.players[gameState.myId] = { x: event.data.x, y: event.data.y, type: 'player', color: [1, 1, 1, 1], focusedId: '' };
+            gameState.players[gameState.myId] = { x: event.data.x, y: event.data.y, z: event.data.z, type: 'player', color: [1, 1, 1, 1], focusedId: '' };
           } else {
             gameState.players[gameState.myId].x = event.data.x;
             gameState.players[gameState.myId].y = event.data.y;
+            gameState.players[gameState.myId].z = event.data.z;
             gameState.players[gameState.myId].focusedId = event.data.focusedNumericId?.toString?.() ?? '';
           }
 
@@ -56,6 +57,10 @@ export const useMapInitialize = () => {
           gameState.focusedId = focusedId;
           gameState.camera.x = event.data.cameraX ?? gameState.camera.x;
           gameState.camera.y = event.data.cameraY ?? gameState.camera.y;
+          gameState.visibleLayers = {
+            min: event.data.visibleLayerMin ?? gameState.visibleLayers?.min ?? -3,
+            max: event.data.visibleLayerMax ?? gameState.visibleLayers?.max ?? 3,
+          };
         }
       } else if (event.data.type === 'animation_metrics') {
         gameState.animationMetrics = event.data.metrics;
@@ -178,6 +183,12 @@ export const useMapInitialize = () => {
         if (gameState.combatEventLog.length > 24) {
           gameState.combatEventLog = gameState.combatEventLog.slice(-24);
         }
+        window.dispatchEvent(new Event('gameStateUpdate'));
+      } else if (data.type === 'world_layer_debug') {
+        gameState.worldLayerDebug = data;
+        window.dispatchEvent(new Event('gameStateUpdate'));
+      } else if (data.type === 'world_layer_validation') {
+        gameState.worldLayerValidationIssues = data.issues ?? [];
         window.dispatchEvent(new Event('gameStateUpdate'));
       }
     };

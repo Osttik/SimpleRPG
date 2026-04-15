@@ -1,8 +1,8 @@
-import { CHUNK_PIXEL_SIZE, GAME_TICK_RATE, GAME_TOPIC } from './config.js';
+import { CHUNK_PIXEL_SIZE, GAME_TICK_RATE, GAME_TOPIC, WORLD_LAYER_DEBUG_ENABLED } from './config.js';
 import { physics } from './gamecore.js';
 import { buildInitMessage } from './init-message.js';
 import {
-  BODY_STATE_MANIFEST_MESSAGE_TYPE,
+  CHUNK_LAYER_SIZE,
   CHUNK_MESSAGE_TYPE,
   INITIAL_CHUNK_MAX_Z_OFFSET,
   INITIAL_CHUNK_MIN_Z_OFFSET,
@@ -18,6 +18,10 @@ import type { InitEntity, InitTile, SocketData } from './types.js';
 import type { TemplatedApp, WebSocket } from './uws.js';
 
 export const sockets = new Set<WebSocket<SocketData>>();
+
+function layerToChunkZ(layer: number): number {
+  return Math.floor(layer / CHUNK_LAYER_SIZE);
+}
 
 function streamChunksAround(
   ws: WebSocket<SocketData>,
@@ -105,7 +109,7 @@ export function handleOpen(ws: WebSocket<SocketData>) {
 
   const centerCX = Math.floor(initialX / CHUNK_PIXEL_SIZE);
   const centerCY = Math.floor(initialY / CHUNK_PIXEL_SIZE);
-  const centerCZ = 0;
+  const centerCZ = layerToChunkZ(0);
   streamChunksAround(ws, centerCX, centerCY, centerCZ, INITIAL_CHUNK_RADIUS);
 
   try {
@@ -115,6 +119,15 @@ export function handleOpen(ws: WebSocket<SocketData>) {
     }
   } catch (e) {
     console.error(`Failed to send body state manifest to ${numericId}:`, e);
+  }
+
+  if (WORLD_LAYER_DEBUG_ENABLED) {
+    try {
+      const validationIssues = physics.getLayerValidationIssues?.() ?? [];
+      ws.send(JSON.stringify({ type: 'world_layer_validation', issues: validationIssues }), false);
+    } catch (e) {
+      console.error(`Failed to send world-layer validation to ${numericId}:`, e);
+    }
   }
 }
 
@@ -261,13 +274,20 @@ export function startGameLoop(app: TemplatedApp) {
         if (playerState) {
           const centerCX = Math.floor(playerState.x / CHUNK_PIXEL_SIZE);
           const centerCY = Math.floor(playerState.y / CHUNK_PIXEL_SIZE);
-          const centerCZ = Number(playerState.z || 0);
+          const centerCZ = layerToChunkZ(Number(playerState.z || 0));
           streamChunksAround(ws, centerCX, centerCY, centerCZ, STREAM_CHUNK_RADIUS);
         }
 
         const payload = physics.getInteractionOptions(id);
         if (payload) {
           ws.send(JSON.stringify({ type: 'interaction_options', ...payload }), false);
+        }
+
+        if (WORLD_LAYER_DEBUG_ENABLED) {
+          const layerDebug = physics.getLayerDebugState?.(id);
+          if (layerDebug) {
+            ws.send(JSON.stringify({ type: 'world_layer_debug', ...layerDebug }), false);
+          }
         }
       }
     } catch (e) {

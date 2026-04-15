@@ -1,8 +1,36 @@
-#include <cmath>
 #include <algorithm>
 #include "core/world.h"
 #include "core/constants.h"
 #include "core/tile-registry.h"
+
+namespace
+{
+int32_t FloorDivInt(int32_t value, int32_t divisor)
+{
+    int32_t quotient = value / divisor;
+    int32_t remainder = value % divisor;
+    if (remainder != 0 && ((remainder < 0) != (divisor < 0)))
+        --quotient;
+    return quotient;
+}
+
+int32_t PositiveModulo(int32_t value, int32_t divisor)
+{
+    int32_t result = value % divisor;
+    return result < 0 ? result + divisor : result;
+}
+
+int32_t FloorFixedByTileSize(float32 value)
+{
+    const int64_t raw = static_cast<int64_t>(value.raw_value());
+    const int64_t divisor = static_cast<int64_t>(TILE_SIZE.raw_value());
+    int64_t quotient = raw / divisor;
+    const int64_t remainder = raw % divisor;
+    if (remainder != 0 && raw < 0)
+        --quotient;
+    return static_cast<int32_t>(quotient);
+}
+}
 
 WorldManager::WorldManager() {}
 
@@ -39,10 +67,10 @@ Chunk* WorldManager::GetChunk(int32_t cx, int32_t cy, int32_t cz) {
   return &newChunk;
 }
 
-uint16_t WorldManager::GetTileAt(int32_t worldX, int32_t worldY, int32_t worldZ) {
-    int32_t cx = static_cast<int32_t>(std::floor(static_cast<double>(worldX) / CHUNK_SIZE));
-    int32_t cy = static_cast<int32_t>(std::floor(static_cast<double>(worldY) / CHUNK_SIZE));
-    int32_t cz = static_cast<int32_t>(std::floor(static_cast<double>(worldZ) / CHUNK_SIZE));
+uint16_t WorldManager::GetTileAt(int32_t worldX, int32_t worldY, int32_t worldZ) const {
+    int32_t cx = FloorDivInt(worldX, CHUNK_SIZE);
+    int32_t cy = FloorDivInt(worldY, CHUNK_SIZE);
+    int32_t cz = FloorDivInt(worldZ, CHUNK_SIZE);
 
     auto coord = std::make_tuple(cx, cy, cz);
     auto it = chunks_.find(coord);
@@ -50,26 +78,43 @@ uint16_t WorldManager::GetTileAt(int32_t worldX, int32_t worldY, int32_t worldZ)
         return 0;
     }
 
-    int32_t lx = worldX - cx * CHUNK_SIZE;
-    int32_t ly = worldY - cy * CHUNK_SIZE;
-    int32_t lz = worldZ - cz * CHUNK_SIZE;
+    int32_t lx = PositiveModulo(worldX, CHUNK_SIZE);
+    int32_t ly = PositiveModulo(worldY, CHUNK_SIZE);
+    int32_t lz = PositiveModulo(worldZ, CHUNK_SIZE);
 
     int index = lx + ly * CHUNK_SIZE + lz * CHUNK_SIZE * CHUNK_SIZE;
     return it->second.tiles[index];
 }
 
+void WorldManager::SetTileAt(int32_t worldX, int32_t worldY, int32_t worldZ, uint16_t tileId)
+{
+    int32_t cx = FloorDivInt(worldX, CHUNK_SIZE);
+    int32_t cy = FloorDivInt(worldY, CHUNK_SIZE);
+    int32_t cz = FloorDivInt(worldZ, CHUNK_SIZE);
+    Chunk *chunk = GetChunk(cx, cy, cz);
+    if (!chunk)
+        return;
+
+    const int32_t lx = PositiveModulo(worldX, CHUNK_SIZE);
+    const int32_t ly = PositiveModulo(worldY, CHUNK_SIZE);
+    const int32_t lz = PositiveModulo(worldZ, CHUNK_SIZE);
+    const int index = lx + ly * CHUNK_SIZE + lz * CHUNK_SIZE * CHUNK_SIZE;
+    chunk->tiles[index] = tileId;
+    NotifyTileChanged(worldX, worldY, worldZ);
+}
+
 void WorldManager::UpdateTileVisuals(int32_t worldX, int32_t worldY, int32_t worldZ) {
-    int32_t cx = static_cast<int32_t>(std::floor(static_cast<double>(worldX) / CHUNK_SIZE));
-    int32_t cy = static_cast<int32_t>(std::floor(static_cast<double>(worldY) / CHUNK_SIZE));
-    int32_t cz = static_cast<int32_t>(std::floor(static_cast<double>(worldZ) / CHUNK_SIZE));
+    int32_t cx = FloorDivInt(worldX, CHUNK_SIZE);
+    int32_t cy = FloorDivInt(worldY, CHUNK_SIZE);
+    int32_t cz = FloorDivInt(worldZ, CHUNK_SIZE);
 
     auto coord = std::make_tuple(cx, cy, cz);
     auto it = chunks_.find(coord);
     if (it == chunks_.end()) return;
 
-    int32_t lx = worldX - cx * CHUNK_SIZE;
-    int32_t ly = worldY - cy * CHUNK_SIZE;
-    int32_t lz = worldZ - cz * CHUNK_SIZE;
+    int32_t lx = PositiveModulo(worldX, CHUNK_SIZE);
+    int32_t ly = PositiveModulo(worldY, CHUNK_SIZE);
+    int32_t lz = PositiveModulo(worldZ, CHUNK_SIZE);
 
     int index = lx + ly * CHUNK_SIZE + lz * CHUNK_SIZE * CHUNK_SIZE;
     uint16_t centerTile = it->second.tiles[index];
@@ -129,6 +174,12 @@ void WorldManager::GenerateChunk(int32_t cx, int32_t cy, int32_t cz, Chunk* chun
           if (z == 0) {
             // Surface floor: grass
             chunk->tiles[index] = 1; // e.g. 1 = grass
+          } else if (z == 1 && cx == 0 && cy == 0 && x >= 5 && x <= 10 && y >= 5 && y <= 10) {
+            // Small upper test floor for layered rendering and stairs validation.
+            chunk->tiles[index] = 3;
+          } else if (z == 2 && cx == 0 && cy == 0 && x >= 5 && x <= 10 && y >= 5 && y <= 10) {
+            // Temporary roof/ceiling plane over the test floor; client fade keeps the player readable.
+            chunk->tiles[index] = 10;
           } else if (z == 1 && (x == 0 || y == 0 || x == CHUNK_SIZE - 1 || y == CHUNK_SIZE - 1)) {
             // Put walls on the borders of chunks at z=1, except at some gates
             if (x != CHUNK_SIZE / 2 && y != CHUNK_SIZE / 2) {
@@ -147,6 +198,13 @@ void WorldManager::GenerateChunk(int32_t cx, int32_t cy, int32_t cz, Chunk* chun
       }
     }
   }
+
+  if (cz == 0 && cx == 0 && cy == 0)
+  {
+    chunk->tiles[4 + 7 * CHUNK_SIZE + 0 * CHUNK_SIZE * CHUNK_SIZE] = 6;
+    chunk->tiles[4 + 7 * CHUNK_SIZE + 1 * CHUNK_SIZE * CHUNK_SIZE] = 7;
+    chunk->tiles[7 + 10 * CHUNK_SIZE + 1 * CHUNK_SIZE * CHUNK_SIZE] = 9;
+  }
 }
 
 bool WorldManager::CheckTileCollision(const aabb::AABB& box, int32_t z, Point& resolution) {
@@ -159,10 +217,10 @@ bool WorldManager::CheckTileCollision(const aabb::AABB& box, int32_t z, Point& r
     float32 minPushY = float32(0);
 
     // Convert world coordinates to tile indices
-    int32_t minX = static_cast<int32_t>(std::floor(static_cast<double>(box.lowerBound[0]) / static_cast<double>(TILE_SIZE)));
-    int32_t minY = static_cast<int32_t>(std::floor(static_cast<double>(box.lowerBound[1]) / static_cast<double>(TILE_SIZE)));
-    int32_t maxX = static_cast<int32_t>(std::floor(static_cast<double>(box.upperBound[0]) / static_cast<double>(TILE_SIZE)));
-    int32_t maxY = static_cast<int32_t>(std::floor(static_cast<double>(box.upperBound[1]) / static_cast<double>(TILE_SIZE)));
+    int32_t minX = FloorFixedByTileSize(box.lowerBound[0]);
+    int32_t minY = FloorFixedByTileSize(box.lowerBound[1]);
+    int32_t maxX = FloorFixedByTileSize(box.upperBound[0]);
+    int32_t maxY = FloorFixedByTileSize(box.upperBound[1]);
 
     for (int32_t tx = minX; tx <= maxX; ++tx) {
         for (int32_t ty = minY; ty <= maxY; ++ty) {
@@ -220,4 +278,55 @@ bool WorldManager::CheckTileCollision(const aabb::AABB& box, int32_t z, Point& r
     resolution.Y = maxPushY + minPushY;
 
     return collided;
+}
+
+bool WorldManager::CheckTileBlocked(const aabb::AABB &box, int32_t z)
+{
+    Point resolution;
+    return CheckTileCollision(box, z, resolution);
+}
+
+bool WorldManager::HasSupportAt(int32_t tileX, int32_t tileY, int32_t z) const
+{
+    int32_t cx = FloorDivInt(tileX, CHUNK_SIZE);
+    int32_t cy = FloorDivInt(tileY, CHUNK_SIZE);
+    int32_t cz = FloorDivInt(z, CHUNK_SIZE);
+    auto it = chunks_.find(std::make_tuple(cx, cy, cz));
+    if (it == chunks_.end())
+        return false;
+
+    const int32_t lx = PositiveModulo(tileX, CHUNK_SIZE);
+    const int32_t ly = PositiveModulo(tileY, CHUNK_SIZE);
+    const int32_t lz = PositiveModulo(z, CHUNK_SIZE);
+    const int index = lx + ly * CHUNK_SIZE + lz * CHUNK_SIZE * CHUNK_SIZE;
+    return TileRegistry::GetTileSupport(it->second.tiles[index]);
+}
+
+bool WorldManager::AllowsFallThroughAt(int32_t tileX, int32_t tileY, int32_t z) const
+{
+    int32_t cx = FloorDivInt(tileX, CHUNK_SIZE);
+    int32_t cy = FloorDivInt(tileY, CHUNK_SIZE);
+    int32_t cz = FloorDivInt(z, CHUNK_SIZE);
+    auto it = chunks_.find(std::make_tuple(cx, cy, cz));
+    if (it == chunks_.end())
+        return true;
+
+    const int32_t lx = PositiveModulo(tileX, CHUNK_SIZE);
+    const int32_t ly = PositiveModulo(tileY, CHUNK_SIZE);
+    const int32_t lz = PositiveModulo(z, CHUNK_SIZE);
+    const int index = lx + ly * CHUNK_SIZE + lz * CHUNK_SIZE * CHUNK_SIZE;
+    return TileRegistry::GetTileFallThrough(it->second.tiles[index]);
+}
+
+std::vector<std::tuple<int32_t, int32_t, int32_t>> WorldManager::GetLoadedChunkCoords() const
+{
+    std::vector<std::tuple<int32_t, int32_t, int32_t>> coords;
+    coords.reserve(chunks_.size());
+    for (const auto &[coord, chunk] : chunks_)
+    {
+        (void)chunk;
+        coords.push_back(coord);
+    }
+    std::sort(coords.begin(), coords.end());
+    return coords;
 }
