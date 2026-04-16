@@ -5,9 +5,11 @@
 #include "core/gameplay-constants.h"
 #include "core/tile-registry.h"
 #include "core/test-spawns.h"
+#include "core/crafting/material-processing.h"
 #include "core/components/active-attack-component.h"
 #include "core/components/combat-body-component.h"
 #include "core/components/combat-state-component.h"
+#include "core/components/crafting-station-component.h"
 #include "core/components/dropped-item-component.h"
 #include "core/constants.h"
 #include "net/protocol.hpp"
@@ -58,6 +60,36 @@ const Item *FindEquippedMiningTool(EquipmentComponentManager *equipmentMgr, uint
 
   return nullptr;
 }
+
+const Item *FindEquippedCombatItem(EquipmentComponentManager *equipmentMgr, uint32_t entityId)
+{
+  if (!equipmentMgr)
+    return nullptr;
+
+  const Item *primary = equipmentMgr->GetEquippedItem(entityId, EquipSlot::HandPrimary);
+  if (primary)
+    return primary;
+
+  return equipmentMgr->GetEquippedItem(entityId, EquipSlot::HandSecondary);
+}
+
+CraftingStationSlot *ResolveSlot(CraftingStationComponentManager *stationMgr, CraftingStationComponent *station, const std::string &requestedSlotId)
+{
+  if (!stationMgr || !station)
+    return nullptr;
+  if (!requestedSlotId.empty())
+    return stationMgr->FindSlot(station, requestedSlotId);
+  return stationMgr->FindFirstOpenSlot(station);
+}
+
+const CraftingStationSlot *ResolveSlot(const CraftingStationComponentManager *stationMgr, const CraftingStationComponent *station, const std::string &requestedSlotId)
+{
+  if (!stationMgr || !station)
+    return nullptr;
+  if (!requestedSlotId.empty())
+    return stationMgr->FindSlot(station, requestedSlotId);
+  return nullptr;
+}
 }
 
 GameWorldEngine::GameWorldEngine()
@@ -72,6 +104,7 @@ GameWorldEngine::GameWorldEngine()
   Managers.Register(std::make_unique<InventoryComponentManager>());
   Managers.Register(std::make_unique<EquipmentComponentManager>());
   Managers.Register(std::make_unique<DroppedItemComponentManager>());
+  Managers.Register(std::make_unique<CraftingStationComponentManager>());
 
   Ctx.Managers = &Managers;
   Ctx.Objects = &ObjectManager;
@@ -381,6 +414,440 @@ bool GameWorldEngine::MineTile(uint32_t playerId, int32_t tileX, int32_t tileY)
   return true;
 }
 
+bool GameWorldEngine::InsertItemIntoStation(uint32_t playerId, uint32_t stationId, int itemIndex, const std::string &slotId)
+{
+  if (itemIndex < 0)
+    return false;
+
+  auto *player = ObjectManager.GetById(playerId);
+  auto *station = ObjectManager.GetById(stationId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  auto *stationMgr = Ctx.GetManager<CraftingStationComponentManager>();
+  if (!player || !station || !interactMgr || !inventoryMgr || !stationMgr)
+    return false;
+  if (!interactMgr->CanInteract(playerId, stationId))
+    return false;
+
+  auto *stationComponent = stationMgr->Get(stationId);
+  if (!stationComponent)
+    return false;
+
+  stationMgr->ClearTransientState(stationComponent);
+  auto *backpack = inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack);
+  if (!backpack)
+    return false;
+
+  const Item *item = (*backpack)[static_cast<size_t>(itemIndex)];
+  if (!item || !Crafting::IsCraftingCapableItem(*item))
+  {
+    stationMgr->SetError(stationComponent, "Only crafting-capable items can be inserted into a station.");
+    return false;
+  }
+
+  auto *slot = ResolveSlot(stationMgr, stationComponent, slotId);
+  if (!slot || slot->Role == "output" || slot->ItemRef)
+  {
+    stationMgr->SetError(stationComponent, "That station slot is not available.");
+    return false;
+  }
+
+  auto removed = inventoryMgr->RemoveItem(playerId, ContainerSlot::Backpack, static_cast<size_t>(itemIndex));
+  if (!removed)
+    return false;
+  slot->ItemRef = std::move(removed);
+  return true;
+}
+
+bool GameWorldEngine::RemoveItemFromStation(uint32_t playerId, uint32_t stationId, const std::string &slotId)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *station = ObjectManager.GetById(stationId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  auto *stationMgr = Ctx.GetManager<CraftingStationComponentManager>();
+  if (!player || !station || !interactMgr || !inventoryMgr || !stationMgr)
+    return false;
+  if (!interactMgr->CanInteract(playerId, stationId))
+    return false;
+
+  auto *stationComponent = stationMgr->Get(stationId);
+  if (!stationComponent)
+    return false;
+
+  stationMgr->ClearTransientState(stationComponent);
+  if (stationComponent->StationType == CraftingStationType::Smelter)
+    stationComponent->HeatingActive = false;
+
+  CraftingStationSlot *slot = nullptr;
+  if (!slotId.empty())
+    slot = stationMgr->FindSlot(stationComponent, slotId);
+  else
+  {
+    for (auto &candidate : stationComponent->Slots)
+    {
+      if (candidate.ItemRef)
+      {
+        slot = &candidate;
+        break;
+      }
+    }
+  }
+
+  if (!slot || !slot->ItemRef)
+  {
+    stationMgr->SetError(stationComponent, "There is no station item in that slot.");
+    return false;
+  }
+
+  auto *backpack = inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack);
+  if (!backpack || !backpack->AddItem(std::move(slot->ItemRef)))
+  {
+    stationMgr->SetError(stationComponent, "Your backpack cannot accept that item.");
+    return false;
+  }
+
+  return true;
+}
+
+bool GameWorldEngine::StartHeating(uint32_t playerId, uint32_t stationId)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *station = ObjectManager.GetById(stationId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  auto *stationMgr = Ctx.GetManager<CraftingStationComponentManager>();
+  if (!player || !station || !interactMgr || !inventoryMgr || !stationMgr)
+    return false;
+  if (!interactMgr->CanInteract(playerId, stationId))
+    return false;
+
+  auto *stationComponent = stationMgr->Get(stationId);
+  if (!stationComponent || stationComponent->StationType != CraftingStationType::Smelter)
+    return false;
+
+  stationMgr->ClearTransientState(stationComponent);
+  bool hasInput = false;
+  for (const auto &slot : stationComponent->Slots)
+  {
+    if (slot.Role == "input" && slot.ItemRef)
+    {
+      hasInput = true;
+      break;
+    }
+  }
+
+  if (!hasInput)
+  {
+    stationMgr->SetError(stationComponent, "Insert one or more items into smelter input slots first.");
+    return false;
+  }
+
+  stationComponent->HeatingActive = true;
+  return true;
+}
+
+bool GameWorldEngine::CollectSmeltResult(uint32_t playerId, uint32_t stationId, const std::string &slotId)
+{
+  return RemoveItemFromStation(playerId, stationId, slotId);
+}
+
+bool GameWorldEngine::CastWorkpiece(uint32_t playerId, uint32_t stationId, MoldSilhouette silhouette, int32_t width, int32_t length, int32_t thicknessRaw)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *station = ObjectManager.GetById(stationId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  auto *stationMgr = Ctx.GetManager<CraftingStationComponentManager>();
+  if (!player || !station || !interactMgr || !inventoryMgr || !stationMgr)
+    return false;
+  if (!interactMgr->CanInteract(playerId, stationId))
+    return false;
+
+  auto *stationComponent = stationMgr->Get(stationId);
+  if (!stationComponent || stationComponent->StationType != CraftingStationType::Smelter)
+    return false;
+
+  stationMgr->ClearTransientState(stationComponent);
+  stationComponent->LastMold = silhouette;
+  auto *output = stationMgr->FindSlot(stationComponent, "output");
+  if (!output || output->ItemRef)
+  {
+    stationMgr->SetError(stationComponent, "Collect the existing smelter result before casting again.");
+    return false;
+  }
+
+  if (!stationComponent->MoltenPool.Active || stationComponent->MoltenPool.Material == MaterialId::None)
+  {
+    stationMgr->SetError(stationComponent, "There is no molten pool ready for casting.");
+    return false;
+  }
+
+  const int32_t neededUnits = (std::max)(2, width) * (std::max)(2, length) * (std::max)(1, thicknessRaw / 65536);
+  if (stationComponent->MoltenPool.AmountUnits < neededUnits)
+  {
+    stationMgr->SetError(stationComponent, "The molten pool is too small for that cast.");
+    return false;
+  }
+
+  auto castItem = std::make_unique<Item>(
+      "crafting.cast_result",
+      "Cast Blank",
+      "stone",
+      float32(1),
+      float32(1),
+      false,
+      1,
+      1);
+  WorkpieceState state = Crafting::MakeStockWorkpiece(
+      stationComponent->MoltenPool.Material,
+      (std::max)(2, width),
+      (std::max)(2, length),
+      thicknessRaw,
+      silhouette == MoldSilhouette::ShaftBlank ? PartOrientation::Vertical : PartOrientation::Horizontal);
+  state.Stage = WorkpieceStage::HeatedStock;
+  state.TemperatureRaw = stationComponent->MoltenPool.TemperatureRaw;
+  state.Quality = stationComponent->MoltenPool.Quality;
+  castItem->AddFeature<WorkpieceFeature>(state);
+  Crafting::Cast(*castItem, silhouette, width, length, thicknessRaw);
+  output->ItemRef = std::move(castItem);
+  stationComponent->MoltenPool.AmountUnits -= neededUnits;
+  if (stationComponent->MoltenPool.AmountUnits <= 0)
+    stationComponent->MoltenPool = {};
+  return true;
+}
+
+bool GameWorldEngine::BendWorkpiece(uint32_t playerId, uint32_t stationId, BendZone zone, int32_t displacement)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *station = ObjectManager.GetById(stationId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  auto *stationMgr = Ctx.GetManager<CraftingStationComponentManager>();
+  if (!player || !station || !interactMgr || !inventoryMgr || !stationMgr)
+    return false;
+  if (!interactMgr->CanInteract(playerId, stationId))
+    return false;
+
+  auto *stationComponent = stationMgr->Get(stationId);
+  if (!stationComponent || stationComponent->StationType != CraftingStationType::Anvil)
+    return false;
+
+  stationMgr->ClearTransientState(stationComponent);
+  auto *primary = stationMgr->FindSlot(stationComponent, "primary");
+  if (!primary || !primary->ItemRef)
+  {
+    stationMgr->SetError(stationComponent, "Insert a workpiece into the anvil primary slot first.");
+    return false;
+  }
+
+  const auto *workpiece = primary->ItemRef->GetFeature<WorkpieceFeature>();
+  if (!workpiece)
+    return false;
+  const auto &material = GetMaterialProcessingDefinition(workpiece->State.Material);
+  if (!material.Bendable)
+  {
+    stationMgr->SetError(stationComponent, "This material cannot be bent on the anvil.");
+    return false;
+  }
+
+  return Crafting::Bend(*primary->ItemRef, zone, displacement);
+}
+
+bool GameWorldEngine::ForgeWorkpiece(uint32_t playerId, uint32_t stationId, ForgeZone zone, int32_t intensity)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *station = ObjectManager.GetById(stationId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *stationMgr = Ctx.GetManager<CraftingStationComponentManager>();
+  if (!player || !station || !interactMgr || !stationMgr)
+    return false;
+  if (!interactMgr->CanInteract(playerId, stationId))
+    return false;
+
+  auto *stationComponent = stationMgr->Get(stationId);
+  if (!stationComponent || stationComponent->StationType != CraftingStationType::Anvil)
+    return false;
+
+  stationMgr->ClearTransientState(stationComponent);
+  auto *primary = stationMgr->FindSlot(stationComponent, "primary");
+  if (!primary || !primary->ItemRef)
+  {
+    stationMgr->SetError(stationComponent, "Insert a heated workpiece into the anvil first.");
+    return false;
+  }
+
+  const auto *workpiece = primary->ItemRef->GetFeature<WorkpieceFeature>();
+  if (!workpiece)
+    return false;
+  const auto &material = GetMaterialProcessingDefinition(workpiece->State.Material);
+  if (material.ForgeMinTemperature <= 0)
+  {
+    stationMgr->SetError(stationComponent, "This material does not respond to forge shaping.");
+    return false;
+  }
+
+  if (!Crafting::Forge(*primary->ItemRef, zone, intensity))
+  {
+    stationMgr->SetError(stationComponent, "The workpiece could not be forged in its current state.");
+    return false;
+  }
+
+  if (workpiece->State.TemperatureRaw < material.ForgeMinTemperature)
+    stationComponent->Warnings.push_back("The workpiece is below the ideal forge window.");
+  else if (workpiece->State.TemperatureRaw > material.ForgeMaxTemperature)
+    stationComponent->Warnings.push_back("The workpiece is overheated and losing structure.");
+
+  return true;
+}
+
+bool GameWorldEngine::ChipWorkpiece(uint32_t playerId, uint32_t stationId, int32_t startX, int32_t startY, int32_t width, int32_t height)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *station = ObjectManager.GetById(stationId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  auto *stationMgr = Ctx.GetManager<CraftingStationComponentManager>();
+  if (!player || !station || !interactMgr || !inventoryMgr || !stationMgr)
+    return false;
+  if (!interactMgr->CanInteract(playerId, stationId))
+    return false;
+
+  auto *stationComponent = stationMgr->Get(stationId);
+  if (!stationComponent || stationComponent->StationType != CraftingStationType::Workbench)
+    return false;
+
+  stationMgr->ClearTransientState(stationComponent);
+  auto *primary = stationMgr->FindSlot(stationComponent, "primary");
+  if (!primary || !primary->ItemRef)
+  {
+    stationMgr->SetError(stationComponent, "Insert a primary workpiece into the workbench first.");
+    return false;
+  }
+
+  const auto *workpiece = primary->ItemRef->GetFeature<WorkpieceFeature>();
+  if (!workpiece)
+    return false;
+  const auto &material = GetMaterialProcessingDefinition(workpiece->State.Material);
+  if (!material.Chippable)
+  {
+    stationMgr->SetError(stationComponent, "This material cannot be chipped or chiseled here.");
+    return false;
+  }
+
+  return Crafting::Chip(*primary->ItemRef, startX, startY, width, height);
+}
+
+bool GameWorldEngine::SharpenWorkpiece(uint32_t playerId, uint32_t stationId, SharpenSide side, int32_t amount)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *station = ObjectManager.GetById(stationId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  auto *stationMgr = Ctx.GetManager<CraftingStationComponentManager>();
+  if (!player || !station || !interactMgr || !inventoryMgr || !stationMgr)
+    return false;
+  if (!interactMgr->CanInteract(playerId, stationId))
+    return false;
+
+  auto *stationComponent = stationMgr->Get(stationId);
+  if (!stationComponent || stationComponent->StationType != CraftingStationType::Grindstone)
+    return false;
+
+  stationMgr->ClearTransientState(stationComponent);
+  auto *workpieceSlot = stationMgr->FindSlot(stationComponent, "workpiece");
+  if (!workpieceSlot || !workpieceSlot->ItemRef)
+  {
+    stationMgr->SetError(stationComponent, "Insert a workpiece into the grindstone first.");
+    return false;
+  }
+
+  const auto *workpiece = workpieceSlot->ItemRef->GetFeature<WorkpieceFeature>();
+  if (!workpiece)
+    return false;
+  const auto &material = GetMaterialProcessingDefinition(workpiece->State.Material);
+  if (!material.Sharpenable)
+  {
+    stationMgr->SetError(stationComponent, "This material cannot be sharpened effectively.");
+    return false;
+  }
+
+  const bool result = Crafting::Sharpen(*workpieceSlot->ItemRef, side, amount);
+  if (result && workpiece->State.BreakRisk > material.LocalFractureThreshold * 5)
+    stationComponent->Warnings.push_back("This edge is thin and close to fracturing.");
+  return result;
+}
+
+bool GameWorldEngine::JoinWorkpieces(uint32_t playerId, uint32_t stationId)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *station = ObjectManager.GetById(stationId);
+  auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
+  auto *stationMgr = Ctx.GetManager<CraftingStationComponentManager>();
+  if (!player || !station || !interactMgr || !stationMgr)
+    return false;
+  if (!interactMgr->CanInteract(playerId, stationId))
+    return false;
+
+  auto *stationComponent = stationMgr->Get(stationId);
+  if (!stationComponent || stationComponent->StationType != CraftingStationType::Workbench)
+    return false;
+
+  stationMgr->ClearTransientState(stationComponent);
+  auto *primary = stationMgr->FindSlot(stationComponent, "primary");
+  auto *secondary = stationMgr->FindSlot(stationComponent, "secondary");
+  auto *handle = stationMgr->FindSlot(stationComponent, "handle");
+  auto *output = stationMgr->FindSlot(stationComponent, "output");
+  if (!output || output->ItemRef)
+  {
+    stationMgr->SetError(stationComponent, "Collect the current workbench output first.");
+    return false;
+  }
+
+  if (!primary || !primary->ItemRef)
+  {
+    stationMgr->SetError(stationComponent, "Insert a primary part into the workbench first.");
+    return false;
+  }
+
+  std::unique_ptr<Item> result = std::move(primary->ItemRef);
+  bool joinedAny = false;
+
+  auto joinIntoResult = [&](CraftingStationSlot *slot) -> bool {
+    if (!slot || !slot->ItemRef)
+      return true;
+    if (!Crafting::Join(*result, *slot->ItemRef))
+      return false;
+    slot->ItemRef.reset();
+    joinedAny = true;
+    return true;
+  };
+
+  if (!joinIntoResult(handle))
+  {
+    stationMgr->SetError(stationComponent, "The handle or shaft is not a compatible structural fit.");
+    primary->ItemRef = std::move(result);
+    return false;
+  }
+  if (!joinIntoResult(secondary))
+  {
+    stationMgr->SetError(stationComponent, "The secondary part does not align with the current assembly.");
+    primary->ItemRef = std::move(result);
+    return false;
+  }
+
+  if (!joinedAny)
+  {
+    stationMgr->SetError(stationComponent, "Insert at least one secondary or handle part before assembling.");
+    primary->ItemRef = std::move(result);
+    return false;
+  }
+
+  output->ItemRef = std::move(result);
+  stationComponent->Warnings.push_back("Assembly quality now influences durability and break risk.");
+  return true;
+}
+
 // ─── Tile Operations ───
 
 void GameWorldEngine::DestroyTile(int32_t wx, int32_t wy, int32_t wz)
@@ -424,6 +891,11 @@ void GameWorldEngine::Tick()
   if (attackMgr && combatBodyMgr)
   {
     attackMgr->Tick(*this, combatBodyMgr, combatStateMgr);
+  }
+
+  if (auto *stationMgr = Ctx.GetManager<CraftingStationComponentManager>())
+  {
+    stationMgr->Tick(*this, Ctx.GetManager<InventoryComponentManager>());
   }
 
   // 5. Cleanup destroyed (also removes components from all managers)

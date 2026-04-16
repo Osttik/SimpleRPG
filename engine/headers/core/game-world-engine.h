@@ -11,6 +11,7 @@
 #include "core/combat/body-parts.h"
 #include "core/combat/body-state-manifest.h"
 #include "core/combat/combat-events.h"
+#include "core/components/crafting-station-component.h"
 #include "core/entity-type.h"
 #include "game/managers/player-manager.h"
 #include "game/managers/prop-manager.h"
@@ -54,6 +55,16 @@ public:
   bool StartAttack(uint32_t entityId, AttackDirection direction);
   bool SetBlockState(uint32_t entityId, bool active, BlockDirection direction);
   bool MineTile(uint32_t playerId, int32_t tileX, int32_t tileY);
+  bool InsertItemIntoStation(uint32_t playerId, uint32_t stationId, int itemIndex, const std::string &slotId = "");
+  bool RemoveItemFromStation(uint32_t playerId, uint32_t stationId, const std::string &slotId = "");
+  bool StartHeating(uint32_t playerId, uint32_t stationId);
+  bool CollectSmeltResult(uint32_t playerId, uint32_t stationId, const std::string &slotId = "output");
+  bool CastWorkpiece(uint32_t playerId, uint32_t stationId, MoldSilhouette silhouette, int32_t width, int32_t length, int32_t thicknessRaw);
+  bool BendWorkpiece(uint32_t playerId, uint32_t stationId, BendZone zone, int32_t displacement);
+  bool ForgeWorkpiece(uint32_t playerId, uint32_t stationId, ForgeZone zone, int32_t intensity);
+  bool ChipWorkpiece(uint32_t playerId, uint32_t stationId, int32_t startX, int32_t startY, int32_t width, int32_t height);
+  bool SharpenWorkpiece(uint32_t playerId, uint32_t stationId, SharpenSide side, int32_t amount);
+  bool JoinWorkpieces(uint32_t playerId, uint32_t stationId);
   void SpawnTestChest();
   void DestroyTile(int32_t wx, int32_t wy, int32_t wz);
 

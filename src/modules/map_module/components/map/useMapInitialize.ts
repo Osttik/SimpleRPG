@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { useControls } from './useControls';
-import { interactionsState } from '@/store';
+import { interactionsState, store } from '@/store';
 import { isOverlayOpen } from '@/components/overlay';
 import { getRelativePositions } from './controls';
+import { uiActions } from '@/store/slices/ui.slice';
 
-export const useMapInitialize = (memberToken: string) => {
+export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
   const [socketWorker, setSocketWorker] = useState<Worker | null>(null);
 
   useEffect(() => {
     if (!memberToken) return;
+
+    let readyNotified = false;
 
     const canvas = gameState.canvasRef?.current;
     if (!canvas) return;
@@ -148,6 +151,10 @@ export const useMapInitialize = (memberToken: string) => {
         gameState.myId = data.id.toString();
         gameState.players = data.players;
         if (data.tileRegistry) gameState.tileRegistry = data.tileRegistry;
+        if (!readyNotified) {
+          readyNotified = true;
+          onReady?.();
+        }
       } else if (data.type === 'state') {
         gameState.players = data.players;
       } else if (data.type === 'pong') {
@@ -167,6 +174,49 @@ export const useMapInitialize = (memberToken: string) => {
       } else if (data.type === 'player_inventory') {
         gameState.playerInventory = data.playerInventory;
         gameState.playerInventoryMeta = data.playerInventoryMeta ?? gameState.playerInventoryMeta;
+        window.dispatchEvent(new Event('gameStateUpdate'));
+      } else if (data.type === 'station_state' || data.payloadType === 'station_state') {
+        gameState.craftingStation.stationId = data.stationId ?? null;
+        gameState.craftingStation.stationType = data.stationType ?? null;
+        gameState.craftingStation.stationLabel = data.stationLabel ?? null;
+        gameState.craftingStation.insertedItems = data.insertedItem ?? [];
+        gameState.craftingStation.slots = data.slots ?? [];
+        gameState.craftingStation.moldSlots = data.moldSlots ?? [];
+        gameState.craftingStation.moltenPool = data.moltenPool ?? null;
+        gameState.craftingStation.comparisonBefore = data.comparisonBefore ?? null;
+        gameState.craftingStation.warnings = data.warnings ?? [];
+        gameState.craftingStation.heatingActive = Boolean(data.heatingActive);
+        gameState.craftingStation.heatingTicks = Number(data.heatingTicks ?? 0);
+        gameState.craftingStation.lastMold = Number(data.lastMold ?? 0);
+        gameState.craftingInventory = data.craftingInventory ?? [];
+        gameState.craftingInventoryMeta = data.craftingInventoryMeta ?? gameState.craftingInventoryMeta;
+        gameState.craftingStation.error = data.error ?? null;
+        store.dispatch(uiActions.set_isCraftingOpen(true));
+        window.dispatchEvent(new Event('gameStateUpdate'));
+      } else if (data.type === 'crafting_inventory') {
+        gameState.craftingInventory = data.craftingInventory ?? [];
+        gameState.craftingInventoryMeta = data.craftingInventoryMeta ?? gameState.craftingInventoryMeta;
+        window.dispatchEvent(new Event('gameStateUpdate'));
+      } else if (data.type === 'crafting_result') {
+        gameState.craftingStation.stationId = data.stationId ?? gameState.craftingStation.stationId;
+        gameState.craftingStation.stationType = data.stationType ?? gameState.craftingStation.stationType;
+        gameState.craftingStation.stationLabel = data.stationLabel ?? gameState.craftingStation.stationLabel;
+        gameState.craftingStation.insertedItems = data.insertedItem ?? gameState.craftingStation.insertedItems;
+        gameState.craftingStation.slots = data.slots ?? gameState.craftingStation.slots;
+        gameState.craftingStation.moldSlots = data.moldSlots ?? gameState.craftingStation.moldSlots;
+        gameState.craftingStation.moltenPool = data.moltenPool ?? gameState.craftingStation.moltenPool;
+        gameState.craftingStation.comparisonBefore = data.comparisonBefore ?? gameState.craftingStation.comparisonBefore;
+        gameState.craftingStation.warnings = data.warnings ?? gameState.craftingStation.warnings;
+        gameState.craftingStation.heatingActive = Boolean(data.heatingActive);
+        gameState.craftingStation.heatingTicks = Number(data.heatingTicks ?? 0);
+        gameState.craftingStation.lastMold = Number(data.lastMold ?? gameState.craftingStation.lastMold ?? 0);
+        gameState.craftingInventory = data.craftingInventory ?? gameState.craftingInventory;
+        gameState.craftingInventoryMeta = data.craftingInventoryMeta ?? gameState.craftingInventoryMeta;
+        gameState.craftingStation.error = data.error ?? null;
+        window.dispatchEvent(new Event('gameStateUpdate'));
+      } else if (data.type === 'crafting_error') {
+        gameState.craftingStation.error = String(data.message ?? 'Crafting request failed.');
+        store.dispatch(uiActions.set_isCraftingOpen(true));
         window.dispatchEvent(new Event('gameStateUpdate'));
       } else if (data.type === 'combat_events') {
         for (const event of data.events ?? []) {
@@ -208,10 +258,11 @@ export const useMapInitialize = (memberToken: string) => {
       gameState.socketWorker = null;
       interactionsState.targets = [];
       interactionsState.selectedTargetId = null;
+      store.dispatch(uiActions.set_isCraftingOpen(false));
       renderWorker.terminate();
       localSocketWorker.terminate();
     };
-  }, [memberToken]);
+  }, [memberToken, onReady]);
 
   useControls(socketWorker);
 };

@@ -239,6 +239,10 @@ function connect() {
       data.type === 'interaction_options' ||
       data.type === 'open_loot' ||
       data.type === 'player_inventory' ||
+      data.type === 'station_state' ||
+      data.type === 'crafting_inventory' ||
+      data.type === 'crafting_result' ||
+      data.type === 'crafting_error' ||
       data.type === 'session_closed' ||
       data.type === 'world_layer_debug' ||
       data.type === 'world_layer_validation'
@@ -333,6 +337,99 @@ self.onmessage = (event) => {
         type: 'mine_tile',
         tileX: Number(event.data.tileX),
         tileY: Number(event.data.tileY),
+      }));
+    }
+  } else if (event.data.type === 'request_station_state') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'request_station_state', stationId: Number(event.data.stationId || 0) }));
+    }
+  } else if (event.data.type === 'request_crafting_inventory') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'request_crafting_inventory' }));
+    }
+  } else if (event.data.type === 'insert_station_item') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'insert_station_item',
+        stationId: Number(event.data.stationId || 0),
+        itemIndex: Number(event.data.itemIndex || 0),
+        slotId: event.data.slotId ?? undefined,
+      }));
+    }
+  } else if (event.data.type === 'remove_station_item') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'remove_station_item',
+        stationId: Number(event.data.stationId || 0),
+        slotId: event.data.slotId ?? undefined,
+      }));
+    }
+  } else if (event.data.type === 'start_heating') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'start_heating', stationId: Number(event.data.stationId || 0) }));
+    }
+  } else if (event.data.type === 'collect_smelt_result') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'collect_smelt_result',
+        stationId: Number(event.data.stationId || 0),
+        slotId: event.data.slotId ?? undefined,
+      }));
+    }
+  } else if (event.data.type === 'cast_workpiece') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'cast_workpiece',
+        stationId: Number(event.data.stationId || 0),
+        mold: Number(event.data.mold || 0),
+        width: Number(event.data.width || 0),
+        length: Number(event.data.length || 0),
+        thicknessRaw: Number(event.data.thicknessRaw || 0),
+      }));
+    }
+  } else if (event.data.type === 'bend_workpiece') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'bend_workpiece',
+        stationId: Number(event.data.stationId || 0),
+        zone: Number(event.data.zone || 0),
+        displacement: Number(event.data.displacement || 0),
+      }));
+    }
+  } else if (event.data.type === 'forge_workpiece') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'forge_workpiece',
+        stationId: Number(event.data.stationId || 0),
+        zone: Number(event.data.zone || 0),
+        intensity: Number(event.data.intensity || 0),
+      }));
+    }
+  } else if (event.data.type === 'chip_workpiece') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'chip_workpiece',
+        stationId: Number(event.data.stationId || 0),
+        startX: Number(event.data.startX || 0),
+        startY: Number(event.data.startY || 0),
+        width: Number(event.data.width || 0),
+        height: Number(event.data.height || 0),
+      }));
+    }
+  } else if (event.data.type === 'sharpen_workpiece') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'sharpen_workpiece',
+        stationId: Number(event.data.stationId || 0),
+        side: Number(event.data.side || 0),
+        amount: Number(event.data.amount || 0),
+      }));
+    }
+  } else if (event.data.type === 'join_workpieces') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'join_workpieces',
+        stationId: Number(event.data.stationId || 0),
       }));
     }
   }

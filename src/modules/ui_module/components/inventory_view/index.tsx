@@ -13,6 +13,7 @@ export interface InventoryItemView {
   price: number;
   equipped: boolean;
   equipSlot: string;
+  workpiece?: Record<string, unknown> | null;
 }
 
 export interface InventoryMetaView {

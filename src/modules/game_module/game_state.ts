@@ -105,6 +105,34 @@ export interface WorldLayerValidationIssueView {
   message: string;
 }
 
+export interface CraftingStatSnapshotView {
+  valid?: boolean;
+  swingEfficiency?: number;
+  thrustEfficiency?: number;
+  diggingEfficiency?: number;
+  cuttingEffectiveness?: number;
+  piercingEffectiveness?: number;
+  bluntEffectiveness?: number;
+  durability?: number;
+  breakRisk?: number;
+}
+
+export interface CraftingStationSlotView {
+  slotId: string;
+  label: string;
+  role: string;
+  item: InventoryItemView | null;
+}
+
+export interface CraftingMoltenPoolView {
+  active?: boolean;
+  materialId?: string;
+  amountUnits?: number;
+  temperatureRaw?: number;
+  quality?: number;
+  sourceCount?: number;
+}
+
 interface IGameState {
   canvasRef: RefObject<HTMLCanvasElement | null> | null;
   myId: string | null;
@@ -130,6 +158,23 @@ interface IGameState {
   visibleLayers?: { min: number; max: number };
   worldLayerDebug?: WorldLayerDebugView | null;
   worldLayerValidationIssues: WorldLayerValidationIssueView[];
+  craftingInventory: InventoryItemView[];
+  craftingInventoryMeta: InventoryMetaView;
+  craftingStation: {
+    stationId: string | null;
+    stationType: string | null;
+    stationLabel: string | null;
+    insertedItems: InventoryItemView[];
+    slots: CraftingStationSlotView[];
+    moldSlots: number[];
+    moltenPool: CraftingMoltenPoolView | null;
+    comparisonBefore: CraftingStatSnapshotView | null;
+    warnings: string[];
+    heatingActive: boolean;
+    heatingTicks: number;
+    lastMold: number;
+    error: string | null;
+  };
 }
 
 export interface ChunkData {
@@ -167,4 +212,25 @@ export const gameState: IGameState = {
   visibleLayers: { min: -3, max: 3 },
   worldLayerDebug: null,
   worldLayerValidationIssues: [],
+  craftingInventory: [],
+  craftingInventoryMeta: {
+    currentVolume: 0,
+    maxVolume: 0,
+    currentWeight: 0,
+  },
+  craftingStation: {
+    stationId: null,
+    stationType: null,
+    stationLabel: null,
+    insertedItems: [],
+    slots: [],
+    moldSlots: [],
+    moltenPool: null,
+    comparisonBefore: null,
+    warnings: [],
+    heatingActive: false,
+    heatingTicks: 0,
+    lastMold: 0,
+    error: null,
+  },
 };

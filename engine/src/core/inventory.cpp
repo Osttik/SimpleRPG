@@ -1,5 +1,6 @@
 #include "core/inventory.h"
 #include <initializer_list>
+#include "core/crafting/material-processing.h"
 
 bool Item::CanStackWith(const Item &other) const
 {
@@ -91,6 +92,35 @@ namespace ItemFactory
       item->AddFeature<MerchantValueFeature>(merchantValue);
       return item;
     }
+
+    std::unique_ptr<Item> CreateCraftingStock(
+        const std::string &definitionId,
+        const std::string &name,
+        const std::string &spriteKey,
+        MaterialId materialId,
+        float32 volume,
+        float32 weight,
+        int32_t width,
+        int32_t height,
+        int32_t thicknessRaw,
+        PartOrientation orientation,
+        int quantity)
+    {
+      auto item = std::make_unique<Item>(
+          definitionId,
+          name,
+          spriteKey,
+          volume,
+          weight,
+          false,
+          1,
+          quantity);
+      item->AddFeature<MaterialCompositionFeature>(MakeComposition({{materialId, 100}}));
+      item->AddFeature<WorkpieceFeature>(Crafting::MakeStockWorkpiece(materialId, width, height, thicknessRaw, orientation));
+      item->AddFeature<MerchantValueFeature>(float32(8.0));
+      Crafting::RecalculateDerivedState(*item);
+      return item;
+    }
   }
 
   std::unique_ptr<Item> CreateSword(int quantity)
@@ -180,6 +210,54 @@ namespace ItemFactory
     return coin;
   }
 
+  std::unique_ptr<Item> CreateWoodStock(int quantity)
+  {
+    return CreateCraftingStock(
+        "crafting.stock.wood",
+        "Wood Stock",
+        "grass",
+        MaterialId::Wood,
+        float32(1.0),
+        float32(1.0),
+        4,
+        10,
+        2 * 65536,
+        PartOrientation::Vertical,
+        quantity);
+  }
+
+  std::unique_ptr<Item> CreateStoneStock(int quantity)
+  {
+    return CreateCraftingStock(
+        "crafting.stock.stone",
+        "Stone Stock",
+        "stone",
+        MaterialId::Stone,
+        float32(1.4),
+        float32(2.0),
+        6,
+        6,
+        3 * 65536,
+        PartOrientation::Horizontal,
+        quantity);
+  }
+
+  std::unique_ptr<Item> CreateIronStock(int quantity)
+  {
+    return CreateCraftingStock(
+        "crafting.stock.iron",
+        "Iron Stock",
+        "stone",
+        MaterialId::Iron,
+        float32(1.2),
+        float32(3.0),
+        5,
+        8,
+        3 * 65536,
+        PartOrientation::Horizontal,
+        quantity);
+  }
+
   std::unique_ptr<Item> CreateDirtChunk(int quantity)
   {
     return CreateExtractedResource(
@@ -244,6 +322,12 @@ namespace ItemFactory
       return CreateShovel(quantity);
     if (definitionId == "currency.coin")
       return CreateCoin(quantity);
+    if (definitionId == "crafting.stock.wood")
+      return CreateWoodStock(quantity);
+    if (definitionId == "crafting.stock.stone")
+      return CreateStoneStock(quantity);
+    if (definitionId == "crafting.stock.iron")
+      return CreateIronStock(quantity);
     if (definitionId == "resource.dirt_chunk")
       return CreateDirtChunk(quantity);
     if (definitionId == "resource.stone_slab")

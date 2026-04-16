@@ -10,22 +10,23 @@ It intentionally keeps those as connected but separate systems.
 
 ## Scope
 
-- Main menu `Play` routes into a dedicated lobby browser screen.
-- Players browse waiting lobbies, join one, or host a new lobby.
+- Main menu `Play` routes into the play shell.
+- Players browse waiting lobbies, join one, or host a new lobby inside that same play shell.
 - Hosting supports `New Game` and `Load Save`.
 - Each lobby owns its own authoritative `GameWorld` instance.
 - Save/load is cold-path only and never enters the 60 Hz snapshot payload.
+- Crafting V2 station state is persisted through the same authoritative cold-path save system without changing the session/routing contract.
 - v1 join rule: only `waiting` lobbies are joinable.
 - v1 host disconnect rule: the lobby/session closes and members are returned to the browser.
 
 ## Frontend Flow
 
-- `Main Menu -> /play -> Lobby Browser`
-- `Lobby Browser -> Waiting Room`
-- `Waiting Room -> /game` after host starts the session
+- `Main Menu -> /play`
+- `/play` renders the lobby browser / waiting room while session phase is `Lobby`
+- `session_started` advances the same play shell through `LoadingWorld -> Playing`
 
 The lobby browser and waiting room use the persistent control-plane WebSocket client.
-The gameplay route mounts the existing render/gameplay worker stack only after the control plane issues `session_started`.
+The gameplay worker stack mounts inside the same play shell only after the control plane issues `session_started`.
 
 ## Connection Split
 

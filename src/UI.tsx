@@ -8,6 +8,7 @@ import gameMusicFile from './assets/Game.m4a';
 import { InventoryComponent } from './modules/ui_module/components/inventory';
 import { LootUI } from './modules/ui_module/components/loot_ui';
 import { InteractionUIModal } from './modules/ui_module/components/interaction-ui-modal';
+import { CraftingUI } from './modules/ui_module/components/crafting_ui';
 import { CombatDebugPanel } from './modules/ui_module/components/combat_debug_panel';
 import { WorldLayerDebugPanel } from './modules/ui_module/components/world_layer_debug_panel';
 import { WorldLayerDebugOverlay } from './modules/ui_module/components/world_layer_debug_overlay';
@@ -61,6 +62,7 @@ export const UIComponent = () => {
       </div>
       <InventoryComponent />
       <LootUI />
+      <CraftingUI />
       <MenuModal />
     </div>
   );

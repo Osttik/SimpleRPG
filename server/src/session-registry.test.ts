@@ -92,6 +92,18 @@ class FakeWorld implements NativeGameWorld {
   transferItem(): boolean { return true; }
   toggleEquipItem(): boolean { return true; }
   dropItem(): boolean { return true; }
+  getStationState(_id: number, _stationId: number) { return { stationId: '1', stationType: 'smelter', insertedItem: [], slots: [], moldSlots: [], moltenPool: { active: false, materialId: 'none', amountUnits: 0, temperatureRaw: 0, quality: 0, sourceCount: 0 }, comparisonBefore: { valid: false }, warnings: [], error: '', craftingInventory: [], craftingInventoryMeta: {} }; }
+  getCraftingInventoryState(_id: number) { return { craftingInventory: [], craftingInventoryMeta: {} }; }
+  insertStationItem(_id: number, _stationId: number, _itemIndex: number, _slotId?: string): boolean { return true; }
+  removeStationItem(_id: number, _stationId: number, _slotId?: string): boolean { return true; }
+  startHeating(_id: number, _stationId: number): boolean { return true; }
+  collectSmeltResult(_id: number, _stationId: number, _slotId?: string): boolean { return true; }
+  castWorkpiece(_id: number, _stationId: number, _mold: number, _width: number, _length: number, _thicknessRaw: number): boolean { return true; }
+  bendWorkpiece(_id: number, _stationId: number, _zone: number, _displacement: number): boolean { return true; }
+  forgeWorkpiece(_id: number, _stationId: number, _zone: number, _intensity: number): boolean { return true; }
+  chipWorkpiece(_id: number, _stationId: number, _startX: number, _startY: number, _width: number, _height: number): boolean { return true; }
+  sharpenWorkpiece(_id: number, _stationId: number, _side: number, _amount: number): boolean { return true; }
+  joinWorkpieces(_id: number, _stationId: number): boolean { return true; }
   getBodyStateManifest(): Buffer | null { return null; }
   getEntityBodyState(): Buffer | null { return null; }
   setLayerDebugEnabled(): void {}
@@ -199,6 +211,21 @@ test('session topics remain isolated during gameplay ticks', async () => {
   assert.equal(publishedTopics.size, 2);
   assert.ok(gameA.topics.has(`game:${lobbyA.lobbyId}`));
   assert.ok(gameB.topics.has(`game:${lobbyB.lobbyId}`));
+
+  await fs.rm(tempDir, { recursive: true, force: true });
+});
+
+test('host can start a lobby alone and receive session_started without route-dependent assumptions', async () => {
+  const { registry, tempDir } = await createRegistry();
+  const host = new FakeSocket({ mode: 'control', connectionId: 'solo-host' });
+
+  registry.handleControlOpen(host as any);
+  await registry.handleControlMessage(host as any, asArrayBuffer({ type: 'create_lobby', name: 'Solo', mode: 'new_game' }));
+  await registry.handleControlMessage(host as any, asArrayBuffer({ type: 'start_lobby' }));
+
+  const started = latestJson(host, 'session_started');
+  assert.equal(typeof started.memberToken, 'string');
+  assert.equal(started.lobbyId, latestJson(host, 'lobby_state').lobby.lobbyId);
 
   await fs.rm(tempDir, { recursive: true, force: true });
 });

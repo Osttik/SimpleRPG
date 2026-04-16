@@ -12,7 +12,8 @@ enum class InteractionType
   Talk,
   Loot,
   Pickup,
-  Mine
+  Mine,
+  Station
 };
 
 struct InteractableComponent : public Component

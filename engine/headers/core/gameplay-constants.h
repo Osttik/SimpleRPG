@@ -10,6 +10,7 @@ inline const float32 PLAYER_DEFAULT_MINING_RADIUS = float32(96.0);
 inline const float32 PLAYER_DEFAULT_BACKPACK_MAX_VOLUME = float32(50.0);
 inline const float32 CHEST_HALF_SIZE = float32(16.0);
 inline const float32 CHEST_STORAGE_MAX_VOLUME = float32(500.0);
+inline const float32 CRAFTING_STATION_STORAGE_MAX_VOLUME = float32(24.0);
 inline const float32 TEST_CHEST_RADIUS = float32(32.0);
 inline const float32 DROPPED_ITEM_RENDER_RADIUS = float32(8.0);
 inline const float32 DROPPED_ITEM_INTERACTION_RADIUS = float32(12.0);

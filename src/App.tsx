@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { MainMenu } from './modules/menu_module/components/main_menu';
-import { LobbyBrowserScreen } from './modules/menu_module/components/lobby_browser';
-import GameScene from './GameScene';
+import PlayShell from './PlayShell';
 import { lobbyClient } from './services/lobby-client';
 
 function App() {
@@ -14,8 +13,8 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<MainMenu />} />
-      <Route path="/play" element={<LobbyBrowserScreen />} />
-      <Route path="/game" element={<GameScene />} />
+      <Route path="/play" element={<PlayShell />} />
+      <Route path="/game" element={<Navigate to="/play" replace />} />
     </Routes>
   );
 }

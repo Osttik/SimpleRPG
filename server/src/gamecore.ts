@@ -40,6 +40,18 @@ export interface NativeGameWorld {
   transferItem(id: number, targetId: number, from: number, to: number, itemIndex: number): boolean;
   toggleEquipItem(id: number, itemIndex: number): boolean;
   dropItem(id: number, itemIndex: number): boolean;
+  getStationState(id: number, stationId: number): unknown;
+  getCraftingInventoryState(id: number): unknown;
+  insertStationItem(id: number, stationId: number, itemIndex: number, slotId?: string): boolean;
+  removeStationItem(id: number, stationId: number, slotId?: string): boolean;
+  startHeating(id: number, stationId: number): boolean;
+  collectSmeltResult(id: number, stationId: number, slotId?: string): boolean;
+  castWorkpiece(id: number, stationId: number, mold: number, width: number, length: number, thicknessRaw: number): boolean;
+  bendWorkpiece(id: number, stationId: number, zone: number, displacement: number): boolean;
+  forgeWorkpiece(id: number, stationId: number, zone: number, intensity: number): boolean;
+  chipWorkpiece(id: number, stationId: number, startX: number, startY: number, width: number, height: number): boolean;
+  sharpenWorkpiece(id: number, stationId: number, side: number, amount: number): boolean;
+  joinWorkpieces(id: number, stationId: number): boolean;
   getBodyStateManifest?(): Buffer | null;
   getEntityBodyState?(entityId: number): Buffer | null;
   setLayerDebugEnabled?(enabled: boolean): void;

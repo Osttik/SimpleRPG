@@ -11,6 +11,10 @@ enum class MaterialId : uint8_t
   Iron = 3,
   Gold = 4,
   Clay = 5,
+  Wood = 6,
+  Char = 7,
+  Ash = 8,
+  ScrapMetal = 9,
 };
 
 struct MaterialPart

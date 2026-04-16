@@ -189,6 +189,10 @@ export class SessionRegistry {
     const session = this.lobbies.get(lobbyId);
     if (!session) return;
     const world = session.world;
+    const getCraftingError = (stationId: number, fallback: string) => {
+      const payload = world.getStationState?.(playerId, stationId) as { error?: unknown } | null | undefined;
+      return typeof payload?.error === 'string' && payload.error.length > 0 ? payload.error : fallback;
+    };
 
     try {
       if (isBinary) {
@@ -285,6 +289,176 @@ export class SessionRegistry {
         const payload = world.getPlayerInventoryState?.(playerId);
         if (payload) {
           sendJson(ws, { type: 'player_inventory', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'request_station_state') {
+        const payload = world.getStationState?.(playerId, Number(data.stationId || 0));
+        if (payload) {
+          sendJson(ws, { type: 'station_state', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'request_crafting_inventory') {
+        const payload = world.getCraftingInventoryState?.(playerId);
+        if (payload) {
+          sendJson(ws, { type: 'crafting_inventory', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'insert_station_item') {
+        const stationId = Number(data.stationId || 0);
+        const ok = world.insertStationItem?.(playerId, stationId, Number(data.itemIndex || 0), typeof data.slotId === 'string' ? data.slotId : undefined);
+        if (!ok) {
+          sendJson(ws, { type: 'crafting_error', message: getCraftingError(stationId, 'Unable to insert that item into the station.') });
+          return;
+        }
+        const payload = world.getStationState?.(playerId, stationId);
+        if (payload) {
+          sendJson(ws, { type: 'station_state', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'remove_station_item') {
+        const stationId = Number(data.stationId || 0);
+        const ok = world.removeStationItem?.(playerId, stationId, typeof data.slotId === 'string' ? data.slotId : undefined);
+        if (!ok) {
+          sendJson(ws, { type: 'crafting_error', message: getCraftingError(stationId, 'Unable to remove the current station item.') });
+          return;
+        }
+        const payload = world.getStationState?.(playerId, stationId);
+        if (payload) {
+          sendJson(ws, { type: 'station_state', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'start_heating') {
+        const stationId = Number(data.stationId || 0);
+        const ok = world.startHeating?.(playerId, stationId);
+        if (!ok) {
+          sendJson(ws, { type: 'crafting_error', message: getCraftingError(stationId, 'Unable to start heating at this station.') });
+          return;
+        }
+        const payload = world.getStationState?.(playerId, stationId);
+        if (payload) {
+          sendJson(ws, { type: 'crafting_result', action: 'start_heating', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'collect_smelt_result') {
+        const stationId = Number(data.stationId || 0);
+        const ok = world.collectSmeltResult?.(playerId, stationId, typeof data.slotId === 'string' ? data.slotId : undefined);
+        if (!ok) {
+          sendJson(ws, { type: 'crafting_error', message: getCraftingError(stationId, 'Unable to collect the smelter result.') });
+          return;
+        }
+        const payload = world.getStationState?.(playerId, stationId);
+        if (payload) {
+          sendJson(ws, { type: 'crafting_result', action: 'collect_smelt_result', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'cast_workpiece') {
+        const stationId = Number(data.stationId || 0);
+        const ok = world.castWorkpiece?.(
+          playerId,
+          stationId,
+          Number(data.mold || 0),
+          Number(data.width || 0),
+          Number(data.length || 0),
+          Number(data.thicknessRaw || 0),
+        );
+        if (!ok) {
+          sendJson(ws, { type: 'crafting_error', message: getCraftingError(stationId, 'Unable to cast the current workpiece.') });
+          return;
+        }
+        const payload = world.getStationState?.(playerId, stationId);
+        if (payload) {
+          sendJson(ws, { type: 'crafting_result', action: 'cast_workpiece', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'bend_workpiece') {
+        const stationId = Number(data.stationId || 0);
+        const ok = world.bendWorkpiece?.(playerId, stationId, Number(data.zone || 0), Number(data.displacement || 0));
+        if (!ok) {
+          sendJson(ws, { type: 'crafting_error', message: getCraftingError(stationId, 'Unable to bend the current workpiece.') });
+          return;
+        }
+        const payload = world.getStationState?.(playerId, stationId);
+        if (payload) {
+          sendJson(ws, { type: 'crafting_result', action: 'bend_workpiece', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'chip_workpiece') {
+        const stationId = Number(data.stationId || 0);
+        const ok = world.chipWorkpiece?.(
+          playerId,
+          stationId,
+          Number(data.startX || 0),
+          Number(data.startY || 0),
+          Number(data.width || 0),
+          Number(data.height || 0),
+        );
+        if (!ok) {
+          sendJson(ws, { type: 'crafting_error', message: getCraftingError(stationId, 'Unable to chip the current workpiece.') });
+          return;
+        }
+        const payload = world.getStationState?.(playerId, stationId);
+        if (payload) {
+          sendJson(ws, { type: 'crafting_result', action: 'chip_workpiece', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'sharpen_workpiece') {
+        const stationId = Number(data.stationId || 0);
+        const ok = world.sharpenWorkpiece?.(playerId, stationId, Number(data.side || 0), Number(data.amount || 0));
+        if (!ok) {
+          sendJson(ws, { type: 'crafting_error', message: getCraftingError(stationId, 'Unable to sharpen the current workpiece.') });
+          return;
+        }
+        const payload = world.getStationState?.(playerId, stationId);
+        if (payload) {
+          sendJson(ws, { type: 'crafting_result', action: 'sharpen_workpiece', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'forge_workpiece') {
+        const stationId = Number(data.stationId || 0);
+        const ok = world.forgeWorkpiece?.(playerId, stationId, Number(data.zone || 0), Number(data.intensity || 0));
+        if (!ok) {
+          sendJson(ws, { type: 'crafting_error', message: getCraftingError(stationId, 'Unable to forge the current workpiece.') });
+          return;
+        }
+        const payload = world.getStationState?.(playerId, stationId);
+        if (payload) {
+          sendJson(ws, { type: 'crafting_result', action: 'forge_workpiece', ...(payload as object) });
+        }
+        return;
+      }
+
+      if (data.type === 'join_workpieces') {
+        const stationId = Number(data.stationId || 0);
+        const ok = world.joinWorkpieces?.(playerId, stationId);
+        if (!ok) {
+          sendJson(ws, { type: 'crafting_error', message: getCraftingError(stationId, 'Unable to join those workpieces.') });
+          return;
+        }
+        const payload = world.getStationState?.(playerId, stationId);
+        if (payload) {
+          sendJson(ws, { type: 'crafting_result', action: 'join_workpieces', ...(payload as object) });
         }
       }
     } catch (error) {

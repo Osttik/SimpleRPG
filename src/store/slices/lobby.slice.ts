@@ -4,6 +4,7 @@ import type { RootState } from '..';
 import { useAppDispatch } from '../hooks/useAppDispatch';
 
 export type LobbyConnectionStatus = 'connecting' | 'connected' | 'disconnected';
+export type SessionPhase = 'Lobby' | 'LoadingWorld' | 'Playing' | 'Paused' | 'Ended';
 
 export interface LobbyListEntry {
   lobbyId: string;
@@ -60,6 +61,7 @@ export interface LobbyStateView {
 
 interface LobbyUiState {
   connectionStatus: LobbyConnectionStatus;
+  sessionPhase: SessionPhase;
   lobbies: LobbyListEntry[];
   saves: SaveSlotMeta[];
   currentLobby: LobbyStateView | null;
@@ -72,6 +74,7 @@ interface LobbyUiState {
 
 const initialState: LobbyUiState = {
   connectionStatus: 'connecting',
+  sessionPhase: 'Lobby',
   lobbies: [],
   saves: [],
   currentLobby: null,
@@ -99,15 +102,23 @@ const lobbySlice = createSlice({
       state.currentLobby = action.payload;
       if (!action.payload) {
         state.gameplayMemberToken = null;
+        if (state.sessionPhase !== 'Ended') {
+          state.sessionPhase = 'Lobby';
+        }
       }
     },
     setGameplayLaunch(state, action: PayloadAction<string>) {
       state.gameplayMemberToken = action.payload;
       state.launchCounter += 1;
       state.errorMessage = null;
+      state.sessionPhase = 'LoadingWorld';
     },
     clearGameplayLaunch(state) {
       state.gameplayMemberToken = null;
+      state.sessionPhase = 'Lobby';
+    },
+    setSessionPhase(state, action: PayloadAction<SessionPhase>) {
+      state.sessionPhase = action.payload;
     },
     setErrorMessage(state, action: PayloadAction<string | null>) {
       state.errorMessage = action.payload;
@@ -122,6 +133,13 @@ const lobbySlice = createSlice({
       state.currentLobby = null;
       state.gameplayMemberToken = null;
       state.isSaving = false;
+      state.sessionPhase = 'Lobby';
+    },
+    markSessionEnded(state) {
+      state.currentLobby = null;
+      state.gameplayMemberToken = null;
+      state.isSaving = false;
+      state.sessionPhase = 'Ended';
     },
   },
 });
@@ -139,5 +157,6 @@ export const selectGameplayMemberToken = () => useSelector((state: RootState) =>
 export const selectLobbyLaunchCounter = () => useSelector((state: RootState) => state.lobby.launchCounter);
 export const selectLobbyError = () => useSelector((state: RootState) => state.lobby.errorMessage);
 export const selectLobbyInfo = () => useSelector((state: RootState) => state.lobby.infoMessage);
+export const selectSessionPhase = () => useSelector((state: RootState) => state.lobby.sessionPhase);
 
 export default lobbySlice.reducer;

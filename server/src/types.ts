@@ -68,6 +68,77 @@ export interface SavedItemFeatures {
     preferredToolBonus: number;
   };
   materialComposition?: SavedMaterialPart[];
+  workpiece?: SavedWorkpieceState;
+}
+
+export interface SavedJoinPointState {
+  x: number;
+  y: number;
+  side: string;
+  orientation: string;
+  occupied: boolean;
+}
+
+export interface SavedJoinedPartDescriptor {
+  definitionId: string;
+  materialId: string;
+  side: string;
+  orientation: string;
+  width: number;
+  height: number;
+}
+
+export interface SavedRuntimeRegion {
+  type: number;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export interface SavedWorkpieceState {
+  version: number;
+  stage: string;
+  materialId: string;
+  profileWidth: number;
+  profileHeight: number;
+  profileMask: number[];
+  thicknessRaw: number;
+  temperatureRaw: number;
+  quality: number;
+  fractured: boolean;
+  broken: boolean;
+  invalidReason: string;
+  sharpnessMaskTop: number[];
+  sharpnessMaskBottom: number[];
+  sharpnessMaskLeft: number[];
+  sharpnessMaskRight: number[];
+  strainMap: number[];
+  damageMap: number[];
+  weaknessMap: number[];
+  joinPoints: SavedJoinPointState[];
+  connectionSides: string[];
+  orientation: string;
+  joinedParts: SavedJoinedPartDescriptor[];
+  joinPreparationQuality?: number;
+  joinQuality?: number;
+  joinedFitScore?: number;
+  joinMaterialScore?: number;
+  joinWeaknessPenalty?: number;
+  massRaw: number;
+  centerOfMassXRaw: number;
+  centerOfMassYRaw: number;
+  effectiveReachRaw: number;
+  swingEfficiency: number;
+  thrustEfficiency: number;
+  diggingEfficiency: number;
+  cuttingEffectiveness: number;
+  piercingEffectiveness: number;
+  bluntEffectiveness: number;
+  stopOnHit: number;
+  durability: number;
+  breakRisk: number;
+  runtimeRegions: SavedRuntimeRegion[];
 }
 
 export interface SavedItemState {
@@ -106,13 +177,45 @@ export interface SavedPlayerState {
 }
 
 export interface SavedPropState {
-  type: 'chest' | 'item_drop';
+  type: 'chest' | 'item_drop' | 'smelter' | 'anvil' | 'workbench' | 'grindstone';
   xRaw: number;
   yRaw: number;
   z: number;
   radiusRaw: number;
   storage?: SavedInventoryState;
   item?: SavedItemState;
+  stationState?: {
+    heatingActive: boolean;
+    heatingTicks: number;
+    lastMold: number;
+    slots?: Array<{
+      slotId: string;
+      label?: string;
+      role?: string;
+      item?: SavedItemState;
+    }>;
+    moltenPool?: {
+      active: boolean;
+      materialId: string;
+      amountUnits: number;
+      temperatureRaw: number;
+      quality: number;
+      sourceCount: number;
+    };
+    comparisonBefore?: {
+      valid: boolean;
+      swingEfficiency: number;
+      thrustEfficiency: number;
+      diggingEfficiency: number;
+      cuttingEffectiveness: number;
+      piercingEffectiveness: number;
+      bluntEffectiveness: number;
+      durability: number;
+      breakRisk: number;
+    };
+    error?: string;
+    warnings?: string[];
+  };
 }
 
 export interface SavedWorldState {

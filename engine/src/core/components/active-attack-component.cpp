@@ -3,9 +3,11 @@
 #include "core/components/active-attack-component.h"
 #include "core/components/combat-body-component.h"
 #include "core/components/combat-state-component.h"
+#include "core/components/equipment-component.h"
 #include "core/combat/combat-events.h"
 #include "core/game-object/game-object.h"
 #include "core/game-world-engine.h"
+#include "core/inventory.h"
 #include "math/point.h"
 #include <fpm/math.hpp>
 
@@ -343,6 +345,61 @@ namespace
   {
     return static_cast<uint8_t>(definition.Direction) & 0x0f;
   }
+
+  const Item *GetEquippedCombatItem(GameWorldEngine &engine, uint32_t attackerId)
+  {
+    auto *equipmentMgr = engine.Ctx.GetManager<EquipmentComponentManager>();
+    if (!equipmentMgr)
+      return nullptr;
+
+    const Item *primary = equipmentMgr->GetEquippedItem(attackerId, EquipSlot::HandPrimary);
+    if (primary)
+      return primary;
+    return equipmentMgr->GetEquippedItem(attackerId, EquipSlot::HandSecondary);
+  }
+
+  int32_t CountRegions(const WorkpieceState &state, RuntimeRegionType type)
+  {
+    int32_t count = 0;
+    for (const auto &region : state.RuntimeRegions)
+    {
+      if (region.Type == type)
+        count++;
+    }
+    return count;
+  }
+
+  void ApplyCraftedCombatProfile(const Item *item, AttackDirection direction, float32 &damage, float32 &stopCost)
+  {
+    if (!item)
+      return;
+
+    const auto *workpiece = item->GetFeature<WorkpieceFeature>();
+    if (!workpiece)
+      return;
+
+    const WorkpieceState &state = workpiece->State;
+    const bool thrustAttack = direction == AttackDirection::ThrustFront;
+    const bool verticalAttack = direction == AttackDirection::OverheadSlash || direction == AttackDirection::RisingSlash;
+
+    int32_t relevantEffect = 0;
+    if (thrustAttack)
+    {
+      relevantEffect = state.PiercingEffectiveness + (CountRegions(state, RuntimeRegionType::Point) * 18) - (state.StopOnHit / 6);
+    }
+    else if (verticalAttack)
+    {
+      relevantEffect = (state.CuttingEffectiveness / 3) + state.BluntEffectiveness + (CountRegions(state, RuntimeRegionType::Head) * 18);
+    }
+    else
+    {
+      relevantEffect = state.CuttingEffectiveness + (CountRegions(state, RuntimeRegionType::Edge) * 16);
+    }
+
+    const float32 multiplier = (float32(100) + float32((std::max)(0, relevantEffect))) / float32(100);
+    damage *= multiplier;
+    stopCost += float32((std::max)(0, state.StopOnHit + (state.BreakRisk / 4))) / float32(10);
+  }
 }
 
 ActiveAttackComponent *ActiveAttackComponentManager::Ensure(uint32_t entityId, GameObject *owner)
@@ -462,6 +519,7 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
 
     if (attack->TickIndex > 0 && definition.IsActive(attack->TickIndex) && currentStep.Energy > float32(0))
     {
+      const Item *equippedItem = GetEquippedCombatItem(engine, attackerId);
       const Basis2 attackerBasis = GetBasis(attack->Owner);
       const CombatPoint prevHiltWorld = LocalToWorld(attack->Owner, attackerBasis, ToCombatPoint(previousStep.Hilt));
       const CombatPoint prevTipWorld = LocalToWorld(attack->Owner, attackerBasis, ToCombatPoint(previousStep.Tip));
@@ -524,6 +582,7 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
               candidate.BladeDistanceKey = bladeDistance;
               candidate.Damage = ComputeDamage(definition, currentStep, bladeT, CombatEventFlagNone, currentStep.Energy);
               candidate.StopCost = shieldState->StopPower + definition.ShieldProfile.ShieldStopPowerBonus;
+              ApplyCraftedCombatProfile(equippedItem, attack->Direction, candidate.Damage, candidate.StopCost);
               candidate.RemainingHp = shieldState->Integrity;
               candidate.Flags = CombatEventFlagShieldMatched;
               candidate.IsShield = true;
@@ -575,6 +634,7 @@ void ActiveAttackComponentManager::Tick(GameWorldEngine &engine,
           candidate.StopCost = outerState->StopPower;
           if (routedPart != hurtboxPart)
             candidate.StopCost += partState->StopPower / float32(2);
+          ApplyCraftedCombatProfile(equippedItem, attack->Direction, candidate.Damage, candidate.StopCost);
           candidate.RemainingHp = partState->Hp;
           candidate.IsShield = false;
         }

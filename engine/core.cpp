@@ -1,6 +1,8 @@
 #include <napi.h>
 #include "core/game-world-engine.h"
 #include "core/tile-registry.h"
+#include "core/crafting/material-processing.h"
+#include "core/components/crafting-station-component.h"
 #include "core/components/dropped-item-component.h"
 #include "core/components/equipment-component.h"
 #include "core/components/interactable-component.h"
@@ -40,6 +42,18 @@ public:
                                               InstanceMethod("transferItem", &GameWorldWrapper::TransferItem),
                                               InstanceMethod("toggleEquipItem", &GameWorldWrapper::ToggleEquipItem),
                                               InstanceMethod("dropItem", &GameWorldWrapper::DropItem),
+                                              InstanceMethod("getStationState", &GameWorldWrapper::GetStationState),
+                                              InstanceMethod("getCraftingInventoryState", &GameWorldWrapper::GetCraftingInventoryState),
+                                              InstanceMethod("insertStationItem", &GameWorldWrapper::InsertStationItem),
+                                              InstanceMethod("removeStationItem", &GameWorldWrapper::RemoveStationItem),
+                                              InstanceMethod("startHeating", &GameWorldWrapper::StartHeating),
+                                              InstanceMethod("collectSmeltResult", &GameWorldWrapper::CollectSmeltResult),
+                                              InstanceMethod("castWorkpiece", &GameWorldWrapper::CastWorkpiece),
+                                              InstanceMethod("bendWorkpiece", &GameWorldWrapper::BendWorkpiece),
+                                              InstanceMethod("forgeWorkpiece", &GameWorldWrapper::ForgeWorkpiece),
+                                              InstanceMethod("chipWorkpiece", &GameWorldWrapper::ChipWorkpiece),
+                                              InstanceMethod("sharpenWorkpiece", &GameWorldWrapper::SharpenWorkpiece),
+                                              InstanceMethod("joinWorkpieces", &GameWorldWrapper::JoinWorkpieces),
                                               InstanceMethod("getBodyStateManifest", &GameWorldWrapper::GetBodyStateManifest),
                                               InstanceMethod("getEntityBodyState", &GameWorldWrapper::GetEntityBodyState),
                                               InstanceMethod("setLayerDebugEnabled", &GameWorldWrapper::SetLayerDebugEnabled),
@@ -108,17 +122,7 @@ private:
 
     MaterialId ParseMaterialId(const std::string &value) const
     {
-        if (value == "dirt")
-            return MaterialId::Dirt;
-        if (value == "stone")
-            return MaterialId::Stone;
-        if (value == "iron")
-            return MaterialId::Iron;
-        if (value == "gold")
-            return MaterialId::Gold;
-        if (value == "clay")
-            return MaterialId::Clay;
-        return MaterialId::None;
+        return MaterialIdFromString(value);
     }
 
     std::vector<MaterialPart> ParseMaterialParts(const Napi::Value &value) const
@@ -268,21 +272,7 @@ private:
 
     std::string MaterialIdToString(MaterialId materialId) const
     {
-        switch (materialId)
-        {
-        case MaterialId::Dirt:
-            return "dirt";
-        case MaterialId::Stone:
-            return "stone";
-        case MaterialId::Iron:
-            return "iron";
-        case MaterialId::Gold:
-            return "gold";
-        case MaterialId::Clay:
-            return "clay";
-        default:
-            return "none";
-        }
+        return ::MaterialIdToString(materialId);
     }
 
     Napi::Array BuildMaterialPartsArray(Napi::Env env, const std::vector<MaterialPart> &parts) const
@@ -296,6 +286,398 @@ private:
             out.Set(i, row);
         }
         return out;
+    }
+
+    std::string WorkpieceStageToString(WorkpieceStage stage) const
+    {
+        switch (stage)
+        {
+        case WorkpieceStage::RawStock:
+            return "raw_stock";
+        case WorkpieceStage::HeatedStock:
+            return "heated_stock";
+        case WorkpieceStage::CastBlank:
+            return "cast_blank";
+        case WorkpieceStage::ShapedPart:
+            return "shaped_part";
+        case WorkpieceStage::AssembledItem:
+            return "assembled_item";
+        case WorkpieceStage::BrokenScrap:
+            return "broken_scrap";
+        default:
+            return "raw_stock";
+        }
+    }
+
+    std::string InvalidReasonToString(WorkpieceInvalidReason reason) const
+    {
+        switch (reason)
+        {
+        case WorkpieceInvalidReason::Fractured:
+            return "fractured";
+        case WorkpieceInvalidReason::Oversharpened:
+            return "oversharpened";
+        case WorkpieceInvalidReason::Undersized:
+            return "undersized";
+        case WorkpieceInvalidReason::ThermalFailure:
+            return "thermal_failure";
+        case WorkpieceInvalidReason::JoinMismatch:
+            return "join_mismatch";
+        default:
+            return "none";
+        }
+    }
+
+    std::string ConnectionSideToString(ConnectionSide side) const
+    {
+        switch (side)
+        {
+        case ConnectionSide::Top:
+            return "top";
+        case ConnectionSide::Bottom:
+            return "bottom";
+        case ConnectionSide::Left:
+            return "left";
+        case ConnectionSide::Right:
+            return "right";
+        default:
+            return "none";
+        }
+    }
+
+    std::string OrientationToString(PartOrientation orientation) const
+    {
+        switch (orientation)
+        {
+        case PartOrientation::Horizontal:
+            return "horizontal";
+        case PartOrientation::Vertical:
+            return "vertical";
+        default:
+            return "none";
+        }
+    }
+
+    PartOrientation ParseOrientation(const std::string &value) const
+    {
+        if (value == "horizontal")
+            return PartOrientation::Horizontal;
+        if (value == "vertical")
+            return PartOrientation::Vertical;
+        return PartOrientation::None;
+    }
+
+    ConnectionSide ParseConnectionSide(const std::string &value) const
+    {
+        if (value == "top")
+            return ConnectionSide::Top;
+        if (value == "bottom")
+            return ConnectionSide::Bottom;
+        if (value == "left")
+            return ConnectionSide::Left;
+        if (value == "right")
+            return ConnectionSide::Right;
+        return ConnectionSide::None;
+    }
+
+    std::vector<uint8_t> ParseByteArray(const Napi::Value &value) const
+    {
+        std::vector<uint8_t> out;
+        if (!value.IsArray())
+            return out;
+        Napi::Array array = value.As<Napi::Array>();
+        out.reserve(array.Length());
+        for (uint32_t i = 0; i < array.Length(); ++i)
+        {
+            out.push_back(static_cast<uint8_t>(array.Get(i).As<Napi::Number>().Uint32Value()));
+        }
+        return out;
+    }
+
+    std::vector<uint16_t> ParseU16Array(const Napi::Value &value) const
+    {
+        std::vector<uint16_t> out;
+        if (!value.IsArray())
+            return out;
+        Napi::Array array = value.As<Napi::Array>();
+        out.reserve(array.Length());
+        for (uint32_t i = 0; i < array.Length(); ++i)
+        {
+            out.push_back(static_cast<uint16_t>(array.Get(i).As<Napi::Number>().Uint32Value()));
+        }
+        return out;
+    }
+
+    Napi::Array BuildByteArray(Napi::Env env, const std::vector<uint8_t> &data) const
+    {
+        Napi::Array out = Napi::Array::New(env, data.size());
+        for (uint32_t i = 0; i < data.size(); ++i)
+            out.Set(i, Napi::Number::New(env, data[i]));
+        return out;
+    }
+
+    Napi::Array BuildU16Array(Napi::Env env, const std::vector<uint16_t> &data) const
+    {
+        Napi::Array out = Napi::Array::New(env, data.size());
+        for (uint32_t i = 0; i < data.size(); ++i)
+            out.Set(i, Napi::Number::New(env, data[i]));
+        return out;
+    }
+
+    Napi::Array BuildConnectionSidesArray(Napi::Env env, const std::vector<ConnectionSide> &sides) const
+    {
+        Napi::Array out = Napi::Array::New(env, sides.size());
+        for (uint32_t i = 0; i < sides.size(); ++i)
+            out.Set(i, Napi::String::New(env, ConnectionSideToString(sides[i])));
+        return out;
+    }
+
+    Napi::Array BuildJoinPointsArray(Napi::Env env, const std::vector<JoinPointState> &points) const
+    {
+        Napi::Array out = Napi::Array::New(env, points.size());
+        for (uint32_t i = 0; i < points.size(); ++i)
+        {
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("x", Napi::Number::New(env, points[i].X));
+            row.Set("y", Napi::Number::New(env, points[i].Y));
+            row.Set("side", Napi::String::New(env, ConnectionSideToString(points[i].Side)));
+            row.Set("orientation", Napi::String::New(env, OrientationToString(points[i].Orientation)));
+            row.Set("occupied", Napi::Boolean::New(env, points[i].Occupied));
+            out.Set(i, row);
+        }
+        return out;
+    }
+
+    Napi::Array BuildJoinedPartsArray(Napi::Env env, const std::vector<JoinedPartDescriptor> &parts) const
+    {
+        Napi::Array out = Napi::Array::New(env, parts.size());
+        for (uint32_t i = 0; i < parts.size(); ++i)
+        {
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("definitionId", Napi::String::New(env, parts[i].DefinitionId));
+            row.Set("materialId", Napi::String::New(env, MaterialIdToString(parts[i].Material)));
+            row.Set("side", Napi::String::New(env, ConnectionSideToString(parts[i].Side)));
+            row.Set("orientation", Napi::String::New(env, OrientationToString(parts[i].Orientation)));
+            row.Set("width", Napi::Number::New(env, parts[i].Width));
+            row.Set("height", Napi::Number::New(env, parts[i].Height));
+            out.Set(i, row);
+        }
+        return out;
+    }
+
+    Napi::Array BuildRuntimeRegionsArray(Napi::Env env, const std::vector<RuntimeRegion> &regions) const
+    {
+        Napi::Array out = Napi::Array::New(env, regions.size());
+        for (uint32_t i = 0; i < regions.size(); ++i)
+        {
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("type", Napi::Number::New(env, static_cast<uint8_t>(regions[i].Type)));
+            row.Set("minX", Napi::Number::New(env, regions[i].MinX));
+            row.Set("minY", Napi::Number::New(env, regions[i].MinY));
+            row.Set("maxX", Napi::Number::New(env, regions[i].MaxX));
+            row.Set("maxY", Napi::Number::New(env, regions[i].MaxY));
+            out.Set(i, row);
+        }
+        return out;
+    }
+
+    Napi::Object BuildWorkpieceObject(Napi::Env env, const WorkpieceState &state) const
+    {
+        Napi::Object out = Napi::Object::New(env);
+        out.Set("version", Napi::Number::New(env, state.Version));
+        out.Set("stage", Napi::String::New(env, WorkpieceStageToString(state.Stage)));
+        out.Set("materialId", Napi::String::New(env, MaterialIdToString(state.Material)));
+        out.Set("profileWidth", Napi::Number::New(env, state.ProfileWidth));
+        out.Set("profileHeight", Napi::Number::New(env, state.ProfileHeight));
+        out.Set("profileMask", BuildByteArray(env, state.ProfileMask));
+        out.Set("thicknessRaw", Napi::Number::New(env, state.ThicknessRaw));
+        out.Set("temperatureRaw", Napi::Number::New(env, state.TemperatureRaw));
+        out.Set("quality", Napi::Number::New(env, state.Quality));
+        out.Set("fractured", Napi::Boolean::New(env, state.Fractured));
+        out.Set("broken", Napi::Boolean::New(env, state.Broken));
+        out.Set("invalidReason", Napi::String::New(env, InvalidReasonToString(state.InvalidReason)));
+        out.Set("sharpnessMaskTop", BuildByteArray(env, state.SharpnessMaskTop));
+        out.Set("sharpnessMaskBottom", BuildByteArray(env, state.SharpnessMaskBottom));
+        out.Set("sharpnessMaskLeft", BuildByteArray(env, state.SharpnessMaskLeft));
+        out.Set("sharpnessMaskRight", BuildByteArray(env, state.SharpnessMaskRight));
+        out.Set("strainMap", BuildU16Array(env, state.StrainMap));
+        out.Set("damageMap", BuildU16Array(env, state.DamageMap));
+        out.Set("weaknessMap", BuildByteArray(env, state.WeaknessMap));
+        out.Set("joinPoints", BuildJoinPointsArray(env, state.JoinPoints));
+        out.Set("connectionSides", BuildConnectionSidesArray(env, state.ConnectionSides));
+        out.Set("orientation", Napi::String::New(env, OrientationToString(state.Orientation)));
+        out.Set("joinedParts", BuildJoinedPartsArray(env, state.JoinedParts));
+        out.Set("joinPreparationQuality", Napi::Number::New(env, state.JoinPreparationQuality));
+        out.Set("joinQuality", Napi::Number::New(env, state.JoinQuality));
+        out.Set("joinedFitScore", Napi::Number::New(env, state.JoinedFitScore));
+        out.Set("joinMaterialScore", Napi::Number::New(env, state.JoinMaterialScore));
+        out.Set("joinWeaknessPenalty", Napi::Number::New(env, state.JoinWeaknessPenalty));
+        out.Set("massRaw", Napi::Number::New(env, state.MassRaw));
+        out.Set("centerOfMassXRaw", Napi::Number::New(env, state.CenterOfMassXRaw));
+        out.Set("centerOfMassYRaw", Napi::Number::New(env, state.CenterOfMassYRaw));
+        out.Set("effectiveReachRaw", Napi::Number::New(env, state.EffectiveReachRaw));
+        out.Set("swingEfficiency", Napi::Number::New(env, state.SwingEfficiency));
+        out.Set("thrustEfficiency", Napi::Number::New(env, state.ThrustEfficiency));
+        out.Set("diggingEfficiency", Napi::Number::New(env, state.DiggingEfficiency));
+        out.Set("cuttingEffectiveness", Napi::Number::New(env, state.CuttingEffectiveness));
+        out.Set("piercingEffectiveness", Napi::Number::New(env, state.PiercingEffectiveness));
+        out.Set("bluntEffectiveness", Napi::Number::New(env, state.BluntEffectiveness));
+        out.Set("stopOnHit", Napi::Number::New(env, state.StopOnHit));
+        out.Set("durability", Napi::Number::New(env, state.Durability));
+        out.Set("breakRisk", Napi::Number::New(env, state.BreakRisk));
+        out.Set("runtimeRegions", BuildRuntimeRegionsArray(env, state.RuntimeRegions));
+        return out;
+    }
+
+    WorkpieceStage ParseWorkpieceStage(const std::string &value) const
+    {
+        if (value == "heated_stock")
+            return WorkpieceStage::HeatedStock;
+        if (value == "cast_blank")
+            return WorkpieceStage::CastBlank;
+        if (value == "shaped_part")
+            return WorkpieceStage::ShapedPart;
+        if (value == "assembled_item")
+            return WorkpieceStage::AssembledItem;
+        if (value == "broken_scrap")
+            return WorkpieceStage::BrokenScrap;
+        return WorkpieceStage::RawStock;
+    }
+
+    WorkpieceInvalidReason ParseInvalidReason(const std::string &value) const
+    {
+        if (value == "fractured")
+            return WorkpieceInvalidReason::Fractured;
+        if (value == "oversharpened")
+            return WorkpieceInvalidReason::Oversharpened;
+        if (value == "undersized")
+            return WorkpieceInvalidReason::Undersized;
+        if (value == "thermal_failure")
+            return WorkpieceInvalidReason::ThermalFailure;
+        if (value == "join_mismatch")
+            return WorkpieceInvalidReason::JoinMismatch;
+        return WorkpieceInvalidReason::None;
+    }
+
+    WorkpieceState ParseWorkpieceState(const Napi::Value &value) const
+    {
+        WorkpieceState state;
+        if (!value.IsObject())
+            return state;
+
+        Napi::Object obj = value.As<Napi::Object>();
+        state.Version = static_cast<uint16_t>(GetInt(obj, "version", state.Version));
+        if (obj.Has("stage") && obj.Get("stage").IsString())
+            state.Stage = ParseWorkpieceStage(obj.Get("stage").As<Napi::String>().Utf8Value());
+        if (obj.Has("materialId") && obj.Get("materialId").IsString())
+            state.Material = ParseMaterialId(obj.Get("materialId").As<Napi::String>().Utf8Value());
+        state.ProfileWidth = static_cast<uint16_t>(GetInt(obj, "profileWidth", state.ProfileWidth));
+        state.ProfileHeight = static_cast<uint16_t>(GetInt(obj, "profileHeight", state.ProfileHeight));
+        if (obj.Has("profileMask"))
+            state.ProfileMask = ParseByteArray(obj.Get("profileMask"));
+        state.ThicknessRaw = GetInt(obj, "thicknessRaw", state.ThicknessRaw);
+        state.TemperatureRaw = GetInt(obj, "temperatureRaw", state.TemperatureRaw);
+        state.Quality = static_cast<uint16_t>(GetInt(obj, "quality", state.Quality));
+        state.Fractured = GetBool(obj, "fractured", state.Fractured);
+        state.Broken = GetBool(obj, "broken", state.Broken);
+        if (obj.Has("invalidReason") && obj.Get("invalidReason").IsString())
+            state.InvalidReason = ParseInvalidReason(obj.Get("invalidReason").As<Napi::String>().Utf8Value());
+        if (obj.Has("sharpnessMaskTop"))
+            state.SharpnessMaskTop = ParseByteArray(obj.Get("sharpnessMaskTop"));
+        if (obj.Has("sharpnessMaskBottom"))
+            state.SharpnessMaskBottom = ParseByteArray(obj.Get("sharpnessMaskBottom"));
+        if (obj.Has("sharpnessMaskLeft"))
+            state.SharpnessMaskLeft = ParseByteArray(obj.Get("sharpnessMaskLeft"));
+        if (obj.Has("sharpnessMaskRight"))
+            state.SharpnessMaskRight = ParseByteArray(obj.Get("sharpnessMaskRight"));
+        if (obj.Has("strainMap"))
+            state.StrainMap = ParseU16Array(obj.Get("strainMap"));
+        if (obj.Has("damageMap"))
+            state.DamageMap = ParseU16Array(obj.Get("damageMap"));
+        if (obj.Has("weaknessMap"))
+            state.WeaknessMap = ParseByteArray(obj.Get("weaknessMap"));
+        if (obj.Has("connectionSides") && obj.Get("connectionSides").IsArray())
+        {
+            Napi::Array sides = obj.Get("connectionSides").As<Napi::Array>();
+            for (uint32_t i = 0; i < sides.Length(); ++i)
+            {
+                if (sides.Get(i).IsString())
+                    state.ConnectionSides.push_back(ParseConnectionSide(sides.Get(i).As<Napi::String>().Utf8Value()));
+            }
+        }
+        if (obj.Has("orientation") && obj.Get("orientation").IsString())
+            state.Orientation = ParseOrientation(obj.Get("orientation").As<Napi::String>().Utf8Value());
+        if (obj.Has("joinPoints") && obj.Get("joinPoints").IsArray())
+        {
+            Napi::Array points = obj.Get("joinPoints").As<Napi::Array>();
+            for (uint32_t i = 0; i < points.Length(); ++i)
+            {
+                if (!points.Get(i).IsObject())
+                    continue;
+                Napi::Object row = points.Get(i).As<Napi::Object>();
+                state.JoinPoints.push_back(JoinPointState{
+                    static_cast<int16_t>(GetInt(row, "x", 0)),
+                    static_cast<int16_t>(GetInt(row, "y", 0)),
+                    row.Has("side") && row.Get("side").IsString() ? ParseConnectionSide(row.Get("side").As<Napi::String>().Utf8Value()) : ConnectionSide::None,
+                    row.Has("orientation") && row.Get("orientation").IsString() ? ParseOrientation(row.Get("orientation").As<Napi::String>().Utf8Value()) : PartOrientation::None,
+                    GetBool(row, "occupied", false),
+                });
+            }
+        }
+        if (obj.Has("joinedParts") && obj.Get("joinedParts").IsArray())
+        {
+            Napi::Array parts = obj.Get("joinedParts").As<Napi::Array>();
+            for (uint32_t i = 0; i < parts.Length(); ++i)
+            {
+                if (!parts.Get(i).IsObject())
+                    continue;
+                Napi::Object row = parts.Get(i).As<Napi::Object>();
+                state.JoinedParts.push_back(JoinedPartDescriptor{
+                    row.Has("definitionId") && row.Get("definitionId").IsString() ? row.Get("definitionId").As<Napi::String>().Utf8Value() : std::string(),
+                    row.Has("materialId") && row.Get("materialId").IsString() ? ParseMaterialId(row.Get("materialId").As<Napi::String>().Utf8Value()) : MaterialId::None,
+                    row.Has("side") && row.Get("side").IsString() ? ParseConnectionSide(row.Get("side").As<Napi::String>().Utf8Value()) : ConnectionSide::None,
+                    row.Has("orientation") && row.Get("orientation").IsString() ? ParseOrientation(row.Get("orientation").As<Napi::String>().Utf8Value()) : PartOrientation::None,
+                    GetInt(row, "width", 0),
+                    GetInt(row, "height", 0),
+                });
+            }
+        }
+        state.JoinPreparationQuality = static_cast<uint16_t>(GetInt(obj, "joinPreparationQuality", state.JoinPreparationQuality));
+        state.JoinQuality = static_cast<uint16_t>(GetInt(obj, "joinQuality", state.JoinQuality));
+        state.JoinedFitScore = static_cast<uint16_t>(GetInt(obj, "joinedFitScore", state.JoinedFitScore));
+        state.JoinMaterialScore = static_cast<uint16_t>(GetInt(obj, "joinMaterialScore", state.JoinMaterialScore));
+        state.JoinWeaknessPenalty = static_cast<uint16_t>(GetInt(obj, "joinWeaknessPenalty", state.JoinWeaknessPenalty));
+        state.MassRaw = GetInt(obj, "massRaw", state.MassRaw);
+        state.CenterOfMassXRaw = GetInt(obj, "centerOfMassXRaw", state.CenterOfMassXRaw);
+        state.CenterOfMassYRaw = GetInt(obj, "centerOfMassYRaw", state.CenterOfMassYRaw);
+        state.EffectiveReachRaw = GetInt(obj, "effectiveReachRaw", state.EffectiveReachRaw);
+        state.SwingEfficiency = GetInt(obj, "swingEfficiency", state.SwingEfficiency);
+        state.ThrustEfficiency = GetInt(obj, "thrustEfficiency", state.ThrustEfficiency);
+        state.DiggingEfficiency = GetInt(obj, "diggingEfficiency", state.DiggingEfficiency);
+        state.CuttingEffectiveness = GetInt(obj, "cuttingEffectiveness", state.CuttingEffectiveness);
+        state.PiercingEffectiveness = GetInt(obj, "piercingEffectiveness", state.PiercingEffectiveness);
+        state.BluntEffectiveness = GetInt(obj, "bluntEffectiveness", state.BluntEffectiveness);
+        state.StopOnHit = GetInt(obj, "stopOnHit", state.StopOnHit);
+        state.Durability = GetInt(obj, "durability", state.Durability);
+        state.BreakRisk = GetInt(obj, "breakRisk", state.BreakRisk);
+        if (obj.Has("runtimeRegions") && obj.Get("runtimeRegions").IsArray())
+        {
+            Napi::Array regions = obj.Get("runtimeRegions").As<Napi::Array>();
+            for (uint32_t i = 0; i < regions.Length(); ++i)
+            {
+                if (!regions.Get(i).IsObject())
+                    continue;
+                Napi::Object row = regions.Get(i).As<Napi::Object>();
+                state.RuntimeRegions.push_back(RuntimeRegion{
+                    static_cast<RuntimeRegionType>(GetInt(row, "type", 0)),
+                    static_cast<int16_t>(GetInt(row, "minX", 0)),
+                    static_cast<int16_t>(GetInt(row, "minY", 0)),
+                    static_cast<int16_t>(GetInt(row, "maxX", 0)),
+                    static_cast<int16_t>(GetInt(row, "maxY", 0)),
+                });
+            }
+        }
+        return state;
     }
 
     Napi::Object BuildItemSaveObject(Napi::Env env, const Item &item) const
@@ -359,6 +741,11 @@ private:
         if (const auto *materials = item.GetFeature<MaterialCompositionFeature>())
         {
             features.Set("materialComposition", BuildMaterialPartsArray(env, materials->Composition.Parts));
+        }
+
+        if (const auto *workpiece = item.GetFeature<WorkpieceFeature>())
+        {
+            features.Set("workpiece", BuildWorkpieceObject(env, workpiece->State));
         }
 
         row.Set("features", features);
@@ -476,6 +863,16 @@ private:
             materials->Composition.Normalize();
         }
 
+        if (features.Has("workpiece") && features.Get("workpiece").IsObject())
+        {
+            WorkpieceState state = ParseWorkpieceState(features.Get("workpiece"));
+            auto *workpiece = item->GetFeature<WorkpieceFeature>();
+            if (!workpiece)
+                workpiece = item->AddFeature<WorkpieceFeature>(state);
+            workpiece->State = std::move(state);
+            Crafting::RecalculateDerivedState(*item);
+        }
+
         return item;
     }
 
@@ -523,6 +920,44 @@ private:
                 inventory->AddItem(std::move(item));
         }
         return inventory;
+    }
+
+    Napi::Array BuildStationSlotSaveArray(Napi::Env env, const CraftingStationComponent &station) const
+    {
+        Napi::Array out = Napi::Array::New(env, station.Slots.size());
+        for (uint32_t i = 0; i < station.Slots.size(); ++i)
+        {
+            const auto &slot = station.Slots[i];
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("slotId", Napi::String::New(env, slot.SlotId));
+            row.Set("label", Napi::String::New(env, slot.Label));
+            row.Set("role", Napi::String::New(env, slot.Role));
+            if (slot.ItemRef)
+                row.Set("item", BuildItemSaveObject(env, *slot.ItemRef));
+            out.Set(i, row);
+        }
+        return out;
+    }
+
+    void ParseStationSlotSaveArray(const Napi::Value &value, CraftingStationComponent *station) const
+    {
+        if (!station || !value.IsArray())
+            return;
+
+        Napi::Array slots = value.As<Napi::Array>();
+        for (uint32_t i = 0; i < slots.Length(); ++i)
+        {
+            if (!slots.Get(i).IsObject())
+                continue;
+            Napi::Object row = slots.Get(i).As<Napi::Object>();
+            const std::string slotId = row.Has("slotId") && row.Get("slotId").IsString()
+                ? row.Get("slotId").As<Napi::String>().Utf8Value()
+                : std::string();
+            auto *slot = core_->Ctx.GetManager<CraftingStationComponentManager>()->FindSlot(station, slotId);
+            if (!slot)
+                continue;
+            slot->ItemRef = ParseItemSaveObject(row.Get("item"));
+        }
     }
 
     Napi::Array BuildEquipmentSaveArray(Napi::Env env, uint32_t entityId, Inventory *inventory) const
@@ -620,6 +1055,10 @@ private:
                 row.Set("equipped", Napi::Boolean::New(env, equipped));
                 const auto slot = equipmentMgr ? equipmentMgr->GetEquippedSlotFor(ownerId, item) : EquipSlot::None;
                 row.Set("equipSlot", Napi::String::New(env, EquipmentComponentManager::SlotName(slot)));
+                if (const auto *workpiece = item->GetFeature<WorkpieceFeature>())
+                {
+                    row.Set("workpiece", BuildWorkpieceObject(env, workpiece->State));
+                }
                 items.Set(i, row);
             }
 
@@ -638,6 +1077,74 @@ private:
         return out;
     }
 
+    Napi::Object BuildCraftingStatSnapshotObject(Napi::Env env, const CraftingStatSnapshot &snapshot) const
+    {
+        Napi::Object out = Napi::Object::New(env);
+        out.Set("valid", Napi::Boolean::New(env, snapshot.Valid));
+        out.Set("swingEfficiency", Napi::Number::New(env, snapshot.SwingEfficiency));
+        out.Set("thrustEfficiency", Napi::Number::New(env, snapshot.ThrustEfficiency));
+        out.Set("diggingEfficiency", Napi::Number::New(env, snapshot.DiggingEfficiency));
+        out.Set("cuttingEffectiveness", Napi::Number::New(env, snapshot.CuttingEffectiveness));
+        out.Set("piercingEffectiveness", Napi::Number::New(env, snapshot.PiercingEffectiveness));
+        out.Set("bluntEffectiveness", Napi::Number::New(env, snapshot.BluntEffectiveness));
+        out.Set("durability", Napi::Number::New(env, snapshot.Durability));
+        out.Set("breakRisk", Napi::Number::New(env, snapshot.BreakRisk));
+        return out;
+    }
+
+    Napi::Value BuildInventoryItemView(Napi::Env env, const Item *item, uint32_t ownerId, const std::string &idPrefix) const
+    {
+        if (!item)
+            return env.Null();
+
+        auto *equipmentMgr = core_->Ctx.GetManager<EquipmentComponentManager>();
+        Napi::Object row = Napi::Object::New(env);
+        row.Set("id", Napi::String::New(env, idPrefix));
+        row.Set("name", Napi::String::New(env, item->Name));
+        row.Set("spriteKey", Napi::String::New(env, item->SpriteKey));
+        row.Set("quantity", Napi::Number::New(env, item->Quantity));
+        row.Set("stackable", Napi::Boolean::New(env, item->Stackable));
+        row.Set("maxStack", Napi::Number::New(env, item->MaxStack));
+        row.Set("volume", Napi::Number::New(env, static_cast<double>(item->Volume)));
+        row.Set("weight", Napi::Number::New(env, static_cast<double>(item->Weight)));
+        row.Set("price", Napi::Number::New(env, static_cast<double>(item->GetMerchantBaseValue())));
+        const bool equipped = equipmentMgr ? equipmentMgr->IsEquipped(ownerId, item) : false;
+        row.Set("equipped", Napi::Boolean::New(env, equipped));
+        const auto slot = equipmentMgr ? equipmentMgr->GetEquippedSlotFor(ownerId, item) : EquipSlot::None;
+        row.Set("equipSlot", Napi::String::New(env, EquipmentComponentManager::SlotName(slot)));
+        if (const auto *workpiece = item->GetFeature<WorkpieceFeature>())
+            row.Set("workpiece", BuildWorkpieceObject(env, workpiece->State));
+        return row;
+    }
+
+    Napi::Array BuildStationSlotsArray(Napi::Env env, uint32_t ownerId, const CraftingStationComponent &station) const
+    {
+        Napi::Array out = Napi::Array::New(env, station.Slots.size());
+        for (uint32_t i = 0; i < station.Slots.size(); ++i)
+        {
+            const auto &slot = station.Slots[i];
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("slotId", Napi::String::New(env, slot.SlotId));
+            row.Set("label", Napi::String::New(env, slot.Label));
+            row.Set("role", Napi::String::New(env, slot.Role));
+            row.Set("item", BuildInventoryItemView(env, slot.ItemRef.get(), ownerId, std::string("station-") + slot.SlotId));
+            out.Set(i, row);
+        }
+        return out;
+    }
+
+    Napi::Object BuildMoltenPoolObject(Napi::Env env, const MoltenPoolState &pool) const
+    {
+        Napi::Object out = Napi::Object::New(env);
+        out.Set("active", Napi::Boolean::New(env, pool.Active));
+        out.Set("materialId", Napi::String::New(env, MaterialIdToString(pool.Material)));
+        out.Set("amountUnits", Napi::Number::New(env, pool.AmountUnits));
+        out.Set("temperatureRaw", Napi::Number::New(env, pool.TemperatureRaw));
+        out.Set("quality", Napi::Number::New(env, pool.Quality));
+        out.Set("sourceCount", Napi::Number::New(env, pool.SourceCount));
+        return out;
+    }
+
     Napi::Value BuildPlayerInventoryState(Napi::Env env, uint32_t playerId) const
     {
         auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();
@@ -648,6 +1155,92 @@ private:
         auto playerInventory = BuildInventoryObject(env, playerId, inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack));
         payload.Set("playerInventory", playerInventory.Get("items"));
         payload.Set("playerInventoryMeta", playerInventory);
+        return payload;
+    }
+
+    Napi::Value BuildCraftingInventoryState(Napi::Env env, uint32_t playerId) const
+    {
+        auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();
+        if (!inventoryMgr)
+            return env.Null();
+
+        Napi::Object payload = Napi::Object::New(env);
+        auto inventory = BuildInventoryObject(env, playerId, inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack));
+        payload.Set("craftingInventory", inventory.Get("items"));
+        payload.Set("craftingInventoryMeta", inventory);
+        return payload;
+    }
+
+    std::string StationTypeToString(CraftingStationType stationType) const
+    {
+        switch (stationType)
+        {
+        case CraftingStationType::Smelter:
+            return "smelter";
+        case CraftingStationType::Anvil:
+            return "anvil";
+        case CraftingStationType::Workbench:
+            return "workbench";
+        case CraftingStationType::Grindstone:
+            return "grindstone";
+        default:
+            return "none";
+        }
+    }
+
+    Napi::Value BuildStationState(Napi::Env env, uint32_t playerId, uint32_t stationId) const
+    {
+        auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();
+        auto *interactMgr = core_->Ctx.GetManager<InteractableComponentManager>();
+        auto *stationMgr = core_->Ctx.GetManager<CraftingStationComponentManager>();
+        auto *player = core_->ObjectManager.GetById(playerId);
+        auto *station = core_->ObjectManager.GetById(stationId);
+        if (!inventoryMgr || !interactMgr || !stationMgr || !player || !station || !interactMgr->CanInteract(playerId, stationId))
+            return env.Null();
+
+        auto *stationComponent = stationMgr->Get(stationId);
+        if (!stationComponent)
+            return env.Null();
+
+        auto craftingInventory = BuildInventoryObject(env, playerId, inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack));
+
+        Napi::Object payload = Napi::Object::New(env);
+        payload.Set("payloadType", Napi::String::New(env, "station_state"));
+        payload.Set("stationId", Napi::String::New(env, std::to_string(stationId)));
+        payload.Set("stationType", Napi::String::New(env, StationTypeToString(stationComponent->StationType)));
+        payload.Set("stationLabel", Napi::String::New(env, station->Type));
+        payload.Set("heatingActive", Napi::Boolean::New(env, stationComponent->HeatingActive));
+        payload.Set("heatingTicks", Napi::Number::New(env, stationComponent->HeatingTicks));
+        payload.Set("lastMold", Napi::Number::New(env, static_cast<uint8_t>(stationComponent->LastMold)));
+        payload.Set("slots", BuildStationSlotsArray(env, playerId, *stationComponent));
+        payload.Set("moldSlots", [&]() {
+            Napi::Array molds = Napi::Array::New(env, stationComponent->MoldSlots.size());
+            for (uint32_t i = 0; i < stationComponent->MoldSlots.size(); ++i)
+                molds.Set(i, Napi::Number::New(env, static_cast<uint8_t>(stationComponent->MoldSlots[i])));
+            return molds;
+        }());
+        payload.Set("moltenPool", BuildMoltenPoolObject(env, stationComponent->MoltenPool));
+        payload.Set("comparisonBefore", BuildCraftingStatSnapshotObject(env, stationComponent->ComparisonBefore));
+        payload.Set("warnings", [&]() {
+            Napi::Array warnings = Napi::Array::New(env, stationComponent->Warnings.size());
+            for (uint32_t i = 0; i < stationComponent->Warnings.size(); ++i)
+                warnings.Set(i, Napi::String::New(env, stationComponent->Warnings[i]));
+            return warnings;
+        }());
+        payload.Set("error", Napi::String::New(env, stationComponent->LastError));
+        payload.Set("insertedItem", [&]() {
+            Napi::Array inserted = Napi::Array::New(env);
+            uint32_t index = 0;
+            for (const auto &slot : stationComponent->Slots)
+            {
+                if (!slot.ItemRef)
+                    continue;
+                inserted.Set(index++, BuildInventoryItemView(env, slot.ItemRef.get(), playerId, std::string("legacy-") + slot.SlotId));
+            }
+            return inserted;
+        }());
+        payload.Set("craftingInventory", craftingInventory.Get("items"));
+        payload.Set("craftingInventoryMeta", craftingInventory);
         return payload;
     }
 
@@ -675,6 +1268,11 @@ private:
             payload.Set("playerInventory", playerInventory.Get("items"));
             payload.Set("playerInventoryMeta", playerInventory);
             return payload;
+        }
+
+        if (interactComp && interactComp->Type == InteractionType::Station)
+        {
+            return BuildStationState(env, playerId, targetId);
         }
 
         Napi::Object payload = Napi::Object::New(env);
@@ -886,7 +1484,7 @@ private:
                 if (!backpack || !item || !backpack->CanAccept(*item))
                     continue;
             }
-            else if (comp->Type != InteractionType::Loot)
+            else if (comp->Type != InteractionType::Loot && comp->Type != InteractionType::Station)
             {
                 continue;
             }
@@ -897,8 +1495,12 @@ private:
 
             Napi::Array interactions = Napi::Array::New(info.Env(), 1);
             Napi::Object option = Napi::Object::New(info.Env());
-            option.Set("interactionId", Napi::String::New(info.Env(), comp->Type == InteractionType::Pickup ? "pickup" : "loot"));
-            option.Set("nameKey", Napi::String::New(info.Env(), comp->Type == InteractionType::Pickup ? "Pick up" : "Loot"));
+            option.Set("interactionId", Napi::String::New(info.Env(),
+                comp->Type == InteractionType::Pickup ? "pickup" :
+                comp->Type == InteractionType::Station ? "craft" : "loot"));
+            option.Set("nameKey", Napi::String::New(info.Env(),
+                comp->Type == InteractionType::Pickup ? "Pick up" :
+                comp->Type == InteractionType::Station ? "Craft" : "Loot"));
             interactions.Set(uint32_t(0), option);
             target.Set("interactions", interactions);
 
@@ -954,6 +1556,24 @@ private:
         return BuildPlayerInventoryState(info.Env(), info[0].As<Napi::Number>().Uint32Value());
     }
 
+    Napi::Value GetCraftingInventoryState(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 1 || !info[0].IsNumber())
+            return info.Env().Null();
+
+        return BuildCraftingInventoryState(info.Env(), info[0].As<Napi::Number>().Uint32Value());
+    }
+
+    Napi::Value GetStationState(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber())
+            return info.Env().Null();
+
+        return BuildStationState(info.Env(),
+                                 info[0].As<Napi::Number>().Uint32Value(),
+                                 info[1].As<Napi::Number>().Uint32Value());
+    }
+
     Napi::Value TransferItem(const Napi::CallbackInfo &info)
     {
         if (info.Length() < 5)
@@ -986,6 +1606,117 @@ private:
         const uint32_t entityId = info[0].As<Napi::Number>().Uint32Value();
         const int idx = info[1].As<Napi::Number>().Int32Value();
         return Napi::Boolean::New(info.Env(), core_->DropItem(entityId, idx));
+    }
+
+    Napi::Value InsertStationItem(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 3)
+            return Napi::Boolean::New(info.Env(), false);
+        const std::string slotId = info.Length() > 3 && info[3].IsString() ? info[3].As<Napi::String>().Utf8Value() : std::string();
+        return Napi::Boolean::New(info.Env(), core_->InsertItemIntoStation(
+            info[0].As<Napi::Number>().Uint32Value(),
+            info[1].As<Napi::Number>().Uint32Value(),
+            info[2].As<Napi::Number>().Int32Value(),
+            slotId));
+    }
+
+    Napi::Value RemoveStationItem(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 2)
+            return Napi::Boolean::New(info.Env(), false);
+        const std::string slotId = info.Length() > 2 && info[2].IsString() ? info[2].As<Napi::String>().Utf8Value() : std::string();
+        return Napi::Boolean::New(info.Env(), core_->RemoveItemFromStation(
+            info[0].As<Napi::Number>().Uint32Value(),
+            info[1].As<Napi::Number>().Uint32Value(),
+            slotId));
+    }
+
+    Napi::Value StartHeating(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 2)
+            return Napi::Boolean::New(info.Env(), false);
+        return Napi::Boolean::New(info.Env(), core_->StartHeating(
+            info[0].As<Napi::Number>().Uint32Value(),
+            info[1].As<Napi::Number>().Uint32Value()));
+    }
+
+    Napi::Value CollectSmeltResult(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 2)
+            return Napi::Boolean::New(info.Env(), false);
+        const std::string slotId = info.Length() > 2 && info[2].IsString() ? info[2].As<Napi::String>().Utf8Value() : std::string("output");
+        return Napi::Boolean::New(info.Env(), core_->CollectSmeltResult(
+            info[0].As<Napi::Number>().Uint32Value(),
+            info[1].As<Napi::Number>().Uint32Value(),
+            slotId));
+    }
+
+    Napi::Value CastWorkpiece(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 6)
+            return Napi::Boolean::New(info.Env(), false);
+        return Napi::Boolean::New(info.Env(), core_->CastWorkpiece(
+            info[0].As<Napi::Number>().Uint32Value(),
+            info[1].As<Napi::Number>().Uint32Value(),
+            static_cast<MoldSilhouette>(info[2].As<Napi::Number>().Uint32Value()),
+            info[3].As<Napi::Number>().Int32Value(),
+            info[4].As<Napi::Number>().Int32Value(),
+            info[5].As<Napi::Number>().Int32Value()));
+    }
+
+    Napi::Value BendWorkpiece(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 4)
+            return Napi::Boolean::New(info.Env(), false);
+        return Napi::Boolean::New(info.Env(), core_->BendWorkpiece(
+            info[0].As<Napi::Number>().Uint32Value(),
+            info[1].As<Napi::Number>().Uint32Value(),
+            static_cast<BendZone>(info[2].As<Napi::Number>().Uint32Value()),
+            info[3].As<Napi::Number>().Int32Value()));
+    }
+
+    Napi::Value ForgeWorkpiece(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 4)
+            return Napi::Boolean::New(info.Env(), false);
+        return Napi::Boolean::New(info.Env(), core_->ForgeWorkpiece(
+            info[0].As<Napi::Number>().Uint32Value(),
+            info[1].As<Napi::Number>().Uint32Value(),
+            static_cast<ForgeZone>(info[2].As<Napi::Number>().Uint32Value()),
+            info[3].As<Napi::Number>().Int32Value()));
+    }
+
+    Napi::Value ChipWorkpiece(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 6)
+            return Napi::Boolean::New(info.Env(), false);
+        return Napi::Boolean::New(info.Env(), core_->ChipWorkpiece(
+            info[0].As<Napi::Number>().Uint32Value(),
+            info[1].As<Napi::Number>().Uint32Value(),
+            info[2].As<Napi::Number>().Int32Value(),
+            info[3].As<Napi::Number>().Int32Value(),
+            info[4].As<Napi::Number>().Int32Value(),
+            info[5].As<Napi::Number>().Int32Value()));
+    }
+
+    Napi::Value SharpenWorkpiece(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 4)
+            return Napi::Boolean::New(info.Env(), false);
+        return Napi::Boolean::New(info.Env(), core_->SharpenWorkpiece(
+            info[0].As<Napi::Number>().Uint32Value(),
+            info[1].As<Napi::Number>().Uint32Value(),
+            static_cast<SharpenSide>(info[2].As<Napi::Number>().Uint32Value()),
+            info[3].As<Napi::Number>().Int32Value()));
+    }
+
+    Napi::Value JoinWorkpieces(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 2)
+            return Napi::Boolean::New(info.Env(), false);
+        return Napi::Boolean::New(info.Env(), core_->JoinWorkpieces(
+            info[0].As<Napi::Number>().Uint32Value(),
+            info[1].As<Napi::Number>().Uint32Value()));
     }
 
     // ─── Zero-Copy Binary State ───
@@ -1190,6 +1921,7 @@ private:
 
         auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();
         auto *droppedMgr = core_->Ctx.GetManager<DroppedItemComponentManager>();
+        auto *stationMgr = core_->Ctx.GetManager<CraftingStationComponentManager>();
 
         for (const auto &[entityId, entity] : core_->ObjectManager.GetEntities())
         {
@@ -1217,6 +1949,39 @@ private:
                 row.Set("z", Napi::Number::New(env, entity->Transform.Position().Z));
                 row.Set("radiusRaw", Napi::Number::New(env, entity->Radius.raw_value()));
                 row.Set("storage", BuildInventorySaveObject(env, inventoryMgr ? inventoryMgr->GetContainer(entityId, ContainerSlot::MainStorage) : nullptr));
+                props.Set(propIndex++, row);
+                continue;
+            }
+
+            if (entity->Type == "smelter" || entity->Type == "anvil" || entity->Type == "workbench" || entity->Type == "grindstone")
+            {
+                Napi::Object row = Napi::Object::New(env);
+                row.Set("type", Napi::String::New(env, entity->Type));
+                row.Set("xRaw", Napi::Number::New(env, entity->Transform.Position().X.raw_value()));
+                row.Set("yRaw", Napi::Number::New(env, entity->Transform.Position().Y.raw_value()));
+                row.Set("z", Napi::Number::New(env, entity->Transform.Position().Z));
+                row.Set("radiusRaw", Napi::Number::New(env, entity->Radius.raw_value()));
+                if (stationMgr)
+                {
+                    if (auto *station = stationMgr->Get(entityId))
+                    {
+                        Napi::Object stationState = Napi::Object::New(env);
+                        stationState.Set("heatingActive", Napi::Boolean::New(env, station->HeatingActive));
+                        stationState.Set("heatingTicks", Napi::Number::New(env, station->HeatingTicks));
+                        stationState.Set("lastMold", Napi::Number::New(env, static_cast<uint8_t>(station->LastMold)));
+                        stationState.Set("slots", BuildStationSlotSaveArray(env, *station));
+                        stationState.Set("moltenPool", BuildMoltenPoolObject(env, station->MoltenPool));
+                        stationState.Set("comparisonBefore", BuildCraftingStatSnapshotObject(env, station->ComparisonBefore));
+                        stationState.Set("error", Napi::String::New(env, station->LastError));
+                        stationState.Set("warnings", [&]() {
+                            Napi::Array warnings = Napi::Array::New(env, station->Warnings.size());
+                            for (uint32_t i = 0; i < station->Warnings.size(); ++i)
+                                warnings.Set(i, Napi::String::New(env, station->Warnings[i]));
+                            return warnings;
+                        }());
+                        row.Set("stationState", stationState);
+                    }
+                }
                 props.Set(propIndex++, row);
                 continue;
             }
@@ -1337,6 +2102,97 @@ private:
                     if (storage)
                     {
                         inventoryMgr->EquipContainer(propId, ContainerSlot::MainStorage, std::move(storage), prop);
+                    }
+                    continue;
+                }
+
+                if (type == "smelter" || type == "anvil" || type == "workbench" || type == "grindstone")
+                {
+                    const uint32_t propId = type == "smelter"
+                        ? core_->Props.AddSmelter(*core_, Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z), float32::from_raw_value(GetInt(row, "radiusRaw", 0)), z)
+                        : type == "anvil"
+                            ? core_->Props.AddAnvil(*core_, Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z), float32::from_raw_value(GetInt(row, "radiusRaw", 0)), z)
+                            : type == "workbench"
+                                ? core_->Props.AddWorkbench(*core_, Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z), float32::from_raw_value(GetInt(row, "radiusRaw", 0)), z)
+                                : core_->Props.AddGrindstone(*core_, Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z), float32::from_raw_value(GetInt(row, "radiusRaw", 0)), z);
+
+                    auto *prop = core_->ObjectManager.GetById(propId);
+                    auto *stations = core_->Ctx.GetManager<CraftingStationComponentManager>();
+                    if (!prop || !inventoryMgr)
+                        continue;
+
+                    prop->Transform.SetPosition(Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z));
+                    prop->Radius = float32::from_raw_value(GetInt(row, "radiusRaw", prop->Radius.raw_value()));
+
+                    if (stations && row.Has("stationState") && row.Get("stationState").IsObject())
+                    {
+                        Napi::Object stationState = row.Get("stationState").As<Napi::Object>();
+                        auto *station = stations->Get(propId);
+                        if (station)
+                        {
+                            station->HeatingActive = GetBool(stationState, "heatingActive", false);
+                            station->HeatingTicks = static_cast<uint32_t>(GetInt(stationState, "heatingTicks", 0));
+                            station->LastMold = static_cast<MoldSilhouette>(GetInt(stationState, "lastMold", 0));
+                            ParseStationSlotSaveArray(stationState.Get("slots"), station);
+                            if (stationState.Has("moltenPool") && stationState.Get("moltenPool").IsObject())
+                            {
+                                const Napi::Object moltenPool = stationState.Get("moltenPool").As<Napi::Object>();
+                                if (moltenPool.Has("materialId") && moltenPool.Get("materialId").IsString())
+                                    station->MoltenPool.Material = ParseMaterialId(moltenPool.Get("materialId").As<Napi::String>().Utf8Value());
+                                station->MoltenPool.Active = GetBool(moltenPool, "active", false);
+                                station->MoltenPool.AmountUnits = GetInt(moltenPool, "amountUnits", 0);
+                                station->MoltenPool.TemperatureRaw = GetInt(moltenPool, "temperatureRaw", 0);
+                                station->MoltenPool.Quality = static_cast<uint16_t>(GetInt(moltenPool, "quality", 0));
+                                station->MoltenPool.SourceCount = static_cast<uint16_t>(GetInt(moltenPool, "sourceCount", 0));
+                            }
+                            if (stationState.Has("comparisonBefore") && stationState.Get("comparisonBefore").IsObject())
+                            {
+                                const Napi::Object snapshot = stationState.Get("comparisonBefore").As<Napi::Object>();
+                                station->ComparisonBefore.Valid = GetBool(snapshot, "valid", false);
+                                station->ComparisonBefore.SwingEfficiency = GetInt(snapshot, "swingEfficiency", 0);
+                                station->ComparisonBefore.ThrustEfficiency = GetInt(snapshot, "thrustEfficiency", 0);
+                                station->ComparisonBefore.DiggingEfficiency = GetInt(snapshot, "diggingEfficiency", 0);
+                                station->ComparisonBefore.CuttingEffectiveness = GetInt(snapshot, "cuttingEffectiveness", 0);
+                                station->ComparisonBefore.PiercingEffectiveness = GetInt(snapshot, "piercingEffectiveness", 0);
+                                station->ComparisonBefore.BluntEffectiveness = GetInt(snapshot, "bluntEffectiveness", 0);
+                                station->ComparisonBefore.Durability = GetInt(snapshot, "durability", 0);
+                                station->ComparisonBefore.BreakRisk = GetInt(snapshot, "breakRisk", 0);
+                            }
+                            station->LastError = stationState.Has("error") && stationState.Get("error").IsString()
+                                ? stationState.Get("error").As<Napi::String>().Utf8Value()
+                                : std::string();
+                            if (stationState.Has("warnings") && stationState.Get("warnings").IsArray())
+                            {
+                                Napi::Array warnings = stationState.Get("warnings").As<Napi::Array>();
+                                station->Warnings.clear();
+                                for (uint32_t warningIndex = 0; warningIndex < warnings.Length(); ++warningIndex)
+                                {
+                                    if (warnings.Get(warningIndex).IsString())
+                                        station->Warnings.push_back(warnings.Get(warningIndex).As<Napi::String>().Utf8Value());
+                                }
+                            }
+                            if ((!stationState.Has("slots") || !stationState.Get("slots").IsArray()) && inventoryMgr && row.Has("storage"))
+                            {
+                                auto legacyStorage = ParseInventorySaveObject(row.Get("storage"));
+                                if (legacyStorage && legacyStorage->Count() > 0)
+                                {
+                                    auto *slot = stations->FindFirstOpenSlot(station);
+                                    if (slot)
+                                        slot->ItemRef = legacyStorage->RemoveItem(0);
+                                }
+                            }
+                        }
+                    }
+                    else if (inventoryMgr && row.Has("storage"))
+                    {
+                        auto storage = ParseInventorySaveObject(row.Get("storage"));
+                        if (storage && storage->Count() > 0 && stations)
+                        {
+                            auto *station = stations->Get(propId);
+                            auto *slot = station ? stations->FindFirstOpenSlot(station) : nullptr;
+                            if (slot)
+                                slot->ItemRef = storage->RemoveItem(0);
+                        }
                     }
                     continue;
                 }

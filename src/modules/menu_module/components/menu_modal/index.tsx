@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom"; 
 import { CoreOverlay } from "../../../../components/overlay";
 import { useMenuActions, selectIsMenuOpen } from "../../../../store/slices/menu.slice";
-import { selectCurrentLobby, selectLobbyState } from "../../../../store/slices/lobby.slice";
+import { lobbyActions, selectCurrentLobby, selectLobbyState, selectSessionPhase } from "../../../../store/slices/lobby.slice";
 import { lobbyClient } from "../../../../services/lobby-client";
+import { store } from "../../../../store";
 
 type LangCode = 'UA' | 'EN' | 'PL';
 
@@ -19,6 +21,18 @@ export const MenuModal = () => {
   const lang = (localStorage.getItem('lang') as LangCode) || 'UA';
   const currentLobby = selectCurrentLobby();
   const lobbyState = selectLobbyState();
+  const sessionPhase = selectSessionPhase();
+
+  useEffect(() => {
+    if (sessionPhase !== 'Playing' && sessionPhase !== 'Paused') {
+      return;
+    }
+
+    const nextPhase = isMenuOpen ? 'Paused' : 'Playing';
+    if (sessionPhase !== nextPhase) {
+      store.dispatch(lobbyActions.setSessionPhase(nextPhase));
+    }
+  }, [isMenuOpen, sessionPhase]);
 
   return (
     <CoreOverlay 
@@ -39,7 +53,7 @@ export const MenuModal = () => {
             {labels[lang].cont}
           </button>
           
-          <button onClick={() => { if (window.confirm(labels[lang].conf)) { lobbyClient.leaveLobby(); setMenuState(false); navigate('/play'); } }} 
+          <button onClick={() => { if (window.confirm(labels[lang].conf)) { lobbyClient.leaveLobby(); setMenuState(false); navigate('/'); } }} 
             className="text-red-900 text-4xl font-bold uppercase medieval-font hover:text-red-600 hover:scale-105 transition-all cursor-pointer"
             style={{ textShadow: '2px 2px 6px #000' }}>
             {labels[lang].quit}

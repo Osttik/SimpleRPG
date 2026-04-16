@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 #include <stdint.h>
+#include "core/crafting/workpiece-data.h"
 #include "core/gameplay-constants.h"
 #include "core/materials.h"
 #include "core/tool-interaction.h"
@@ -158,6 +159,34 @@ public:
   }
 };
 
+class WorkpieceFeature : public ItemFeature
+{
+public:
+  WorkpieceState State;
+
+  explicit WorkpieceFeature(WorkpieceState state) : State(std::move(state)) {}
+
+  uint32_t TypeId() const override { return ItemFeatureType::Get<WorkpieceFeature>(); }
+
+  bool IsStackCompatibleWith(const ItemFeature &other) const override
+  {
+    const auto *typed = dynamic_cast<const WorkpieceFeature *>(&other);
+    return typed &&
+           typed->State.Version == State.Version &&
+           typed->State.Stage == State.Stage &&
+           typed->State.Material == State.Material &&
+           typed->State.ProfileWidth == State.ProfileWidth &&
+           typed->State.ProfileHeight == State.ProfileHeight &&
+           typed->State.ProfileMask == State.ProfileMask &&
+           typed->State.ThicknessRaw == State.ThicknessRaw &&
+           typed->State.TemperatureRaw == State.TemperatureRaw &&
+           typed->State.Quality == State.Quality &&
+           typed->State.Fractured == State.Fractured &&
+           typed->State.Broken == State.Broken &&
+           typed->State.InvalidReason == State.InvalidReason;
+  }
+};
+
 class Item
 {
 private:
@@ -238,6 +267,9 @@ namespace ItemFactory
   std::unique_ptr<Item> CreateSword(int quantity = 1);
   std::unique_ptr<Item> CreatePickaxe(int quantity = 1);
   std::unique_ptr<Item> CreateShovel(int quantity = 1);
+  std::unique_ptr<Item> CreateWoodStock(int quantity = 1);
+  std::unique_ptr<Item> CreateStoneStock(int quantity = 1);
+  std::unique_ptr<Item> CreateIronStock(int quantity = 1);
   std::unique_ptr<Item> CreateCoin(int quantity = 1);
   std::unique_ptr<Item> CreateDirtChunk(int quantity = 1);
   std::unique_ptr<Item> CreateStoneSlab(int quantity = 1);
@@ -298,3 +330,17 @@ public:
 
   Inventory *GetContainer(ContainerSlot slot) const;
 };
+
+namespace Crafting
+{
+  WorkpieceState MakeStockWorkpiece(MaterialId materialId, int32_t width, int32_t height, int32_t thicknessRaw, PartOrientation orientation);
+  bool ApplyHeat(Item &item, int32_t deltaTemperature);
+  bool Cast(Item &item, MoldSilhouette silhouette, int32_t width, int32_t length, int32_t thicknessRaw);
+  bool Bend(Item &item, BendZone zone, int32_t displacement);
+  bool Forge(Item &item, ForgeZone zone, int32_t intensity);
+  bool Chip(Item &item, int32_t startX, int32_t startY, int32_t width, int32_t height);
+  bool Sharpen(Item &item, SharpenSide side, int32_t amount);
+  bool Join(Item &baseItem, Item &attachment);
+  bool IsCraftingCapableItem(const Item &item);
+  void RecalculateDerivedState(Item &item);
+}

@@ -63,7 +63,7 @@ class LobbyClient {
           store.dispatch(lobbyActions.setInfoMessage('Returned to the lobby browser.'));
           return;
         case 'session_closed':
-          store.dispatch(lobbyActions.resetLobbyState());
+          store.dispatch(lobbyActions.markSessionEnded());
           store.dispatch(lobbyActions.setErrorMessage(this.describeSessionClose(data.reason)));
           this.refreshLobbies();
           return;
