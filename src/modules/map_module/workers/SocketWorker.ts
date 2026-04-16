@@ -11,6 +11,8 @@ import type { InventoryItemView, InventoryMetaView } from '@/modules/ui_module/c
 
 let socket: WebSocket | null = null;
 let renderPort: MessagePort | null = null;
+let memberToken: string | null = null;
+let shouldReconnect = true;
 const DEFAULT_WS_PORT = 3001;
 const INIT_FRAME_PREFIX_BYTES = 1;
 const INTERACTION_FRAME_PREFIX_BYTES = 1;
@@ -27,7 +29,7 @@ const getHostname = () => {
   }
 };
 
-const resolvedWsUrl = import.meta.env.VITE_WS_URL || `ws://${getHostname()}:${DEFAULT_WS_PORT}`;
+const resolvedWsBaseUrl = import.meta.env.VITE_WS_URL || `ws://${getHostname()}:${DEFAULT_WS_PORT}`;
 
 // ─── FlatBuffers Init Message Decoder ────────────────────────────────────────
 // Converts the binary FlatBuffer into the same plain-object shape the rest of
@@ -170,7 +172,12 @@ function decodeBodyStateManifest(bytes: Uint8Array) {
 }
 
 function connect() {
-  socket = new WebSocket(resolvedWsUrl);
+  if (!memberToken) {
+    return;
+  }
+
+  const separator = resolvedWsBaseUrl.includes('?') ? '&' : '?';
+  socket = new WebSocket(`${resolvedWsBaseUrl}${separator}mode=gameplay&memberToken=${encodeURIComponent(memberToken)}`);
   socket.binaryType = 'arraybuffer';
   resetInputSequence();
 
@@ -232,9 +239,13 @@ function connect() {
       data.type === 'interaction_options' ||
       data.type === 'open_loot' ||
       data.type === 'player_inventory' ||
+      data.type === 'session_closed' ||
       data.type === 'world_layer_debug' ||
       data.type === 'world_layer_validation'
     ) {
+      if (data.type === 'session_closed') {
+        shouldReconnect = false;
+      }
       self.postMessage(data);
       return;
     }
@@ -248,7 +259,9 @@ function connect() {
 
   socket.onclose = () => {
     clearInterval(pingInterval);
-    setTimeout(connect, 1000);
+    if (shouldReconnect) {
+      setTimeout(connect, 1000);
+    }
   };
 }
 
@@ -256,6 +269,8 @@ self.onmessage = (event) => {
   if (event.data.type === 'initPort') {
     loadWasm().then(() => {
       renderPort = event.data.port;
+      memberToken = String(event.data.memberToken || '');
+      shouldReconnect = true;
       connect();
     });
   } else if (event.data.type === 'move') {

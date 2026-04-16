@@ -13,6 +13,7 @@ Multiplayer 2D RPG: React/WebGL frontend, Node.js WebSocket server, deterministi
 * **Build C++ core**: `npm run build:cpp` (Uses `node build_scripts/build-core.js`, outputs to `build/Release/gamecore.node`)
 * **Install deps**: `npm install` (custom script bypasses broken node-gyp auto-builds)
 * **Server only**: `npm --prefix server run dev`
+* **Server tests**: `npm --prefix server test`
 * **Generate Schema**: `powershell ./schema/generate.ps1` (Generates C++ and TS from `schema/messages.fbs`)
 * **Generate Combat Rig Contract**: `npm run generate:combat-rig` (Generates C++/TS/docs from `schema/combat-rig-contract.humanoid.json`)
 * **Validate Combat Rig Contract**: `npm run validate:combat-rig` (Checks generated C++/TS/docs and base rig metadata/hash for drift)
@@ -74,11 +75,12 @@ SimpleRPG/
 │   └── src/
 │       ├── index.ts               # Bootstrap entry — boots config, gamecore, server
 │       ├── config.ts              # Env/config constants (PORT, BIND_HOST, tick rate)
-│       ├── gamecore.ts            # Addon loading, world init, tile registry, test spawns
+│       ├── gamecore.ts            # Addon loading + authoritative world factory per lobby/session
 │       ├── init-message.ts        # FlatBuffers InitMessage builder
-│       ├── socket-gameplay.ts     # WebSocket open/message/close handlers + 60fps game loop
+│       ├── session-registry.ts    # Lobby/session orchestration, membership, tick/broadcast isolation
+│       ├── save-slots.ts          # Server-local save slot store and metadata
 │       ├── socket-constants.ts    # Binary protocol bytes, WS settings, spawn parameters
-│       ├── server.ts              # uWebSockets app creation and listen
+│       ├── server.ts              # uWebSockets app creation and control/gameplay socket routing
 │       ├── uws.ts                 # uWebSockets import wrapper
 │       └── types.ts               # Shared server-side TypeScript types
 ├── src/                           # React frontend (Vite + NW.js)
@@ -93,6 +95,7 @@ SimpleRPG/
 │   │   ├── game_module/           # Rendering & Asset management (SpriteSystem, AssetManager)
 │   │   ├── map_module/            # Workers (Render/Socket) & Input handling
 │   │   │   └── protocol/          # Binary encoders (InputEncoder.ts) & parsers (StateParser.ts)
+│   │   ├── menu_module/           # Main menu, lobby browser, waiting-room flow, save picker
 │   │   └── ui_module/             # HUD, Inventory, Looting, and Interaction UIs
 │   │       ├── components/
 │   │       │   ├── loot_ui/       # Dual-inventory looting interface (with drop action)
@@ -100,10 +103,13 @@ SimpleRPG/
 │   │       │   ├── interaction-ui-modal/ # Contextual interaction prompts
 │   │       │   └── progress_bar/  # Volume/Weight status bars
 │   └── services/
-│       └── keyboard.service.ts    # Reactive input handling (@most/core)
+│       ├── keyboard.service.ts    # Reactive input handling (@most/core)
+│       └── lobby-client.ts        # Low-frequency control-plane lobby/save client
 ├── schema/                        # FlatBuffers schemas and generation scripts
 │   ├── messages.fbs               # Shared schema for RPCs (Init, Inventory, Interaction)
 │   └── generate.ps1               # Cross-stack code generation script
+├── docs/
+│   └── lobby-session-save-v1.md   # Durable v1 contract for lobby/session/save-load behavior
 └── CMakeLists.txt                 # C++ build config (cmake-js + FlatBuffers, glob-based sources)
 ```
 
@@ -248,7 +254,32 @@ SimpleRPG/
   * **Server Flow**: `handleOpen` → InitMessage → chunks → body-state manifest. Repair: client sends `request_body_state` JSON → server responds with targeted `0x13` manifest.
   * **Frontend Flow**: SocketWorker decodes `0x13` → forwards to RenderWorker → `BodyStateCache.initFromManifest()`. Subsequent rare combat events apply as deltas via `applyCombatEvents()`. RenderWorker checks snapshot `bodyStateVersion6` vs cache each frame and requests repair on mismatch (throttled).
   * **Scope Boundary**: Manifest carries only persistent world-visual body/equipment state — NOT rich item metadata, inventory contents, or durability numbers. Those remain on-demand via existing inventory/UI paths.
-  * **Debug**: `AnimationMetrics` tracks `bodyStateManifestsReceived`, `bodyStateRepairRequestsSent`, `bodyStateStalenessDetections`, `bodyStateEntitiesRenderedBeforeManifest`.
+* **Debug**: `AnimationMetrics` tracks `bodyStateManifestsReceived`, `bodyStateRepairRequestsSent`, `bodyStateStalenessDetections`, `bodyStateEntitiesRenderedBeforeManifest`.
+
+### 10. Lobby Browser, Session Registry, and Authoritative Save/Load
+* **Three Separate Concerns**: Keep lobby/menu UI flow, Node-side lobby/session orchestration, and authoritative world save/load as separate systems with explicit boundaries. They are connected, but must not be blurred together.
+* **Frontend Play Flow**: Main Menu `Play` routes to a dedicated lobby browser / waiting-room UI before gameplay starts. Do not hack hosting/join/save controls into the live game canvas or render-worker path.
+* **Two WebSocket Modes**:
+  * **Control Plane**: Low-frequency JSON for lobby list, lobby state, save list, create/join/leave/start/save actions.
+  * **Gameplay Plane**: Session-scoped gameplay socket used only after the lobby has started. Existing snapshots/chunks/combat/body-state/inventory gameplay flows stay on this path.
+* **Session-Scoped Worlds**: Each lobby/session owns its own authoritative C++ `GameWorld` instance. Do not fake multiple lobbies on top of one shared global world.
+* **Topic Isolation Rule**: Gameplay publish/subscribe must be scoped per session topic/channel such as `game:<lobbyId>`. One lobby must never receive another lobby's snapshots, chunk resends, combat events, or body-state frames.
+* **v1 Join Rule**: Only `waiting` lobbies are joinable. Once a lobby has started and is `in_game`, additional joins are blocked in v1 unless this contract is intentionally expanded.
+* **v1 Host Disconnect Rule**: If the host disconnects, the lobby/session closes and members are returned to the browser/menu flow. This is acceptable for v1 and should be treated as deliberate behavior, not a bug.
+* **Low-Frequency Lobby/Save Messages**: Support JSON messages for `list_lobbies`, `lobby_list`, `create_lobby`, `join_lobby`, `leave_lobby`, `lobby_state`, `list_saves`, `save_list`, `start_lobby`, `save_game`, `save_complete`, `session_started`, `session_closed`, and `request_error`. Keep these off the hot snapshot path.
+* **Server-Local Save Slots Only**: There is no account/auth system yet. Clients must choose only from server-owned save slot IDs and metadata. Never let clients provide arbitrary filesystem paths.
+* **Save Slot Metadata**: Save slots should expose `saveId`, `displayName`, `createdAt`, `updatedAt`, optional `sourceLobbyName`, and payload/schema version markers.
+* **Save Format Versioning**:
+  * Outer save-slot document: `simplerpg.save-slot`, version `1`
+  * Inner authoritative world payload: `simplerpg.session-save`, version `1`
+  Save/load logic must stay isolated and versioned so future world systems can extend it cleanly.
+* **Exact Authoritative Persistence**: Never serialize authoritative fixed-point gameplay state as lossy floats. Persist exact raw integer values such as `xRaw`, `yRaw`, `radiusRaw`, `volumeRaw`, and `weightRaw`.
+* **World State Included in Saves**: v1 save/load must preserve loaded chunk state, sparse terrain destruction / tile override state, relevant persistent props, dropped world items, chest/storage inventories, and saved player backpack/equipment state. Losing terrain overrides on load is a regression.
+* **Cold-Path Save/Load Only**: Save/export and load/import are cold-path operations. They must not add payload or branching to the 60 Hz snapshot format.
+* **Loaded Session Creation**: Hosting from `Load Save` means the authoritative world instance is created from the save payload before gameplay sockets attach. Players join fresh; save/load does not restore prior network connections.
+* **In-Session Save Rule**: For v1, the host can trigger `Save Game` from menu/UI. If the session was loaded from a slot, saving updates that slot. Otherwise, the first save creates a bound slot and later saves update it.
+* **Deferred Player Restore Rule**: Because there is still no account identity system, saved player records may be reassigned in join order when loading a saved session. Treat this as a v1 limitation, not account persistence.
+* **Reference Doc**: See `docs/lobby-session-save-v1.md` for the detailed durable v1 contract when changing this area.
 
 ---
 

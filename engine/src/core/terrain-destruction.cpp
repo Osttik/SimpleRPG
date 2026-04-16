@@ -171,3 +171,47 @@ std::vector<std::tuple<int32_t, int32_t, int32_t>> TerrainDestructionState::Cons
   _dirtyChunks.clear();
   return coords;
 }
+
+std::vector<TerrainOverrideEntry> TerrainDestructionState::ExportOverrides() const
+{
+  std::vector<TerrainOverrideEntry> entries;
+  for (const auto &[coord, chunk] : _overrides)
+  {
+    const auto &[cx, cy, cz] = coord;
+    for (const auto &[localIndex, state] : chunk.Tiles)
+    {
+      TerrainOverrideEntry entry;
+      entry.ChunkX = cx;
+      entry.ChunkY = cy;
+      entry.ChunkZ = cz;
+      entry.LocalIndex = localIndex;
+      entry.State = state;
+      entries.push_back(entry);
+    }
+  }
+
+  std::sort(entries.begin(), entries.end(), [](const TerrainOverrideEntry &lhs, const TerrainOverrideEntry &rhs)
+            {
+              if (lhs.ChunkX != rhs.ChunkX)
+                return lhs.ChunkX < rhs.ChunkX;
+              if (lhs.ChunkY != rhs.ChunkY)
+                return lhs.ChunkY < rhs.ChunkY;
+              if (lhs.ChunkZ != rhs.ChunkZ)
+                return lhs.ChunkZ < rhs.ChunkZ;
+              return lhs.LocalIndex < rhs.LocalIndex;
+            });
+  return entries;
+}
+
+void TerrainDestructionState::ImportOverride(const TerrainOverrideEntry &entry)
+{
+  TerrainChunkOverrides &chunk = EnsureChunk(entry.ChunkX, entry.ChunkY, entry.ChunkZ);
+  chunk.Tiles[entry.LocalIndex] = entry.State;
+  MarkChunkDirty(entry.ChunkX, entry.ChunkY, entry.ChunkZ);
+}
+
+void TerrainDestructionState::ClearAll()
+{
+  _overrides.clear();
+  _dirtyChunks.clear();
+}

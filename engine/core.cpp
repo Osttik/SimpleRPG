@@ -45,6 +45,9 @@ public:
                                               InstanceMethod("setLayerDebugEnabled", &GameWorldWrapper::SetLayerDebugEnabled),
                                               InstanceMethod("getLayerDebugState", &GameWorldWrapper::GetLayerDebugState),
                                               InstanceMethod("getLayerValidationIssues", &GameWorldWrapper::GetLayerValidationIssues),
+                                              InstanceMethod("addPlayerFromSaveState", &GameWorldWrapper::AddPlayerFromSaveState),
+                                              InstanceMethod("exportSaveState", &GameWorldWrapper::ExportSaveState),
+                                              InstanceMethod("importSaveState", &GameWorldWrapper::ImportSaveState),
                                           });
         exports.Set("GameWorld", func);
         return exports;
@@ -263,6 +266,332 @@ private:
         return gameplay;
     }
 
+    std::string MaterialIdToString(MaterialId materialId) const
+    {
+        switch (materialId)
+        {
+        case MaterialId::Dirt:
+            return "dirt";
+        case MaterialId::Stone:
+            return "stone";
+        case MaterialId::Iron:
+            return "iron";
+        case MaterialId::Gold:
+            return "gold";
+        case MaterialId::Clay:
+            return "clay";
+        default:
+            return "none";
+        }
+    }
+
+    Napi::Array BuildMaterialPartsArray(Napi::Env env, const std::vector<MaterialPart> &parts) const
+    {
+        Napi::Array out = Napi::Array::New(env, parts.size());
+        for (uint32_t i = 0; i < parts.size(); ++i)
+        {
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("id", Napi::String::New(env, MaterialIdToString(parts[i].Id)));
+            row.Set("share", Napi::Number::New(env, parts[i].Share));
+            out.Set(i, row);
+        }
+        return out;
+    }
+
+    Napi::Object BuildItemSaveObject(Napi::Env env, const Item &item) const
+    {
+        Napi::Object row = Napi::Object::New(env);
+        row.Set("definitionId", Napi::String::New(env, item.DefinitionId));
+        row.Set("name", Napi::String::New(env, item.Name));
+        row.Set("spriteKey", Napi::String::New(env, item.SpriteKey));
+        row.Set("quantity", Napi::Number::New(env, item.Quantity));
+        row.Set("stackable", Napi::Boolean::New(env, item.Stackable));
+        row.Set("maxStack", Napi::Number::New(env, item.MaxStack));
+        row.Set("volumeRaw", Napi::Number::New(env, item.Volume.raw_value()));
+        row.Set("weightRaw", Napi::Number::New(env, item.Weight.raw_value()));
+
+        Napi::Object features = Napi::Object::New(env);
+
+        if (const auto *durability = item.GetFeature<DurabilityFeature>())
+        {
+            Napi::Object value = Napi::Object::New(env);
+            value.Set("current", Napi::Number::New(env, durability->Current));
+            value.Set("max", Napi::Number::New(env, durability->Max));
+            features.Set("durability", value);
+        }
+
+        if (const auto *equippable = item.GetFeature<EquippableFeature>())
+        {
+            Napi::Array slots = Napi::Array::New(env, equippable->AllowedSlots.size());
+            for (uint32_t i = 0; i < equippable->AllowedSlots.size(); ++i)
+            {
+                slots.Set(i, Napi::Number::New(env, static_cast<uint8_t>(equippable->AllowedSlots[i])));
+            }
+            features.Set("equippableSlots", slots);
+        }
+
+        if (const auto *weapon = item.GetFeature<WeaponFeature>())
+        {
+            Napi::Object value = Napi::Object::New(env);
+            value.Set("minDamage", Napi::Number::New(env, weapon->MinDamage));
+            value.Set("maxDamage", Napi::Number::New(env, weapon->MaxDamage));
+            features.Set("weapon", value);
+        }
+
+        if (const auto *merchant = item.GetFeature<MerchantValueFeature>())
+        {
+            Napi::Object value = Napi::Object::New(env);
+            value.Set("baseValueRaw", Napi::Number::New(env, merchant->BaseValue.raw_value()));
+            features.Set("merchantValue", value);
+        }
+
+        if (const auto *tool = item.GetFeature<ToolFeature>())
+        {
+            Napi::Object value = Napi::Object::New(env);
+            value.Set("toolClass", Napi::Number::New(env, static_cast<uint8_t>(tool->Mining.Class)));
+            value.Set("basePower", Napi::Number::New(env, tool->Mining.BasePower));
+            value.Set("softMultiplierPct", Napi::Number::New(env, tool->Mining.SoftMultiplierPct));
+            value.Set("strongMultiplierPct", Napi::Number::New(env, tool->Mining.StrongMultiplierPct));
+            value.Set("preferredToolBonus", Napi::Number::New(env, tool->Mining.PreferredToolBonus));
+            features.Set("tool", value);
+        }
+
+        if (const auto *materials = item.GetFeature<MaterialCompositionFeature>())
+        {
+            features.Set("materialComposition", BuildMaterialPartsArray(env, materials->Composition.Parts));
+        }
+
+        row.Set("features", features);
+        return row;
+    }
+
+    std::unique_ptr<Item> ParseItemSaveObject(const Napi::Value &value) const
+    {
+        if (!value.IsObject())
+            return nullptr;
+
+        Napi::Object obj = value.As<Napi::Object>();
+        const std::string definitionId = obj.Has("definitionId") && obj.Get("definitionId").IsString()
+            ? obj.Get("definitionId").As<Napi::String>().Utf8Value()
+            : std::string();
+
+        std::unique_ptr<Item> item = ItemFactory::CreateByDefinitionId(definitionId, GetInt(obj, "quantity", 1));
+        if (!item)
+        {
+            item = std::make_unique<Item>(
+                definitionId,
+                obj.Has("name") && obj.Get("name").IsString() ? obj.Get("name").As<Napi::String>().Utf8Value() : definitionId,
+                obj.Has("spriteKey") && obj.Get("spriteKey").IsString() ? obj.Get("spriteKey").As<Napi::String>().Utf8Value() : std::string(),
+                float32::from_raw_value(GetInt(obj, "volumeRaw", 0)),
+                float32::from_raw_value(GetInt(obj, "weightRaw", 0)),
+                GetBool(obj, "stackable", false),
+                GetInt(obj, "maxStack", 1),
+                GetInt(obj, "quantity", 1));
+        }
+
+        item->Name = obj.Has("name") && obj.Get("name").IsString() ? obj.Get("name").As<Napi::String>().Utf8Value() : item->Name;
+        item->SpriteKey = obj.Has("spriteKey") && obj.Get("spriteKey").IsString() ? obj.Get("spriteKey").As<Napi::String>().Utf8Value() : item->SpriteKey;
+        item->Quantity = GetInt(obj, "quantity", item->Quantity);
+        item->Stackable = GetBool(obj, "stackable", item->Stackable);
+        item->MaxStack = GetInt(obj, "maxStack", item->MaxStack);
+        item->Volume = float32::from_raw_value(GetInt(obj, "volumeRaw", item->Volume.raw_value()));
+        item->Weight = float32::from_raw_value(GetInt(obj, "weightRaw", item->Weight.raw_value()));
+
+        if (!obj.Has("features") || !obj.Get("features").IsObject())
+            return item;
+
+        Napi::Object features = obj.Get("features").As<Napi::Object>();
+
+        if (features.Has("durability") && features.Get("durability").IsObject())
+        {
+            const Napi::Object durabilityObj = features.Get("durability").As<Napi::Object>();
+            auto *durability = item->GetFeature<DurabilityFeature>();
+            if (!durability)
+                durability = item->AddFeature<DurabilityFeature>(GetInt(durabilityObj, "current", 0), GetInt(durabilityObj, "max", 0));
+            durability->Current = GetInt(durabilityObj, "current", durability->Current);
+            durability->Max = GetInt(durabilityObj, "max", durability->Max);
+        }
+
+        if (features.Has("equippableSlots") && features.Get("equippableSlots").IsArray())
+        {
+            std::vector<EquipSlot> slots;
+            Napi::Array array = features.Get("equippableSlots").As<Napi::Array>();
+            slots.reserve(array.Length());
+            for (uint32_t i = 0; i < array.Length(); ++i)
+            {
+                if (!array.Get(i).IsNumber())
+                    continue;
+                slots.push_back(static_cast<EquipSlot>(array.Get(i).As<Napi::Number>().Uint32Value()));
+            }
+
+            auto *equippable = item->GetFeature<EquippableFeature>();
+            if (!equippable)
+                equippable = item->AddFeature<EquippableFeature>(slots);
+            equippable->AllowedSlots = std::move(slots);
+        }
+
+        if (features.Has("weapon") && features.Get("weapon").IsObject())
+        {
+            const Napi::Object weaponObj = features.Get("weapon").As<Napi::Object>();
+            auto *weapon = item->GetFeature<WeaponFeature>();
+            if (!weapon)
+                weapon = item->AddFeature<WeaponFeature>(GetInt(weaponObj, "minDamage", 0), GetInt(weaponObj, "maxDamage", 0));
+            weapon->MinDamage = GetInt(weaponObj, "minDamage", weapon->MinDamage);
+            weapon->MaxDamage = GetInt(weaponObj, "maxDamage", weapon->MaxDamage);
+        }
+
+        if (features.Has("merchantValue") && features.Get("merchantValue").IsObject())
+        {
+            const Napi::Object merchantObj = features.Get("merchantValue").As<Napi::Object>();
+            auto *merchant = item->GetFeature<MerchantValueFeature>();
+            if (!merchant)
+                merchant = item->AddFeature<MerchantValueFeature>(float32::from_raw_value(GetInt(merchantObj, "baseValueRaw", 0)));
+            merchant->BaseValue = float32::from_raw_value(GetInt(merchantObj, "baseValueRaw", merchant->BaseValue.raw_value()));
+        }
+
+        if (features.Has("tool") && features.Get("tool").IsObject())
+        {
+            const Napi::Object toolObj = features.Get("tool").As<Napi::Object>();
+            MiningToolStats stats;
+            stats.Class = static_cast<ToolClass>(GetInt(toolObj, "toolClass", static_cast<int32_t>(stats.Class)));
+            stats.BasePower = GetInt(toolObj, "basePower", stats.BasePower);
+            stats.SoftMultiplierPct = GetInt(toolObj, "softMultiplierPct", stats.SoftMultiplierPct);
+            stats.StrongMultiplierPct = GetInt(toolObj, "strongMultiplierPct", stats.StrongMultiplierPct);
+            stats.PreferredToolBonus = GetInt(toolObj, "preferredToolBonus", stats.PreferredToolBonus);
+
+            auto *tool = item->GetFeature<ToolFeature>();
+            if (!tool)
+                tool = item->AddFeature<ToolFeature>(stats);
+            tool->Mining = stats;
+        }
+
+        if (features.Has("materialComposition"))
+        {
+            MaterialComposition composition;
+            composition.Parts = ParseMaterialParts(features.Get("materialComposition"));
+            auto *materials = item->GetFeature<MaterialCompositionFeature>();
+            if (!materials)
+                materials = item->AddFeature<MaterialCompositionFeature>(composition);
+            materials->Composition = composition;
+            materials->Composition.Normalize();
+        }
+
+        return item;
+    }
+
+    Napi::Object BuildInventorySaveObject(Napi::Env env, Inventory *inventory) const
+    {
+        Napi::Object out = Napi::Object::New(env);
+        if (!inventory)
+            return out;
+
+        out.Set("maxVolumeRaw", Napi::Number::New(env, inventory->MaxCarryVolume.raw_value()));
+        out.Set("maxWeightRaw", Napi::Number::New(env, inventory->MaxCarryWeight.raw_value()));
+        out.Set("weightRaw", Napi::Number::New(env, inventory->Weight.raw_value()));
+
+        Napi::Array items = Napi::Array::New(env, inventory->Count());
+        for (uint32_t i = 0; i < inventory->Count(); ++i)
+        {
+            const Item *item = (*inventory)[i];
+            if (!item)
+                continue;
+            items.Set(i, BuildItemSaveObject(env, *item));
+        }
+        out.Set("items", items);
+        return out;
+    }
+
+    std::unique_ptr<Inventory> ParseInventorySaveObject(const Napi::Value &value) const
+    {
+        if (!value.IsObject())
+            return nullptr;
+
+        Napi::Object obj = value.As<Napi::Object>();
+        auto inventory = std::make_unique<Inventory>(
+            float32::from_raw_value(GetInt(obj, "maxVolumeRaw", 0)),
+            float32::from_raw_value(GetInt(obj, "weightRaw", 0)),
+            float32::from_raw_value(GetInt(obj, "maxWeightRaw", 0)));
+
+        if (!obj.Has("items") || !obj.Get("items").IsArray())
+            return inventory;
+
+        Napi::Array items = obj.Get("items").As<Napi::Array>();
+        for (uint32_t i = 0; i < items.Length(); ++i)
+        {
+            auto item = ParseItemSaveObject(items.Get(i));
+            if (item)
+                inventory->AddItem(std::move(item));
+        }
+        return inventory;
+    }
+
+    Napi::Array BuildEquipmentSaveArray(Napi::Env env, uint32_t entityId, Inventory *inventory) const
+    {
+        Napi::Array out = Napi::Array::New(env);
+        auto *equipmentMgr = core_->Ctx.GetManager<EquipmentComponentManager>();
+        if (!equipmentMgr || !inventory)
+            return out;
+
+        uint32_t index = 0;
+        for (uint32_t slot = 0; slot < static_cast<uint32_t>(EquipSlot::HandSecondary) + 1; ++slot)
+        {
+            const auto equipSlot = static_cast<EquipSlot>(slot);
+            const Item *item = equipmentMgr->GetEquippedItem(entityId, equipSlot);
+            if (!item)
+                continue;
+
+            for (uint32_t itemIndex = 0; itemIndex < inventory->Count(); ++itemIndex)
+            {
+                if ((*inventory)[itemIndex] != item)
+                    continue;
+
+                Napi::Object binding = Napi::Object::New(env);
+                binding.Set("slot", Napi::Number::New(env, slot));
+                binding.Set("itemIndex", Napi::Number::New(env, itemIndex));
+                out.Set(index++, binding);
+                break;
+            }
+        }
+
+        return out;
+    }
+
+    void ApplyEquipmentSaveArray(uint32_t entityId, Inventory *inventory, const Napi::Value &value)
+    {
+        auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();
+        auto *equipmentMgr = core_->Ctx.GetManager<EquipmentComponentManager>();
+        auto *owner = core_->ObjectManager.GetById(entityId);
+        if (!inventoryMgr || !equipmentMgr || !owner || !inventory)
+            return;
+
+        auto *equipment = equipmentMgr->Ensure(entityId, owner, inventoryMgr);
+        if (!equipment || !value.IsArray())
+            return;
+
+        for (auto &slot : equipment->Slots)
+            slot.ItemRef = nullptr;
+
+        Napi::Array bindings = value.As<Napi::Array>();
+        for (uint32_t i = 0; i < bindings.Length(); ++i)
+        {
+            if (!bindings.Get(i).IsObject())
+                continue;
+
+            Napi::Object binding = bindings.Get(i).As<Napi::Object>();
+            const uint32_t slotIndex = binding.Has("slot") && binding.Get("slot").IsNumber()
+                ? binding.Get("slot").As<Napi::Number>().Uint32Value()
+                : 0;
+            const uint32_t itemIndex = binding.Has("itemIndex") && binding.Get("itemIndex").IsNumber()
+                ? binding.Get("itemIndex").As<Napi::Number>().Uint32Value()
+                : 0;
+
+            if (slotIndex >= equipment->Slots.size() || itemIndex >= inventory->Count())
+                continue;
+
+            equipment->Slots[slotIndex].ItemRef = (*inventory)[itemIndex];
+        }
+    }
+
     Napi::Object BuildInventoryObject(Napi::Env env, uint32_t ownerId, Inventory *inventory) const
     {
         Napi::Object out = Napi::Object::New(env);
@@ -442,6 +771,44 @@ private:
     {
         core_->SpawnTestChest();
         return info.Env().Undefined();
+    }
+
+    Napi::Value AddPlayerFromSaveState(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 1 || !info[0].IsObject())
+            return info.Env().Null();
+
+        Napi::Object state = info[0].As<Napi::Object>();
+        const int32_t xRaw = GetInt(state, "xRaw", 0);
+        const int32_t yRaw = GetInt(state, "yRaw", 0);
+        const int32_t z = GetInt(state, "z", 1);
+
+        const uint32_t playerId = core_->Players.AddPlayer(
+            *core_,
+            Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z));
+
+        auto *player = core_->ObjectManager.GetById(playerId);
+        auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();
+        if (!player || !inventoryMgr)
+            return Napi::Number::New(info.Env(), playerId);
+
+        player->Transform.SetPosition(Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z));
+        player->Transform.SetFacing(
+            float32::from_raw_value(GetInt(state, "facingXRaw", 0)),
+            float32::from_raw_value(GetInt(state, "facingYRaw", float32(1).raw_value())));
+        player->Radius = float32::from_raw_value(GetInt(state, "radiusRaw", player->Radius.raw_value()));
+
+        if (state.Has("backpack"))
+        {
+            auto backpack = ParseInventorySaveObject(state.Get("backpack"));
+            if (backpack)
+            {
+                inventoryMgr->EquipContainer(playerId, ContainerSlot::Backpack, std::move(backpack), player);
+            }
+        }
+
+        ApplyEquipmentSaveArray(playerId, inventoryMgr->GetContainer(playerId, ContainerSlot::Backpack), state.Get("equipment"));
+        return Napi::Number::New(info.Env(), playerId);
     }
 
     Napi::Value ProcessInput(const Napi::CallbackInfo &info)
@@ -774,6 +1141,227 @@ private:
         state.Set("players", players);
         state.Set("destroyed", destroyed);
         return state;
+    }
+
+    Napi::Value ExportSaveState(const Napi::CallbackInfo &info)
+    {
+        Napi::Env env = info.Env();
+        Napi::Object save = Napi::Object::New(env);
+        save.Set("format", Napi::String::New(env, "simplerpg.session-save"));
+        save.Set("version", Napi::Number::New(env, 1));
+        save.Set("tickCount", Napi::Number::New(env, core_->TickCount));
+
+        const auto loadedChunks = core_->World.ChunkManager->GetLoadedChunkCoords();
+        Napi::Array chunkArray = Napi::Array::New(env, loadedChunks.size());
+        for (uint32_t i = 0; i < loadedChunks.size(); ++i)
+        {
+            const auto &[cx, cy, cz] = loadedChunks[i];
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("cx", Napi::Number::New(env, cx));
+            row.Set("cy", Napi::Number::New(env, cy));
+            row.Set("cz", Napi::Number::New(env, cz));
+            chunkArray.Set(i, row);
+        }
+        save.Set("loadedChunks", chunkArray);
+
+        const auto overrides = core_->World.ChunkManager->ExportTerrainOverrides();
+        Napi::Array overrideArray = Napi::Array::New(env, overrides.size());
+        for (uint32_t i = 0; i < overrides.size(); ++i)
+        {
+            const auto &entry = overrides[i];
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("cx", Napi::Number::New(env, entry.ChunkX));
+            row.Set("cy", Napi::Number::New(env, entry.ChunkY));
+            row.Set("cz", Napi::Number::New(env, entry.ChunkZ));
+            row.Set("localIndex", Napi::Number::New(env, entry.LocalIndex));
+            row.Set("damage", Napi::Number::New(env, entry.State.Damage));
+            row.Set("stage", Napi::Number::New(env, entry.State.Stage));
+            row.Set("grantedStageMask", Napi::Number::New(env, entry.State.GrantedStageMask));
+            row.Set("overrideTileId", Napi::Number::New(env, entry.State.OverrideTileId));
+            row.Set("destroyed", Napi::Boolean::New(env, entry.State.Destroyed));
+            overrideArray.Set(i, row);
+        }
+        save.Set("terrainOverrides", overrideArray);
+
+        Napi::Array props = Napi::Array::New(env);
+        Napi::Array playersOut = Napi::Array::New(env);
+        uint32_t propIndex = 0;
+        uint32_t playerIndex = 0;
+
+        auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();
+        auto *droppedMgr = core_->Ctx.GetManager<DroppedItemComponentManager>();
+
+        for (const auto &[entityId, entity] : core_->ObjectManager.GetEntities())
+        {
+            if (entity->Type == "player" && !entity->IsStaticProp)
+            {
+                Napi::Object row = Napi::Object::New(env);
+                row.Set("xRaw", Napi::Number::New(env, entity->Transform.Position().X.raw_value()));
+                row.Set("yRaw", Napi::Number::New(env, entity->Transform.Position().Y.raw_value()));
+                row.Set("z", Napi::Number::New(env, entity->Transform.Position().Z));
+                row.Set("radiusRaw", Napi::Number::New(env, entity->Radius.raw_value()));
+                row.Set("facingXRaw", Napi::Number::New(env, entity->Transform.FacingDirection().X.raw_value()));
+                row.Set("facingYRaw", Napi::Number::New(env, entity->Transform.FacingDirection().Y.raw_value()));
+                row.Set("backpack", BuildInventorySaveObject(env, inventoryMgr ? inventoryMgr->GetContainer(entityId, ContainerSlot::Backpack) : nullptr));
+                row.Set("equipment", BuildEquipmentSaveArray(env, entityId, inventoryMgr ? inventoryMgr->GetContainer(entityId, ContainerSlot::Backpack) : nullptr));
+                playersOut.Set(playerIndex++, row);
+                continue;
+            }
+
+            if (entity->Type == "chest")
+            {
+                Napi::Object row = Napi::Object::New(env);
+                row.Set("type", Napi::String::New(env, entity->Type));
+                row.Set("xRaw", Napi::Number::New(env, entity->Transform.Position().X.raw_value()));
+                row.Set("yRaw", Napi::Number::New(env, entity->Transform.Position().Y.raw_value()));
+                row.Set("z", Napi::Number::New(env, entity->Transform.Position().Z));
+                row.Set("radiusRaw", Napi::Number::New(env, entity->Radius.raw_value()));
+                row.Set("storage", BuildInventorySaveObject(env, inventoryMgr ? inventoryMgr->GetContainer(entityId, ContainerSlot::MainStorage) : nullptr));
+                props.Set(propIndex++, row);
+                continue;
+            }
+
+            if (entity->Type == "item_drop")
+            {
+                Napi::Object row = Napi::Object::New(env);
+                row.Set("type", Napi::String::New(env, entity->Type));
+                row.Set("xRaw", Napi::Number::New(env, entity->Transform.Position().X.raw_value()));
+                row.Set("yRaw", Napi::Number::New(env, entity->Transform.Position().Y.raw_value()));
+                row.Set("z", Napi::Number::New(env, entity->Transform.Position().Z));
+                row.Set("radiusRaw", Napi::Number::New(env, entity->Radius.raw_value()));
+
+                const Item *item = droppedMgr ? droppedMgr->GetItem(entityId) : nullptr;
+                if (item)
+                    row.Set("item", BuildItemSaveObject(env, *item));
+                props.Set(propIndex++, row);
+            }
+        }
+
+        save.Set("props", props);
+        save.Set("players", playersOut);
+        return save;
+    }
+
+    Napi::Value ImportSaveState(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 1 || !info[0].IsObject())
+            return Napi::Boolean::New(info.Env(), false);
+
+        Napi::Object save = info[0].As<Napi::Object>();
+        core_ = std::make_unique<GameWorldEngine>();
+
+        if (save.Has("tickCount") && save.Get("tickCount").IsNumber())
+        {
+            core_->TickCount = save.Get("tickCount").As<Napi::Number>().Uint32Value();
+        }
+
+        if (save.Has("loadedChunks") && save.Get("loadedChunks").IsArray())
+        {
+            Napi::Array chunks = save.Get("loadedChunks").As<Napi::Array>();
+            for (uint32_t i = 0; i < chunks.Length(); ++i)
+            {
+                if (!chunks.Get(i).IsObject())
+                    continue;
+
+                Napi::Object row = chunks.Get(i).As<Napi::Object>();
+                core_->World.ChunkManager->GetChunk(
+                    GetInt(row, "cx", 0),
+                    GetInt(row, "cy", 0),
+                    GetInt(row, "cz", 0));
+            }
+        }
+
+        std::vector<std::tuple<int32_t, int32_t, int32_t>> rebuiltChunks;
+        if (save.Has("terrainOverrides") && save.Get("terrainOverrides").IsArray())
+        {
+            Napi::Array overrides = save.Get("terrainOverrides").As<Napi::Array>();
+            for (uint32_t i = 0; i < overrides.Length(); ++i)
+            {
+                if (!overrides.Get(i).IsObject())
+                    continue;
+
+                Napi::Object row = overrides.Get(i).As<Napi::Object>();
+                TerrainOverrideEntry entry;
+                entry.ChunkX = GetInt(row, "cx", 0);
+                entry.ChunkY = GetInt(row, "cy", 0);
+                entry.ChunkZ = GetInt(row, "cz", 0);
+                entry.LocalIndex = static_cast<uint16_t>(GetInt(row, "localIndex", 0));
+                entry.State.Damage = GetInt(row, "damage", 0);
+                entry.State.Stage = static_cast<uint8_t>(GetInt(row, "stage", 0));
+                entry.State.GrantedStageMask = static_cast<uint32_t>(GetInt(row, "grantedStageMask", 0));
+                entry.State.OverrideTileId = static_cast<uint16_t>(GetInt(row, "overrideTileId", 0));
+                entry.State.Destroyed = GetBool(row, "destroyed", false);
+                core_->World.ChunkManager->ImportTerrainOverride(entry);
+                rebuiltChunks.push_back(std::make_tuple(entry.ChunkX, entry.ChunkY, entry.ChunkZ));
+            }
+        }
+
+        for (const auto &[cx, cy, cz] : rebuiltChunks)
+        {
+            core_->World.ChunkManager->RebuildChunkVisuals(cx, cy, cz);
+        }
+
+        auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();
+        if (save.Has("props") && save.Get("props").IsArray())
+        {
+            Napi::Array props = save.Get("props").As<Napi::Array>();
+            for (uint32_t i = 0; i < props.Length(); ++i)
+            {
+                if (!props.Get(i).IsObject())
+                    continue;
+
+                Napi::Object row = props.Get(i).As<Napi::Object>();
+                const std::string type = row.Has("type") && row.Get("type").IsString()
+                    ? row.Get("type").As<Napi::String>().Utf8Value()
+                    : std::string();
+                const int32_t xRaw = GetInt(row, "xRaw", 0);
+                const int32_t yRaw = GetInt(row, "yRaw", 0);
+                const int32_t z = GetInt(row, "z", 0);
+
+                if (type == "chest")
+                {
+                    const uint32_t propId = core_->AddProp(
+                        static_cast<double>(float32::from_raw_value(xRaw)),
+                        static_cast<double>(float32::from_raw_value(yRaw)),
+                        static_cast<double>(float32::from_raw_value(GetInt(row, "radiusRaw", 0))),
+                        z);
+
+                    auto *prop = core_->ObjectManager.GetById(propId);
+                    if (!prop || !inventoryMgr)
+                        continue;
+
+                    prop->Transform.SetPosition(Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z));
+                    prop->Radius = float32::from_raw_value(GetInt(row, "radiusRaw", prop->Radius.raw_value()));
+
+                    auto storage = ParseInventorySaveObject(row.Get("storage"));
+                    if (storage)
+                    {
+                        inventoryMgr->EquipContainer(propId, ContainerSlot::MainStorage, std::move(storage), prop);
+                    }
+                    continue;
+                }
+
+                if (type == "item_drop")
+                {
+                    auto item = ParseItemSaveObject(row.Get("item"));
+                    if (!item)
+                        continue;
+
+                    const uint32_t propId = core_->Props.AddDroppedItem(
+                        *core_,
+                        Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z),
+                        std::move(item));
+                    auto *prop = core_->ObjectManager.GetById(propId);
+                    if (!prop)
+                        continue;
+
+                    prop->Transform.SetPosition(Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z));
+                    prop->Radius = float32::from_raw_value(GetInt(row, "radiusRaw", prop->Radius.raw_value()));
+                }
+            }
+        }
+
+        return Napi::Boolean::New(info.Env(), true);
     }
 
     Napi::Value GetBodyStateManifest(const Napi::CallbackInfo &info)

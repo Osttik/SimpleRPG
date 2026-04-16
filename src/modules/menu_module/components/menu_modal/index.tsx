@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom"; 
 import { CoreOverlay } from "../../../../components/overlay";
 import { useMenuActions, selectIsMenuOpen } from "../../../../store/slices/menu.slice";
+import { selectCurrentLobby, selectLobbyState } from "../../../../store/slices/lobby.slice";
+import { lobbyClient } from "../../../../services/lobby-client";
 
 type LangCode = 'UA' | 'EN' | 'PL';
 
@@ -15,6 +17,8 @@ export const MenuModal = () => {
   const { setMenuState } = useMenuActions();
   const navigate = useNavigate();
   const lang = (localStorage.getItem('lang') as LangCode) || 'UA';
+  const currentLobby = selectCurrentLobby();
+  const lobbyState = selectLobbyState();
 
   return (
     <CoreOverlay 
@@ -22,12 +26,20 @@ export const MenuModal = () => {
       setVisible={setMenuState}
       content={(
         <div className="flex flex-col gap-8 p-16 items-center bg-transparent border-none shadow-none">
+          {currentLobby?.isHost ? (
+            <button
+              onClick={() => lobbyClient.saveGame(currentLobby.loadedSave?.displayName || `${currentLobby.name} Save`)}
+              className="rpg-btn text-4xl font-bold uppercase medieval-font cursor-pointer leading-tight"
+            >
+              {lobbyState.isSaving ? 'Saving...' : 'Save Game'}
+            </button>
+          ) : null}
           <button onClick={() => setMenuState(false)} 
             className="rpg-btn text-5xl font-bold uppercase medieval-font cursor-pointer leading-tight">
             {labels[lang].cont}
           </button>
           
-          <button onClick={() => { if (window.confirm(labels[lang].conf)) { setMenuState(false); navigate('/'); } }} 
+          <button onClick={() => { if (window.confirm(labels[lang].conf)) { lobbyClient.leaveLobby(); setMenuState(false); navigate('/play'); } }} 
             className="text-red-900 text-4xl font-bold uppercase medieval-font hover:text-red-600 hover:scale-105 transition-all cursor-pointer"
             style={{ textShadow: '2px 2px 6px #000' }}>
             {labels[lang].quit}

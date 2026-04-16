@@ -39,6 +39,10 @@ public:
   bool HasSupportAt(int32_t tileX, int32_t tileY, int32_t z) const;
   bool AllowsFallThroughAt(int32_t tileX, int32_t tileY, int32_t z) const;
   std::vector<std::tuple<int32_t, int32_t, int32_t>> GetLoadedChunkCoords() const;
+  void RebuildChunkVisuals(int32_t cx, int32_t cy, int32_t cz);
+  std::vector<TerrainOverrideEntry> ExportTerrainOverrides() const;
+  void ImportTerrainOverride(const TerrainOverrideEntry &entry);
+  void ClearAllState();
 
 private:
   static std::tuple<int32_t, int32_t, int32_t> WorldToChunkCoord(int32_t worldX, int32_t worldY, int32_t worldZ);

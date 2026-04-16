@@ -5,10 +5,12 @@ import { interactionsState } from '@/store';
 import { isOverlayOpen } from '@/components/overlay';
 import { getRelativePositions } from './controls';
 
-export const useMapInitialize = () => {
+export const useMapInitialize = (memberToken: string) => {
   const [socketWorker, setSocketWorker] = useState<Worker | null>(null);
 
   useEffect(() => {
+    if (!memberToken) return;
+
     const canvas = gameState.canvasRef?.current;
     if (!canvas) return;
 
@@ -71,7 +73,7 @@ export const useMapInitialize = () => {
     // Setup direct message channel between socket and render workers
     const channel = new MessageChannel();
     renderWorker.postMessage({ type: 'initPort', port: channel.port1 }, [channel.port1]);
-    localSocketWorker.postMessage({ type: 'initPort', port: channel.port2 }, [channel.port2]);
+    localSocketWorker.postMessage({ type: 'initPort', port: channel.port2, memberToken }, [channel.port2]);
 
     // Handle window resize for offscreen canvas
     const handleResize = () => {
@@ -209,7 +211,7 @@ export const useMapInitialize = () => {
       renderWorker.terminate();
       localSocketWorker.terminate();
     };
-  }, []);
+  }, [memberToken]);
 
   useControls(socketWorker);
 };

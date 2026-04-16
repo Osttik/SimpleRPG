@@ -52,6 +52,15 @@ struct TerrainChunkOverrides
   std::unordered_map<uint16_t, ModifiedTerrainTileState> Tiles;
 };
 
+struct TerrainOverrideEntry
+{
+  int32_t ChunkX = 0;
+  int32_t ChunkY = 0;
+  int32_t ChunkZ = 0;
+  uint16_t LocalIndex = 0;
+  ModifiedTerrainTileState State;
+};
+
 class TerrainDestructionState
 {
 public:
@@ -75,6 +84,9 @@ public:
   void ClearOverride(int32_t cx, int32_t cy, int32_t cz, uint16_t localIndex);
   void MarkChunkDirty(int32_t cx, int32_t cy, int32_t cz);
   std::vector<std::tuple<int32_t, int32_t, int32_t>> ConsumeDirtyChunks();
+  std::vector<TerrainOverrideEntry> ExportOverrides() const;
+  void ImportOverride(const TerrainOverrideEntry &entry);
+  void ClearAll();
 
 private:
   TerrainChunkOverrides &EnsureChunk(int32_t cx, int32_t cy, int32_t cz);

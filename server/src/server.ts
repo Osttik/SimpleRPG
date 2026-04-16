@@ -1,31 +1,80 @@
-import { bindHost, port, publicHost } from './config.js';
-import { UWS_IDLE_TIMEOUT, UWS_MAX_BACKPRESSURE, UWS_MAX_PAYLOAD_LENGTH } from './socket-constants.js';
-import { startGameLoop, handleClose, handleMessage, handleOpen } from './socket-gameplay.js';
+import { randomUUID } from 'crypto';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { bindHost, port, publicHost, GAME_TICK_RATE } from './config.js';
+import { SaveSlotStore } from './save-slots.js';
+import { SessionRegistry } from './session-registry.js';
 import type { SocketData } from './types.js';
 import { uWS } from './uws.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export function startServer() {
   const app = uWS.App();
+  const saves = new SaveSlotStore(path.resolve(__dirname, '../saves'));
+  const registry = new SessionRegistry(app, saves);
 
   app.ws<SocketData>('/*', {
-    maxPayloadLength: UWS_MAX_PAYLOAD_LENGTH,
-    maxBackpressure: UWS_MAX_BACKPRESSURE,
-    idleTimeout: UWS_IDLE_TIMEOUT,
+    maxPayloadLength: 64 * 1024,
+    maxBackpressure: 1024 * 1024,
+    idleTimeout: 120,
     sendPingsAutomatically: true,
     compression: uWS.DISABLED,
-    open: handleOpen,
-    message: handleMessage,
-    close: handleClose,
+    upgrade: (res, req, context) => {
+      const mode = req.getQuery('mode') === 'gameplay' ? 'gameplay' : 'control';
+      const userData: SocketData = {
+        mode,
+        connectionId: mode === 'control' ? randomUUID() : undefined,
+        memberToken: mode === 'gameplay' ? req.getQuery('memberToken') || undefined : undefined,
+      };
+
+      res.upgrade(
+        userData,
+        req.getHeader('sec-websocket-key'),
+        req.getHeader('sec-websocket-protocol'),
+        req.getHeader('sec-websocket-extensions'),
+        context,
+      );
+    },
+    open: (ws) => {
+      if (ws.getUserData().mode === 'gameplay') {
+        registry.handleGameplayOpen(ws);
+        return;
+      }
+      registry.handleControlOpen(ws);
+    },
+    message: (ws, message, isBinary) => {
+      if (ws.getUserData().mode === 'gameplay') {
+        registry.handleGameplayMessage(ws, message, isBinary);
+        return;
+      }
+
+      registry.handleControlMessage(ws, message);
+    },
+    close: (ws) => {
+      if (ws.getUserData().mode === 'gameplay') {
+        registry.handleGameplayClose(ws);
+        return;
+      }
+      registry.handleControlClose(ws);
+    },
   });
 
   app.listen(bindHost, port, (listenSocket) => {
     if (listenSocket) {
-      console.log(`✓ uWebSockets.js server running on ws://${publicHost}:${port}`);
+      console.log(`Server running on ws://${publicHost}:${port}`);
     } else {
-      console.error(`✗ Failed to listen on ${bindHost}:${port}`);
+      console.error(`Failed to listen on ${bindHost}:${port}`);
       process.exit(1);
     }
   });
 
-  startGameLoop(app);
+  setInterval(() => {
+    try {
+      registry.tick();
+    } catch (error) {
+      console.error('Session tick failed:', error);
+    }
+  }, GAME_TICK_RATE);
 }

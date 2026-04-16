@@ -9,7 +9,7 @@ type LangCode = 'UA' | 'EN' | 'PL';
 
 const i18n: Record<LangCode, any> = {
   UA: { start: "Підключитись", sets: "Налаштування", exit: "Вийти", load: "Завантаження...", mus: "Музика", back: "Назад", lang: "Мова" },
-  EN: { start: "Connect", sets: "Settings", exit: "Leave", load: "Loading...", mus: "Music", back: "Back", lang: "Language" },
+  EN: { start: "Play", sets: "Settings", exit: "Leave", load: "Opening Lobbies...", mus: "Music", back: "Back", lang: "Language" },
   PL: { start: "Połącz", sets: "Ustawienia", exit: "Wyjdź", load: "Ładowanie...", mus: "Muzyka", back: "Wróć", lang: "Język" }
 };
 
@@ -47,8 +47,8 @@ export const MainMenu = () => {
     }
     setTimeout(() => {
       setMenuState(false);
-      navigate('/game');
-    }, 8000); 
+      navigate('/play');
+    }, 900); 
   };
 
   const particles = Array.from({ length: 40 }).map((_, i) => (

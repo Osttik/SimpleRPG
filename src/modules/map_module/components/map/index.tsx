@@ -2,11 +2,15 @@ import React, { useRef } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { useMapInitialize } from './useMapInitialize';
 
-export const MapComponent = React.memo(() => {
+interface MapComponentProps {
+  memberToken: string;
+}
+
+export const MapComponent = React.memo(({ memberToken }: MapComponentProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   gameState.canvasRef = canvasRef;
   
-  useMapInitialize();
+  useMapInitialize(memberToken);
 
   return (
     <canvas 

@@ -398,3 +398,52 @@ std::vector<std::tuple<int32_t, int32_t, int32_t>> WorldManager::GetLoadedChunkC
     std::sort(coords.begin(), coords.end());
     return coords;
 }
+
+void WorldManager::RebuildChunkVisuals(int32_t cx, int32_t cy, int32_t cz)
+{
+    auto it = chunks_.find(std::make_tuple(cx, cy, cz));
+    if (it == chunks_.end())
+        return;
+
+    for (int x = 0; x < CHUNK_SIZE; ++x)
+    {
+        for (int y = 0; y < CHUNK_SIZE; ++y)
+        {
+            for (int z = 0; z < CHUNK_SIZE; ++z)
+            {
+                UpdateTileVisuals(cx * CHUNK_SIZE + x, cy * CHUNK_SIZE + y, cz * CHUNK_SIZE + z);
+            }
+        }
+    }
+
+    for (int x = -1; x <= CHUNK_SIZE; ++x)
+    {
+        for (int y = -1; y <= CHUNK_SIZE; ++y)
+        {
+            if (x >= 0 && x < CHUNK_SIZE && y >= 0 && y < CHUNK_SIZE)
+                continue;
+
+            for (int z = 0; z < CHUNK_SIZE; ++z)
+            {
+                UpdateTileVisuals(cx * CHUNK_SIZE + x, cy * CHUNK_SIZE + y, cz * CHUNK_SIZE + z);
+            }
+        }
+    }
+}
+
+std::vector<TerrainOverrideEntry> WorldManager::ExportTerrainOverrides() const
+{
+    return terrain_.ExportOverrides();
+}
+
+void WorldManager::ImportTerrainOverride(const TerrainOverrideEntry &entry)
+{
+    GetChunk(entry.ChunkX, entry.ChunkY, entry.ChunkZ);
+    terrain_.ImportOverride(entry);
+}
+
+void WorldManager::ClearAllState()
+{
+    chunks_.clear();
+    terrain_.ClearAll();
+}
