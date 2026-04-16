@@ -53,6 +53,7 @@ public:
   bool PickupItem(uint32_t playerId, uint32_t targetId);
   bool StartAttack(uint32_t entityId, AttackDirection direction);
   bool SetBlockState(uint32_t entityId, bool active, BlockDirection direction);
+  bool MineTile(uint32_t playerId, int32_t tileX, int32_t tileY);
   void SpawnTestChest();
   void DestroyTile(int32_t wx, int32_t wy, int32_t wz);
 
@@ -68,5 +69,6 @@ public:
   static EntityType ResolveEntityType(const std::string &typeStr);
 
 private:
+  bool DeliverTerrainReward(uint32_t playerId, int32_t tileX, int32_t tileY, const TerrainStageRewardGrant &reward, size_t rewardIndex);
   void WriteEntity(uint8_t *buf, size_t offset, const GameObject &obj);
 };

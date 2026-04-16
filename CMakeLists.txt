@@ -86,6 +86,15 @@ if(NOT EMSCRIPTEN)
   )
   target_link_libraries(game_logic_tests PRIVATE game_logic)
   add_test(NAME game_logic_tests COMMAND game_logic_tests)
+
+  add_executable(terrain_system_tests "engine/tests/terrain-destruction-tests.cpp")
+  target_include_directories(terrain_system_tests PRIVATE
+    "engine/headers"
+    "engine/generated"
+    "${flatbuffers_SOURCE_DIR}/include"
+  )
+  target_link_libraries(terrain_system_tests PRIVATE game_logic)
+  add_test(NAME terrain_system_tests COMMAND terrain_system_tests)
 endif()
 
 if(EMSCRIPTEN)

@@ -236,6 +236,17 @@ export function handleMessage(ws: WebSocket<SocketData>, message: ArrayBuffer, i
           ws.send(JSON.stringify({ type: 'player_inventory', ...payload }), false);
         }
       }
+      return;
+    }
+
+    if (data.type === 'mine_tile') {
+      const ok = physics.mineTile?.(id, Number(data.tileX || 0), Number(data.tileY || 0));
+      if (!ok) return;
+
+      const payload = physics.getPlayerInventoryState?.(id);
+      if (payload) {
+        ws.send(JSON.stringify({ type: 'player_inventory', ...payload }), false);
+      }
     }
   } catch (e) {
     console.error('Failed to parse message:', e);
@@ -262,6 +273,20 @@ export function startGameLoop(app: TemplatedApp) {
       const combatEvents: Buffer | null = physics.getCombatEvents?.() ?? null;
       if (combatEvents && combatEvents.length > 0) {
         app.publish(GAME_TOPIC, combatEvents, true);
+      }
+
+      const dirtyTerrainChunks: Array<{ cx: number; cy: number; cz: number }> =
+        physics.consumeDirtyTerrainChunks?.() ?? [];
+      if (dirtyTerrainChunks.length > 0) {
+        for (const ws of sockets) {
+          const loadedChunks = ws.getUserData().loadedChunks;
+          if (!loadedChunks) continue;
+          for (const coord of dirtyTerrainChunks) {
+            const key = `${coord.cx},${coord.cy},${coord.cz}`;
+            if (!loadedChunks.has(key)) continue;
+            sendChunk(ws, coord.cx, coord.cy, coord.cz);
+          }
+        }
       }
 
       const state = physics.getState();

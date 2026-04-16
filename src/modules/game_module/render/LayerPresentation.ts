@@ -1,5 +1,5 @@
 export const RENDER_LAYER_RADIUS = 3;
-export const TILE_RENDER_FLOATS = 6;
+export const TILE_RENDER_FLOATS = 7;
 
 export interface TileFadeMetadata {
   roof?: boolean;

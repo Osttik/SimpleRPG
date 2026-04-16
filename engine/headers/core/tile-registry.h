@@ -4,6 +4,8 @@
 #include <cstdint>
 
 #include <vector>
+#include "core/materials.h"
+#include "core/tool-interaction.h"
 
 enum class TileConnectorType : uint8_t
 {
@@ -41,6 +43,31 @@ struct TileConnectorDef
     bool Bidirectional = false;
 };
 
+struct TileStageLootDef
+{
+    std::string ItemDefinitionId;
+    uint16_t Quantity = 0;
+};
+
+struct TileDestructionStageDef
+{
+    int32_t Threshold = 0;
+    std::vector<TileStageLootDef> Loot;
+};
+
+struct TileDestructionDef
+{
+    bool Destructible = false;
+    int32_t MaxIntegrity = 0;
+    int32_t MiningResistance = 0;
+    TileStrengthClass StrengthClass = TileStrengthClass::None;
+    ToolClass PreferredTool = ToolClass::None;
+    std::vector<TileDestructionStageDef> Stages;
+    std::vector<uint16_t> StageVisualTileIds;
+    uint16_t DestroyedTileId = 0;
+    std::vector<MaterialPart> MaterialYieldHints;
+};
+
 struct TileGameplayDef
 {
     bool Collide = false;
@@ -48,7 +75,9 @@ struct TileGameplayDef
     bool FallThrough = true;
     bool Roof = false;
     bool Occludes = false;
+    uint8_t DamageVisualStage = 0;
     TileConnectorDef Connector;
+    TileDestructionDef Destruction;
 };
 
 class TileRegistry
@@ -62,7 +91,9 @@ public:
     static bool GetTileFallThrough(uint16_t id);
     static bool GetTileRoof(uint16_t id);
     static bool GetTileOccludes(uint16_t id);
+    static uint8_t GetTileDamageVisualStage(uint16_t id);
     static const TileConnectorDef *GetTileConnector(uint16_t id);
+    static const TileDestructionDef *GetTileDestruction(uint16_t id);
     static TileGameplayDef GetTileGameplay(uint16_t id);
     static std::unordered_map<uint16_t, std::string> GetAllTiles();
 

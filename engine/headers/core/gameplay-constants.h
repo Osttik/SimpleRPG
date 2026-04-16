@@ -6,6 +6,7 @@ inline const float32 DEFAULT_INVENTORY_MAX_WEIGHT = float32(500.0);
 inline const float32 DEFAULT_FALLBACK_INVENTORY_MAX_VOLUME = float32(500.0);
 inline const float32 PLAYER_DEFAULT_RADIUS = float32(20.0);
 inline const float32 PLAYER_DEFAULT_INTERACTION_RADIUS = float32(80.0);
+inline const float32 PLAYER_DEFAULT_MINING_RADIUS = float32(96.0);
 inline const float32 PLAYER_DEFAULT_BACKPACK_MAX_VOLUME = float32(50.0);
 inline const float32 CHEST_HALF_SIZE = float32(16.0);
 inline const float32 CHEST_STORAGE_MAX_VOLUME = float32(500.0);

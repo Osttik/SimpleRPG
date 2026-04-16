@@ -22,6 +22,7 @@ void SpawnTestChests(GameWorldEngine &core)
                     mainStorage->AddItem(ItemFactory::CreateSword());
                 }
                 mainStorage->AddItem(ItemFactory::CreatePickaxe());
+                mainStorage->AddItem(ItemFactory::CreateShovel());
             }
         }
     };

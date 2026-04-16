@@ -5,6 +5,7 @@ in float a_spriteId;
 in float a_layerOffset;
 in float a_roofFade;
 in float a_occlusion;
+in float a_damageVisualStage;
 
 uniform vec2 u_resolution;
 uniform float u_tileSize;
@@ -14,6 +15,7 @@ out float v_spriteId;
 out float v_layerOffset;
 out float v_roofFade;
 out float v_occlusion;
+out float v_damageVisualStage;
 
 void main() {
   vec2 worldPos = a_position * u_tileSize + a_instancePosition;
@@ -28,4 +30,5 @@ void main() {
   v_layerOffset = a_layerOffset;
   v_roofFade = a_roofFade;
   v_occlusion = a_occlusion;
+  v_damageVisualStage = a_damageVisualStage;
 }

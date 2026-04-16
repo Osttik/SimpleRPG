@@ -109,6 +109,7 @@ function initWebGL() {
   const tileLayerOffsetLoc = gl.getAttribLocation(tileProgram, "a_layerOffset");
   const tileRoofFadeLoc = gl.getAttribLocation(tileProgram, "a_roofFade");
   const tileOcclusionLoc = gl.getAttribLocation(tileProgram, "a_occlusion");
+  const tileDamageVisualStageLoc = gl.getAttribLocation(tileProgram, "a_damageVisualStage");
   const tileResLoc = gl.getUniformLocation(tileProgram, "u_resolution");
   const tileSizeLoc = gl.getUniformLocation(tileProgram, "u_tileSize");
 
@@ -161,6 +162,10 @@ function initWebGL() {
     ctx.vertexAttribPointer(tileOcclusionLoc, 1, ctx.FLOAT, false, stride, 20);
     ctx.vertexAttribDivisor(tileOcclusionLoc, 1);
 
+    ctx.enableVertexAttribArray(tileDamageVisualStageLoc);
+    ctx.vertexAttribPointer(tileDamageVisualStageLoc, 1, ctx.FLOAT, false, stride, 24);
+    ctx.vertexAttribDivisor(tileDamageVisualStageLoc, 1);
+
     ctx.drawArraysInstanced(ctx.TRIANGLES, 0, 6, instanceCount);
 
     ctx.vertexAttribDivisor(tileInstPosLoc, 0);
@@ -168,6 +173,7 @@ function initWebGL() {
     ctx.vertexAttribDivisor(tileLayerOffsetLoc, 0);
     ctx.vertexAttribDivisor(tileRoofFadeLoc, 0);
     ctx.vertexAttribDivisor(tileOcclusionLoc, 0);
+    ctx.vertexAttribDivisor(tileDamageVisualStageLoc, 0);
   };
 
   const render = () => {
@@ -266,6 +272,7 @@ function initWebGL() {
           roof: Boolean(tileLogic?.roof),
           occludes: Boolean(tileLogic?.occludes),
         });
+        const damageVisualStage = Number(tileLogic?.damageVisualStage || 0);
 
         if (layerOffset > 0) {
           if (upperInstanceCount >= MAX_INSTANCES) continue;
@@ -276,6 +283,7 @@ function initWebGL() {
           upperInstanceData[base + 3] = layerOffset;
           upperInstanceData[base + 4] = roofFade;
           upperInstanceData[base + 5] = occlusion;
+          upperInstanceData[base + 6] = damageVisualStage;
           upperInstanceCount++;
         } else {
           if (lowerInstanceCount >= MAX_INSTANCES) continue;
@@ -286,6 +294,7 @@ function initWebGL() {
           lowerInstanceData[base + 3] = layerOffset;
           lowerInstanceData[base + 4] = roofFade;
           lowerInstanceData[base + 5] = occlusion;
+          lowerInstanceData[base + 6] = damageVisualStage;
           lowerInstanceCount++;
         }
       }

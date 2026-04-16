@@ -181,7 +181,22 @@ SimpleRPG/
 * **Frontend Presentation**: RenderWorker renders current layer plus up to three below and three above. Lower layers darken; upper layers haze and alpha-fade; above-player tiles get a strong local roof fade around the player's position.
 * **Detailed Contract**: See `docs/layered-world-v1.md` for the exact v1 metadata and transition contract.
 
-### 7. Sprite & Asset System
+### 7. Terrain Destruction, Materials, and Tools
+* **Three Separate Systems**: Keep world terrain destruction, item material composition, and tool-vs-tile interaction as separate systems with explicit boundaries. Do not merge them into one monolithic feature owner.
+* **Sparse Terrain Damage State**: Authored chunk tiles remain the base world definition. Runtime terrain damage/destruction lives in sparse per-chunk override state keyed by local tile index.
+* **Authoritative Tile Resolution**: `WorldManager::GetTileAt(...)` must resolve terrain overrides on top of base chunk data. Layered-world support/fall/collision legality must observe destroyed terrain through this shared lookup path.
+* **Stage-Based Destruction**: Destructible tiles define `maxIntegrity`, `miningResistance`, `strengthClass`, `preferredTool`, ordered stage thresholds, stage loot tables, stage visual tile ids, final destroyed tile id, and optional material-yield hints.
+* **Threshold Reward Rule**: Rewards are granted when thresholds are crossed, not per hit. If one action crosses multiple thresholds, all newly crossed stage rewards are granted exactly once.
+* **Tool Rules**: V1 tool classes are `pickaxe` and `shovel`. V1 terrain strength classes are `soft` and `strong`. Pickaxe is favored against strong terrain, shovel is favored against soft terrain, and bare hands still deal deterministic minimum damage.
+* **Material Composition**: Extracted terrain items use quantized weighted constituent materials via compositional item features. V1 materials are dirt, stone, iron, gold, and clay.
+* **Stacking Rule**: Only gold pieces are stackable in V1. Dirt chunks and stone slabs remain non-stackable.
+* **Loot Delivery**: Terrain stage rewards go to the acting player's backpack first. If insertion fails, spawn deterministic dropped items near the mined tile using the existing dropped-item flow.
+* **Mining Scope**: V1 mining targets destructible terrain on the player's current authoritative gameplay layer only. Do not add placement/building, cross-layer mining, or full crafting/smelting here.
+* **Networking Rule**: Terrain damage/destruction stays off the 60 Hz snapshot path. Stage/destruction changes mark chunks dirty and reuse the low-frequency chunk resend path.
+* **Presentation Rule**: Clients render resolved chunk tiles and may apply simple stage-based treatment from tile metadata such as `damageVisualStage`. This remains presentation-only.
+* **Detailed Contract**: See `docs/terrain-destruction-v1.md` for the exact v1 contract.
+
+### 8. Sprite & Asset System
 * **AssetManager**: Async `ImageBitmap` cache. De-duplicates concurrent requests. URLs resolved at Vite build time via `import.meta.url` (Worker-safe).
 * **RegistryManager**: Merges `tiles_registry.json`, `entities_registry.json`, `sprites_data.json` into `tilesById` and `entitiesByType` maps.
 * **TileDataManager**: `Float32Array` lookup indexed by `(tileId * 256) + mask` → sprite layer index. O(1).
@@ -192,7 +207,7 @@ SimpleRPG/
 * **Layer Tinting/Fade**: `LayerPresentation.ts` computes visible layer windows and local roof fade strength; `tileFragment.glsl` darkens lower layers, hazes upper layers, and fades above-player roof/floor tiles. This is client presentation only.
 * **Render Sort**: Entities are sorted by `z` then by `y` so lower screen-position entities render over higher ones (correct top-down overlap).
 
-### 8. Combat Rig Contract, Shield Integrity, and Visual Body State
+### 9. Combat Rig Contract, Shield Integrity, and Visual Body State
 * **Canonical Source**: `schema/combat-rig-contract.humanoid.json` is the authored combat-rig contract for humanoids. It is the source for generated C++ combat data, frontend rig/combat manifest data, and generated docs. Do not hand-maintain mirrored body-part IDs, hurtboxes, anchors, shield defaults, or visual mappings in separate runtime files.
 * **Generation Outputs**:
   * `engine/headers/core/combat/combat-rig-contract.generated.h`
@@ -284,6 +299,8 @@ The engine has moved from a monolithic design to a **Delegated ECS-Lite Architec
     - **Entities**: AABB tree + circle-circle resolution.
 * **Inventory**: Items are owned by `Inventory` classes. `InventoryOperator` handles atomic transfers. Items are compositional (`Item` + `ItemFeature`), not inheritance-based.
 * **Equipment**: `EquipmentComponent` depends on `InventoryComponent`. Equipment slots hold references to items inside the inventory. Removing an item from inventory automatically unequips it via inventory removal listeners.
+* **Terrain Mutation**: Do not destructively rewrite authored chunk data for staged terrain damage. Keep authored tiles as base world data and layer sparse overrides on top.
+* **Responsibility Split**: Terrain destruction owns world-state mutation, tool interaction owns deterministic mining damage calculation, and material composition owns item material data. Keep those concerns separate even when they interact.
 
 ### 2. Networking & State
 * **Authoritative Server**: All positions and inventory changes are decided by the C++ core on the server.
@@ -291,6 +308,7 @@ The engine has moved from a monolithic design to a **Delegated ECS-Lite Architec
 * **Binary Streaming**: Grid data and entity states are raw binary buffers. JSON is strictly for low-frequency session/registry data.
 * **Lerp Smoothing**: Clients interpolate entity positions between server snapshots with 100ms delay buffer.
 * **Visual Animation State**: Do not add high-frequency visual transforms to FlatBuffers. Use `animState`, `animAux`, and compact combat events; per-bone transforms, hand positions, IK, weapon lag, and layered sprite animation stay frontend-only.
+* **Terrain Sync Rule**: Terrain damage/destruction must stay off the hot snapshot path. Replicate terrain changes through low-frequency chunk/tile update flows only.
 
 ### 3. Frontend Modularization
 * **Workers**: Networking and Rendering MUST stay off the main thread.

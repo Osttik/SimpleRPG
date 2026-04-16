@@ -1,5 +1,40 @@
 [
-  { "id": 1, "name": "grass", "collide": false, "support": true, "fallThrough": false, "spriteKey": "grass" },
+  {
+    "id": 1,
+    "name": "grass",
+    "collide": false,
+    "support": true,
+    "fallThrough": false,
+    "spriteKey": "grass",
+    "destruction": {
+      "destructible": true,
+      "maxIntegrity": 6,
+      "miningResistance": 0,
+      "strengthClass": "soft",
+      "preferredTool": "shovel",
+      "stageVisualTileIds": [11, 12],
+      "destroyedTileId": 0,
+      "materialYieldHints": [
+        { "id": "dirt", "share": 88 },
+        { "id": "stone", "share": 10 },
+        { "id": "iron", "share": 2 }
+      ],
+      "stages": [
+        {
+          "threshold": 2,
+          "loot": [
+            { "itemDefinitionId": "resource.dirt_chunk", "quantity": 1 }
+          ]
+        },
+        {
+          "threshold": 4,
+          "loot": [
+            { "itemDefinitionId": "resource.dirt_chunk", "quantity": 1 }
+          ]
+        }
+      ]
+    }
+  },
   { "id": 2, "name": "stone", "collide": true, "support": false, "fallThrough": false, "occludes": true, "spriteKey": "stone" },
   { "id": 3, "name": "dark_grass", "collide": false, "support": true, "fallThrough": false, "spriteKey": "dark_grass" },
   {
@@ -120,5 +155,82 @@
       "oneWay": true
     }
   },
-  { "id": 10, "name": "temporary_roof", "collide": false, "support": false, "fallThrough": true, "roof": true, "occludes": true, "spriteKey": "stone" }
+  { "id": 10, "name": "temporary_roof", "collide": false, "support": false, "fallThrough": true, "roof": true, "occludes": true, "spriteKey": "stone" },
+  { "id": 11, "name": "grass_damaged_1", "collide": false, "support": true, "fallThrough": false, "spriteKey": "grass", "damageVisualStage": 1 },
+  { "id": 12, "name": "grass_damaged_2", "collide": false, "support": true, "fallThrough": false, "spriteKey": "grass", "damageVisualStage": 2 },
+  {
+    "id": 13,
+    "name": "stone_floor",
+    "collide": false,
+    "support": true,
+    "fallThrough": false,
+    "spriteKey": "stone",
+    "destruction": {
+      "destructible": true,
+      "maxIntegrity": 8,
+      "miningResistance": 2,
+      "strengthClass": "strong",
+      "preferredTool": "pickaxe",
+      "stageVisualTileIds": [14, 15],
+      "destroyedTileId": 0,
+      "materialYieldHints": [
+        { "id": "stone", "share": 92 },
+        { "id": "iron", "share": 8 }
+      ],
+      "stages": [
+        {
+          "threshold": 3,
+          "loot": [
+            { "itemDefinitionId": "resource.stone_slab", "quantity": 1 }
+          ]
+        },
+        {
+          "threshold": 6,
+          "loot": [
+            { "itemDefinitionId": "resource.stone_slab", "quantity": 1 }
+          ]
+        }
+      ]
+    }
+  },
+  { "id": 14, "name": "stone_floor_damaged_1", "collide": false, "support": true, "fallThrough": false, "spriteKey": "stone", "damageVisualStage": 1 },
+  { "id": 15, "name": "stone_floor_damaged_2", "collide": false, "support": true, "fallThrough": false, "spriteKey": "stone", "damageVisualStage": 2 },
+  {
+    "id": 16,
+    "name": "gold_ore",
+    "collide": false,
+    "support": true,
+    "fallThrough": false,
+    "spriteKey": "stone",
+    "destruction": {
+      "destructible": true,
+      "maxIntegrity": 9,
+      "miningResistance": 3,
+      "strengthClass": "strong",
+      "preferredTool": "pickaxe",
+      "stageVisualTileIds": [17, 18],
+      "destroyedTileId": 0,
+      "materialYieldHints": [
+        { "id": "stone", "share": 78 },
+        { "id": "gold", "share": 18 },
+        { "id": "iron", "share": 4 }
+      ],
+      "stages": [
+        {
+          "threshold": 3,
+          "loot": [
+            { "itemDefinitionId": "resource.stone_slab", "quantity": 1 }
+          ]
+        },
+        {
+          "threshold": 7,
+          "loot": [
+            { "itemDefinitionId": "resource.gold_piece", "quantity": 1 }
+          ]
+        }
+      ]
+    }
+  },
+  { "id": 17, "name": "gold_ore_damaged_1", "collide": false, "support": true, "fallThrough": false, "spriteKey": "stone", "damageVisualStage": 1 },
+  { "id": 18, "name": "gold_ore_damaged_2", "collide": false, "support": true, "fallThrough": false, "spriteKey": "stone", "damageVisualStage": 2 }
 ]

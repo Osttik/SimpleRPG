@@ -1,3 +1,4 @@
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include "core/game-world-engine.h"
@@ -8,11 +9,13 @@
 #include "core/components/combat-body-component.h"
 #include "core/components/combat-state-component.h"
 #include "core/components/dropped-item-component.h"
+#include "core/constants.h"
 #include "net/protocol.hpp"
 #include "core/components/equipment-component.h"
 #include "core/components/move-component.h"
 #include "core/components/interactable-component.h"
 #include "core/components/inventory-component.h"
+#include "core/tool-interaction.h"
 
 namespace
 {
@@ -38,6 +41,22 @@ uint8_t QuantizeFacingSector(const Point &facing)
   if (facing.X < zero && facing.Y < zero)
     return 5;
   return 7;
+}
+
+const Item *FindEquippedMiningTool(EquipmentComponentManager *equipmentMgr, uint32_t entityId)
+{
+  if (!equipmentMgr)
+    return nullptr;
+
+  const Item *primary = equipmentMgr->GetEquippedItem(entityId, EquipSlot::HandPrimary);
+  if (primary && primary->GetFeature<ToolFeature>())
+    return primary;
+
+  const Item *secondary = equipmentMgr->GetEquippedItem(entityId, EquipSlot::HandSecondary);
+  if (secondary && secondary->GetFeature<ToolFeature>())
+    return secondary;
+
+  return nullptr;
 }
 }
 
@@ -282,31 +301,91 @@ bool GameWorldEngine::SetBlockState(uint32_t entityId, bool active, BlockDirecti
   return stateMgr->SetBlockState(entityId, active, direction, bodyMgr);
 }
 
+bool GameWorldEngine::DeliverTerrainReward(uint32_t playerId, int32_t tileX, int32_t tileY, const TerrainStageRewardGrant &reward, size_t rewardIndex)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *inventoryMgr = Ctx.GetManager<InventoryComponentManager>();
+  if (!player)
+    return false;
+
+  auto item = ItemFactory::CreateByDefinitionId(reward.ItemDefinitionId, reward.Quantity);
+  if (!item)
+    return false;
+
+  if (inventoryMgr && inventoryMgr->AddItem(playerId, ContainerSlot::Backpack, std::move(item), player))
+    return true;
+
+  auto dropped = ItemFactory::CreateByDefinitionId(reward.ItemDefinitionId, reward.Quantity);
+  if (!dropped)
+    return false;
+
+  static const std::array<Point, 8> offsets = {
+      Point(float32(0), float32(0)),
+      Point(float32(8), float32(0)),
+      Point(float32(-8), float32(0)),
+      Point(float32(0), float32(8)),
+      Point(float32(0), float32(-8)),
+      Point(float32(8), float32(8)),
+      Point(float32(-8), float32(8)),
+      Point(float32(8), float32(-8)),
+  };
+
+  const Point &offset = offsets[rewardIndex % offsets.size()];
+  const Point dropPosition(
+      float32(tileX) * TILE_SIZE + (TILE_SIZE / float32(2)) + offset.X,
+      float32(tileY) * TILE_SIZE + (TILE_SIZE / float32(2)) + offset.Y,
+      player->Transform.Position().Z);
+  Props.AddDroppedItem(*this, dropPosition, std::move(dropped));
+  return true;
+}
+
+bool GameWorldEngine::MineTile(uint32_t playerId, int32_t tileX, int32_t tileY)
+{
+  auto *player = ObjectManager.GetById(playerId);
+  auto *equipmentMgr = Ctx.GetManager<EquipmentComponentManager>();
+  if (!player)
+    return false;
+
+  const int32_t targetZ = player->Transform.Position().Z;
+  const uint16_t baseTileId = World.ChunkManager->GetBaseTileAt(tileX, tileY, targetZ);
+  const TileDestructionDef *destruction = TileRegistry::GetTileDestruction(baseTileId);
+  if (!destruction || !destruction->Destructible)
+    return false;
+
+  const float32 tileCenterX = float32(tileX) * TILE_SIZE + (TILE_SIZE / float32(2));
+  const float32 tileCenterY = float32(tileY) * TILE_SIZE + (TILE_SIZE / float32(2));
+  const float32 dx = tileCenterX - player->Transform.Position().X;
+  const float32 dy = tileCenterY - player->Transform.Position().Y;
+  if ((dx * dx) + (dy * dy) > (PLAYER_DEFAULT_MINING_RADIUS * PLAYER_DEFAULT_MINING_RADIUS))
+    return false;
+
+  const Item *toolItem = FindEquippedMiningTool(equipmentMgr, playerId);
+  const ToolFeature *toolFeature = toolItem ? toolItem->GetFeature<ToolFeature>() : nullptr;
+  const int32_t damage = ResolveMiningDamage(
+      toolFeature ? &toolFeature->Mining : nullptr,
+      MiningTileProfile{
+          destruction->StrengthClass,
+          destruction->PreferredTool,
+          destruction->MiningResistance,
+      });
+
+  TerrainDamageResult result = World.ChunkManager->ApplyTileDamage(tileX, tileY, targetZ, damage);
+  if (!result.StateChanged && result.Rewards.empty())
+    return false;
+
+  for (size_t i = 0; i < result.Rewards.size(); ++i)
+  {
+    DeliverTerrainReward(playerId, tileX, tileY, result.Rewards[i], i);
+  }
+
+  return true;
+}
+
 // ─── Tile Operations ───
 
 void GameWorldEngine::DestroyTile(int32_t wx, int32_t wy, int32_t wz)
 {
-  int32_t cx = static_cast<int32_t>(std::floor(static_cast<double>(wx) / CHUNK_SIZE));
-  int32_t cy = static_cast<int32_t>(std::floor(static_cast<double>(wy) / CHUNK_SIZE));
-  int32_t cz = static_cast<int32_t>(std::floor(static_cast<double>(wz) / CHUNK_SIZE));
-
-  Chunk *chunk = World.GetChunkSafely(cx, cy, cz);
-  if (chunk)
-  {
-    int32_t lx = wx % CHUNK_SIZE;
-    if (lx < 0)
-      lx += CHUNK_SIZE;
-    int32_t ly = wy % CHUNK_SIZE;
-    if (ly < 0)
-      ly += CHUNK_SIZE;
-    int32_t lz = wz % CHUNK_SIZE;
-    if (lz < 0)
-      lz += CHUNK_SIZE;
-
-    int index = lx + ly * CHUNK_SIZE + lz * CHUNK_SIZE * CHUNK_SIZE;
-    chunk->tiles[index] = 0;
-    World.ChunkManager->NotifyTileChanged(wx, wy, wz);
-  }
+  World.ChunkManager->SetTileAt(wx, wy, wz, 0);
 }
 
 void GameWorldEngine::SetTileRegistry(const std::vector<TileDef> &registry)

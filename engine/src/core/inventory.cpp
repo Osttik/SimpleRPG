@@ -1,4 +1,5 @@
 #include "core/inventory.h"
+#include <initializer_list>
 
 bool Item::CanStackWith(const Item &other) const
 {
@@ -55,6 +56,43 @@ float32 Item::GetMerchantBaseValue() const
 
 namespace ItemFactory
 {
+  namespace
+  {
+    MaterialComposition MakeComposition(std::initializer_list<MaterialPart> parts)
+    {
+      MaterialComposition composition;
+      composition.Parts.assign(parts.begin(), parts.end());
+      composition.Normalize();
+      return composition;
+    }
+
+    std::unique_ptr<Item> CreateExtractedResource(
+        const std::string &definitionId,
+        const std::string &name,
+        const std::string &spriteKey,
+        float32 volume,
+        float32 weight,
+        float32 merchantValue,
+        MaterialComposition composition,
+        bool stackable,
+        int maxStack,
+        int quantity)
+    {
+      auto item = std::make_unique<Item>(
+          definitionId,
+          name,
+          spriteKey,
+          volume,
+          weight,
+          stackable,
+          maxStack,
+          quantity);
+      item->AddFeature<MaterialCompositionFeature>(std::move(composition));
+      item->AddFeature<MerchantValueFeature>(merchantValue);
+      return item;
+    }
+  }
+
   std::unique_ptr<Item> CreateSword(int quantity)
   {
     auto sword = std::make_unique<Item>(
@@ -88,9 +126,42 @@ namespace ItemFactory
 
     pickaxe->AddFeature<EquippableFeature>(std::vector<EquipSlot>{EquipSlot::HandPrimary, EquipSlot::HandSecondary});
     pickaxe->AddFeature<WeaponFeature>(3, 6);
+    pickaxe->AddFeature<ToolFeature>(MiningToolStats{
+        ToolClass::Pickaxe,
+        3,
+        80,
+        150,
+        2,
+    });
     pickaxe->AddFeature<DurabilityFeature>(100, 100);
     pickaxe->AddFeature<MerchantValueFeature>(float32(55.0));
     return pickaxe;
+  }
+
+  std::unique_ptr<Item> CreateShovel(int quantity)
+  {
+    auto shovel = std::make_unique<Item>(
+        "tool.shovel.iron",
+        "Shovel",
+        "pickaxe",
+        float32(2.2),
+        float32(5.0),
+        false,
+        1,
+        quantity);
+
+    shovel->AddFeature<EquippableFeature>(std::vector<EquipSlot>{EquipSlot::HandPrimary, EquipSlot::HandSecondary});
+    shovel->AddFeature<WeaponFeature>(2, 4);
+    shovel->AddFeature<ToolFeature>(MiningToolStats{
+        ToolClass::Shovel,
+        3,
+        150,
+        70,
+        2,
+    });
+    shovel->AddFeature<DurabilityFeature>(100, 100);
+    shovel->AddFeature<MerchantValueFeature>(float32(40.0));
+    return shovel;
   }
 
   std::unique_ptr<Item> CreateCoin(int quantity)
@@ -107,6 +178,79 @@ namespace ItemFactory
 
     coin->AddFeature<MerchantValueFeature>(float32(1.0));
     return coin;
+  }
+
+  std::unique_ptr<Item> CreateDirtChunk(int quantity)
+  {
+    return CreateExtractedResource(
+        "resource.dirt_chunk",
+        "Dirt Chunk",
+        "grass",
+        float32(0.8),
+        float32(1.0),
+        float32(2.0),
+        MakeComposition({
+            {MaterialId::Dirt, 88},
+            {MaterialId::Stone, 10},
+            {MaterialId::Iron, 2},
+        }),
+        false,
+        1,
+        quantity);
+  }
+
+  std::unique_ptr<Item> CreateStoneSlab(int quantity)
+  {
+    return CreateExtractedResource(
+        "resource.stone_slab",
+        "Stone Slab",
+        "stone",
+        float32(1.2),
+        float32(2.0),
+        float32(4.0),
+        MakeComposition({
+            {MaterialId::Stone, 92},
+            {MaterialId::Iron, 8},
+        }),
+        false,
+        1,
+        quantity);
+  }
+
+  std::unique_ptr<Item> CreateGoldPiece(int quantity)
+  {
+    return CreateExtractedResource(
+        "resource.gold_piece",
+        "Gold Piece",
+        "stone",
+        float32(0.1),
+        float32(0.2),
+        float32(15.0),
+        MakeComposition({
+            {MaterialId::Gold, 100},
+        }),
+        true,
+        100,
+        quantity);
+  }
+
+  std::unique_ptr<Item> CreateByDefinitionId(const std::string &definitionId, int quantity)
+  {
+    if (definitionId == "weapon.sword.iron")
+      return CreateSword(quantity);
+    if (definitionId == "tool.pickaxe.iron")
+      return CreatePickaxe(quantity);
+    if (definitionId == "tool.shovel.iron")
+      return CreateShovel(quantity);
+    if (definitionId == "currency.coin")
+      return CreateCoin(quantity);
+    if (definitionId == "resource.dirt_chunk")
+      return CreateDirtChunk(quantity);
+    if (definitionId == "resource.stone_slab")
+      return CreateStoneSlab(quantity);
+    if (definitionId == "resource.gold_piece")
+      return CreateGoldPiece(quantity);
+    return nullptr;
   }
 }
 

@@ -10,6 +10,7 @@ export interface LogicData {
     fallThrough?: boolean;
     roof?: boolean;
     occludes?: boolean;
+    damageVisualStage?: number;
     type?: string;
     baseSpeed?: number;
     width?: number;

@@ -3,6 +3,7 @@ import { gameState } from '../../../game_module/game_state';
 import { subscribeToMovement } from './controls/subscribeToMovement';
 import { areControlsDisabled, clearMovementIntent, controlsContext, getWorldMousePosition } from './controls';
 import { clearCombatIntent, subscribeToCombat } from './controls/subscribeToCombat';
+import { subscribeToMining } from './controls/subscribeToMining';
 import { subscribeToSelection } from './controls/subscribeToSelection';
 
 export const useControls = (socketWorker: Worker | null) => {
@@ -16,6 +17,7 @@ export const useControls = (socketWorker: Worker | null) => {
       ...subscribeToMovement(),
       ...subscribeToSelection(socketWorker),
       ...subscribeToCombat(socketWorker),
+      ...subscribeToMining(socketWorker),
     ];
 
     const handleBlur = () => {

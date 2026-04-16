@@ -312,5 +312,13 @@ self.onmessage = (event) => {
         targetId: Number(event.data.targetId || 0),
       }));
     }
+  } else if (event.data.type === 'mine_tile') {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'mine_tile',
+        tileX: Number(event.data.tileX),
+        tileY: Number(event.data.tileY),
+      }));
+    }
   }
 };

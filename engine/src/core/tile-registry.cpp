@@ -50,10 +50,21 @@ bool TileRegistry::GetTileOccludes(uint16_t id) {
     return gameplayMap_[id].Occludes;
 }
 
+uint8_t TileRegistry::GetTileDamageVisualStage(uint16_t id) {
+    if (id >= gameplayMap_.size()) return 0;
+    return gameplayMap_[id].DamageVisualStage;
+}
+
 const TileConnectorDef *TileRegistry::GetTileConnector(uint16_t id) {
     if (id >= gameplayMap_.size()) return nullptr;
     const auto &connector = gameplayMap_[id].Connector;
     return connector.Type == TileConnectorType::None ? nullptr : &connector;
+}
+
+const TileDestructionDef *TileRegistry::GetTileDestruction(uint16_t id) {
+    if (id >= gameplayMap_.size()) return nullptr;
+    const auto &destruction = gameplayMap_[id].Destruction;
+    return destruction.Destructible ? &destruction : nullptr;
 }
 
 TileGameplayDef TileRegistry::GetTileGameplay(uint16_t id) {

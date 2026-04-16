@@ -21,11 +21,13 @@ public:
                                               InstanceMethod("addProp", &GameWorldWrapper::AddProp),
                                               InstanceMethod("destroyProp", &GameWorldWrapper::DestroyProp),
                                               InstanceMethod("destroyTile", &GameWorldWrapper::DestroyTile),
+                                              InstanceMethod("mineTile", &GameWorldWrapper::MineTile),
                                               InstanceMethod("processInput", &GameWorldWrapper::ProcessInput),
                                               InstanceMethod("spawnTestChest", &GameWorldWrapper::SpawnTestChest),
                                               InstanceMethod("tick", &GameWorldWrapper::Tick),
                                               InstanceMethod("getChunk", &GameWorldWrapper::GetChunk),
                                               InstanceMethod("getChunkVisuals", &GameWorldWrapper::GetChunkVisuals),
+                                              InstanceMethod("consumeDirtyTerrainChunks", &GameWorldWrapper::ConsumeDirtyTerrainChunks),
                                               InstanceMethod("getState", &GameWorldWrapper::GetState),
                                               InstanceMethod("getBinaryState", &GameWorldWrapper::GetBinaryState),
                                               InstanceMethod("getCombatEvents", &GameWorldWrapper::GetCombatEvents),
@@ -83,6 +85,137 @@ private:
         return TileConnectorType::None;
     }
 
+    ToolClass ParseToolClass(const std::string &value) const
+    {
+        if (value == "pickaxe")
+            return ToolClass::Pickaxe;
+        if (value == "shovel")
+            return ToolClass::Shovel;
+        return ToolClass::None;
+    }
+
+    TileStrengthClass ParseStrengthClass(const std::string &value) const
+    {
+        if (value == "soft")
+            return TileStrengthClass::Soft;
+        if (value == "strong")
+            return TileStrengthClass::Strong;
+        return TileStrengthClass::None;
+    }
+
+    MaterialId ParseMaterialId(const std::string &value) const
+    {
+        if (value == "dirt")
+            return MaterialId::Dirt;
+        if (value == "stone")
+            return MaterialId::Stone;
+        if (value == "iron")
+            return MaterialId::Iron;
+        if (value == "gold")
+            return MaterialId::Gold;
+        if (value == "clay")
+            return MaterialId::Clay;
+        return MaterialId::None;
+    }
+
+    std::vector<MaterialPart> ParseMaterialParts(const Napi::Value &value) const
+    {
+        std::vector<MaterialPart> parts;
+        if (!value.IsArray())
+            return parts;
+
+        Napi::Array array = value.As<Napi::Array>();
+        parts.reserve(array.Length());
+        for (uint32_t i = 0; i < array.Length(); ++i)
+        {
+            if (!array.Get(i).IsObject())
+                continue;
+
+            Napi::Object partObj = array.Get(i).As<Napi::Object>();
+            if (!partObj.Has("id") || !partObj.Get("id").IsString())
+                continue;
+
+            parts.push_back(MaterialPart{
+                ParseMaterialId(partObj.Get("id").As<Napi::String>().Utf8Value()),
+                static_cast<uint8_t>(GetInt(partObj, "share", 0)),
+            });
+        }
+        return parts;
+    }
+
+    std::vector<TileStageLootDef> ParseStageLoot(const Napi::Value &value) const
+    {
+        std::vector<TileStageLootDef> loot;
+        if (!value.IsArray())
+            return loot;
+
+        Napi::Array array = value.As<Napi::Array>();
+        loot.reserve(array.Length());
+        for (uint32_t i = 0; i < array.Length(); ++i)
+        {
+            if (!array.Get(i).IsObject())
+                continue;
+
+            Napi::Object row = array.Get(i).As<Napi::Object>();
+            if (!row.Has("itemDefinitionId") || !row.Get("itemDefinitionId").IsString())
+                continue;
+
+            loot.push_back(TileStageLootDef{
+                row.Get("itemDefinitionId").As<Napi::String>().Utf8Value(),
+                static_cast<uint16_t>(GetInt(row, "quantity", 0)),
+            });
+        }
+        return loot;
+    }
+
+    TileDestructionDef ParseDestruction(const Napi::Value &value) const
+    {
+        TileDestructionDef destruction;
+        if (!value.IsObject())
+            return destruction;
+
+        Napi::Object obj = value.As<Napi::Object>();
+        destruction.Destructible = GetBool(obj, "destructible", false);
+        destruction.MaxIntegrity = GetInt(obj, "maxIntegrity", destruction.MaxIntegrity);
+        destruction.MiningResistance = GetInt(obj, "miningResistance", destruction.MiningResistance);
+        if (obj.Has("strengthClass") && obj.Get("strengthClass").IsString())
+            destruction.StrengthClass = ParseStrengthClass(obj.Get("strengthClass").As<Napi::String>().Utf8Value());
+        if (obj.Has("preferredTool") && obj.Get("preferredTool").IsString())
+            destruction.PreferredTool = ParseToolClass(obj.Get("preferredTool").As<Napi::String>().Utf8Value());
+        destruction.DestroyedTileId = static_cast<uint16_t>(GetInt(obj, "destroyedTileId", destruction.DestroyedTileId));
+        destruction.MaterialYieldHints = ParseMaterialParts(obj.Get("materialYieldHints"));
+
+        if (obj.Has("stageVisualTileIds") && obj.Get("stageVisualTileIds").IsArray())
+        {
+            Napi::Array array = obj.Get("stageVisualTileIds").As<Napi::Array>();
+            destruction.StageVisualTileIds.reserve(array.Length());
+            for (uint32_t i = 0; i < array.Length(); ++i)
+            {
+                destruction.StageVisualTileIds.push_back(static_cast<uint16_t>(array.Get(i).As<Napi::Number>().Uint32Value()));
+            }
+        }
+
+        if (obj.Has("stages") && obj.Get("stages").IsArray())
+        {
+            Napi::Array array = obj.Get("stages").As<Napi::Array>();
+            destruction.Stages.reserve(array.Length());
+            for (uint32_t i = 0; i < array.Length(); ++i)
+            {
+                if (!array.Get(i).IsObject())
+                    continue;
+
+                Napi::Object stageObj = array.Get(i).As<Napi::Object>();
+                TileDestructionStageDef stage;
+                stage.Threshold = GetInt(stageObj, "threshold", 0);
+                if (stageObj.Has("loot"))
+                    stage.Loot = ParseStageLoot(stageObj.Get("loot"));
+                destruction.Stages.push_back(std::move(stage));
+            }
+        }
+
+        return destruction;
+    }
+
     TileConnectorDef ParseConnector(const Napi::Object &obj, const TileConnectorDef &fallback) const
     {
         TileConnectorDef connector = fallback;
@@ -120,9 +253,12 @@ private:
         gameplay.FallThrough = GetBool(obj, "fallThrough", !gameplay.Support);
         gameplay.Roof = GetBool(obj, "roof", false);
         gameplay.Occludes = GetBool(obj, "occludes", collide || gameplay.Roof);
+        gameplay.DamageVisualStage = static_cast<uint8_t>(GetInt(obj, "damageVisualStage", 0));
 
         if (obj.Has("connector") && obj.Get("connector").IsObject())
             gameplay.Connector = ParseConnector(obj.Get("connector").As<Napi::Object>(), gameplay.Connector);
+        if (obj.Has("destruction"))
+            gameplay.Destruction = ParseDestruction(obj.Get("destruction"));
 
         return gameplay;
     }
@@ -287,6 +423,19 @@ private:
             info[1].As<Napi::Number>().Int32Value(),
             info[2].As<Napi::Number>().Int32Value());
         return info.Env().Undefined();
+    }
+
+    Napi::Value MineTile(const Napi::CallbackInfo &info)
+    {
+        if (info.Length() < 3)
+            return Napi::Boolean::New(info.Env(), false);
+
+        return Napi::Boolean::New(
+            info.Env(),
+            core_->MineTile(
+                info[0].As<Napi::Number>().Uint32Value(),
+                info[1].As<Napi::Number>().Int32Value(),
+                info[2].As<Napi::Number>().Int32Value()));
     }
 
     Napi::Value SpawnTestChest(const Napi::CallbackInfo &info)
@@ -508,13 +657,19 @@ private:
     {
         if (info.Length() < 3)
             return info.Env().Null();
-        Chunk *chunk = core_->World.GetChunkSafely(
-            info[0].As<Napi::Number>().Int32Value(),
-            info[1].As<Napi::Number>().Int32Value(),
-            info[2].As<Napi::Number>().Int32Value());
+        const int32_t cx = info[0].As<Napi::Number>().Int32Value();
+        const int32_t cy = info[1].As<Napi::Number>().Int32Value();
+        const int32_t cz = info[2].As<Napi::Number>().Int32Value();
+        Chunk *chunk = core_->World.GetChunkSafely(cx, cy, cz);
         if (!chunk)
             return info.Env().Null();
-        return Napi::Buffer<uint8_t>::Copy(info.Env(), reinterpret_cast<uint8_t *>(chunk->tiles), CHUNK_VOLUME * sizeof(uint16_t));
+        const auto resolvedTiles = core_->World.ChunkManager->BuildResolvedChunkTiles(cx, cy, cz);
+        if (resolvedTiles.empty())
+            return info.Env().Null();
+        return Napi::Buffer<uint8_t>::Copy(
+            info.Env(),
+            reinterpret_cast<const uint8_t *>(resolvedTiles.data()),
+            resolvedTiles.size() * sizeof(uint16_t));
     }
 
     Napi::Value GetChunkVisuals(const Napi::CallbackInfo &info)
@@ -528,6 +683,23 @@ private:
         if (!chunk)
             return info.Env().Null();
         return Napi::Buffer<uint8_t>::Copy(info.Env(), reinterpret_cast<uint8_t *>(chunk->visual_mask_layer), CHUNK_VOLUME * sizeof(uint8_t));
+    }
+
+    Napi::Value ConsumeDirtyTerrainChunks(const Napi::CallbackInfo &info)
+    {
+        Napi::Env env = info.Env();
+        const auto dirty = core_->World.ChunkManager->ConsumeDirtyTerrainChunks();
+        Napi::Array out = Napi::Array::New(env, dirty.size());
+        for (uint32_t i = 0; i < dirty.size(); ++i)
+        {
+            const auto &[cx, cy, cz] = dirty[i];
+            Napi::Object row = Napi::Object::New(env);
+            row.Set("cx", Napi::Number::New(env, cx));
+            row.Set("cy", Napi::Number::New(env, cy));
+            row.Set("cz", Napi::Number::New(env, cz));
+            out.Set(i, row);
+        }
+        return out;
     }
 
     Napi::Value SetTileRegistry(const Napi::CallbackInfo &info)

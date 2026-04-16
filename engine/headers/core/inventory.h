@@ -7,6 +7,8 @@
 #include <vector>
 #include <stdint.h>
 #include "core/gameplay-constants.h"
+#include "core/materials.h"
+#include "core/tool-interaction.h"
 #include "math/number.h"
 
 enum class ContainerSlot : size_t
@@ -116,6 +118,46 @@ public:
   }
 };
 
+class ToolFeature : public ItemFeature
+{
+public:
+  MiningToolStats Mining;
+
+  explicit ToolFeature(MiningToolStats mining) : Mining(std::move(mining)) {}
+
+  uint32_t TypeId() const override { return ItemFeatureType::Get<ToolFeature>(); }
+
+  bool IsStackCompatibleWith(const ItemFeature &other) const override
+  {
+    const auto *typed = dynamic_cast<const ToolFeature *>(&other);
+    return typed &&
+           typed->Mining.Class == Mining.Class &&
+           typed->Mining.BasePower == Mining.BasePower &&
+           typed->Mining.SoftMultiplierPct == Mining.SoftMultiplierPct &&
+           typed->Mining.StrongMultiplierPct == Mining.StrongMultiplierPct &&
+           typed->Mining.PreferredToolBonus == Mining.PreferredToolBonus;
+  }
+};
+
+class MaterialCompositionFeature : public ItemFeature
+{
+public:
+  MaterialComposition Composition;
+
+  explicit MaterialCompositionFeature(MaterialComposition composition) : Composition(std::move(composition))
+  {
+    Composition.Normalize();
+  }
+
+  uint32_t TypeId() const override { return ItemFeatureType::Get<MaterialCompositionFeature>(); }
+
+  bool IsStackCompatibleWith(const ItemFeature &other) const override
+  {
+    const auto *typed = dynamic_cast<const MaterialCompositionFeature *>(&other);
+    return typed && typed->Composition == Composition;
+  }
+};
+
 class Item
 {
 private:
@@ -195,7 +237,12 @@ namespace ItemFactory
 {
   std::unique_ptr<Item> CreateSword(int quantity = 1);
   std::unique_ptr<Item> CreatePickaxe(int quantity = 1);
+  std::unique_ptr<Item> CreateShovel(int quantity = 1);
   std::unique_ptr<Item> CreateCoin(int quantity = 1);
+  std::unique_ptr<Item> CreateDirtChunk(int quantity = 1);
+  std::unique_ptr<Item> CreateStoneSlab(int quantity = 1);
+  std::unique_ptr<Item> CreateGoldPiece(int quantity = 1);
+  std::unique_ptr<Item> CreateByDefinitionId(const std::string &definitionId, int quantity = 1);
 }
 
 class Inventory
