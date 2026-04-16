@@ -258,15 +258,18 @@ SimpleRPG/
 
 ### 10. Lobby Browser, Session Registry, and Authoritative Save/Load
 * **Three Separate Concerns**: Keep lobby/menu UI flow, Node-side lobby/session orchestration, and authoritative world save/load as separate systems with explicit boundaries. They are connected, but must not be blurred together.
-* **Frontend Play Flow**: Main Menu `Play` routes to a dedicated lobby browser / waiting-room UI before gameplay starts. Do not hack hosting/join/save controls into the live game canvas or render-worker path.
+* **Frontend Play Flow**: Main Menu `Play` routes into the phase-driven `/play` shell. The same shell renders the lobby browser / waiting room while the session phase is `Lobby`, then advances through `LoadingWorld -> Playing` without route-hopping to a separate gameplay route. Do not reintroduce lobby-to-game route changes as the normal flow.
+* **Session Phases Are Canonical**: The play shell phases are `Lobby`, `LoadingWorld`, `Playing`, `Paused`, and `Ended`. If the session UI flow changes, update the shell, docs, regression coverage, and this file together.
 * **Two WebSocket Modes**:
   * **Control Plane**: Low-frequency JSON for lobby list, lobby state, save list, create/join/leave/start/save actions.
   * **Gameplay Plane**: Session-scoped gameplay socket used only after the lobby has started. Existing snapshots/chunks/combat/body-state/inventory gameplay flows stay on this path.
+* **Presence Contract After Start**: Once a lobby is `in_game`, the gameplay socket is the authoritative live presence for that member. A transient control-plane disconnect must not, by itself, tear down an active gameplay session or force the play shell back to the lobby browser.
 * **Session-Scoped Worlds**: Each lobby/session owns its own authoritative C++ `GameWorld` instance. Do not fake multiple lobbies on top of one shared global world.
 * **Topic Isolation Rule**: Gameplay publish/subscribe must be scoped per session topic/channel such as `game:<lobbyId>`. One lobby must never receive another lobby's snapshots, chunk resends, combat events, or body-state frames.
 * **v1 Join Rule**: Only `waiting` lobbies are joinable. Once a lobby has started and is `in_game`, additional joins are blocked in v1 unless this contract is intentionally expanded.
-* **v1 Host Disconnect Rule**: If the host disconnects, the lobby/session closes and members are returned to the browser/menu flow. This is acceptable for v1 and should be treated as deliberate behavior, not a bug.
+* **Host Presence Rule**: During `waiting`, host control-socket disconnect still closes the lobby. During `in_game`, host control-socket disconnect alone must not close the live session if the host gameplay socket is still attached. The session closes when host presence is actually gone, such as host gameplay disconnect after control loss.
 * **Low-Frequency Lobby/Save Messages**: Support JSON messages for `list_lobbies`, `lobby_list`, `create_lobby`, `join_lobby`, `leave_lobby`, `lobby_state`, `list_saves`, `save_list`, `start_lobby`, `save_game`, `save_complete`, `session_started`, `session_closed`, and `request_error`. Keep these off the hot snapshot path.
+* **Frontend Control-Client Rule**: The control-plane client may reconnect independently of gameplay. Do not let stale control-socket callbacks or reconnect races clear `currentLobby`/`gameplayMemberToken` while the session phase is `LoadingWorld`, `Playing`, or `Paused`.
 * **Server-Local Save Slots Only**: There is no account/auth system yet. Clients must choose only from server-owned save slot IDs and metadata. Never let clients provide arbitrary filesystem paths.
 * **Save Slot Metadata**: Save slots should expose `saveId`, `displayName`, `createdAt`, `updatedAt`, optional `sourceLobbyName`, and payload/schema version markers.
 * **Save Format Versioning**:
@@ -280,6 +283,25 @@ SimpleRPG/
 * **In-Session Save Rule**: For v1, the host can trigger `Save Game` from menu/UI. If the session was loaded from a slot, saving updates that slot. Otherwise, the first save creates a bound slot and later saves update it.
 * **Deferred Player Restore Rule**: Because there is still no account identity system, saved player records may be reassigned in join order when loading a saved session. Treat this as a v1 limitation, not account persistence.
 * **Reference Doc**: See `docs/lobby-session-save-v1.md` for the detailed durable v1 contract when changing this area.
+
+### 11. Geometry Crafting V2 and Station Workflow
+* **Authority Contract**: Crafting remains native/server authoritative. `WorkpieceFeature` is the single authoritative crafted-item state for unfinished parts, finished parts, assembled items, and broken scrap. Do not introduce a parallel crafting-state system.
+* **Cold-Path Contract**: Editable crafting state stays off the 60 Hz snapshot path. Crafting requests, station state, and workpiece UI data remain on cold-path gameplay JSON and item/save serialization paths.
+* **Geometry Contract**: Crafting is geometry/material-driven, not recipe-first. The authored/editable representation is a 2D side-profile plus thickness. Do not switch the default path to full 3D voxel crafting.
+* **Runtime Evaluation Contract**: Runtime combat and tool use must continue consuming baked stats and baked simplified regions derived from geometry, material, mass distribution, strain, and joins. Do not add per-pixel runtime collision as the normal path.
+* **Station Roles Are Intentional**:
+  * `smelter` owns heat, melt, thermal transitions, molten pooling, and cast output.
+  * `anvil` owns bend, forge/hammer, hot structural work, and join preparation.
+  * `workbench` owns chip/chisel, fine shaping, explicit multi-part assembly, and final join quality evaluation.
+  * `grindstone` owns sharpening only.
+  Preserve these boundaries unless the architecture is intentionally revised across code, docs, and tests.
+* **Slot-Based Station State**: Stations use explicit typed slots plus station-local process state such as molten pools, output slots, warnings, and comparison snapshots. Do not collapse V2 back into the old single implicit storage-slot behavior.
+* **Smelter Contract**: Multiple compatible melted inputs may contribute to one shared molten pool. Some inserted items may only heat or thermally transform without entering the pool. Stone may heat but must not become a castable liquid in the default V2 path.
+* **Forge Contract**: `forge/hammer` is distinct from bend. It is meaningful only inside material-specific forge windows and must remain material-aware, deterministic, and limited to small redistribution/quality/prep effects unless a later version intentionally expands that simulation.
+* **Join Contract**: Assembly is explicit and slot-based. Join quality is graded from geometry fit, orientation, material compatibility, damage/strain, and preparation state. Avoid pass/fail-only joins when the existing graded path can express the outcome.
+* **Persistence Contract**: V1 saves remain loadable, V1 crafted items remain valid, and new crafting/station fields must be additive and optional on load. Legacy single-slot station saves must continue to load through fallback behavior unless a deliberate migration is introduced and documented.
+* **Identity Contract**: Avoid hardcoding tool/weapon behavior from item names such as sword, spear, hammer, or shovel. Names may be descriptive outputs, but runtime behavior should derive from baked geometry/material results whenever possible.
+* **Workflow Requirement**: If session flow, crafting architecture, station roles, runtime evaluation, or persistence rules change, update the relevant docs, regression coverage, and `AGENTS.md` in the same change.
 
 ---
 

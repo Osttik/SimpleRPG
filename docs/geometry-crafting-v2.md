@@ -6,6 +6,7 @@ This document describes the V2 extension of the geometry-driven crafting system 
 
 V2 keeps the V1 architecture:
 
+- the phase-driven `/play` shell and in-shell lobby flow stay intact
 - crafting stays server/native authoritative
 - workpieces stay on `WorkpieceFeature`
 - crafting stays on cold-path gameplay JSON
@@ -119,6 +120,10 @@ Station save state now persists:
 
 V1 station saves without slot arrays still load through legacy fallback by mapping old single-slot storage into the first valid V2 slot.
 
+## Maintenance Rule
+
+If session flow, crafting authority, station roles, baked runtime evaluation, or save/load compatibility change, update the relevant docs, regression coverage, and `AGENTS.md` in the same change.
+
 ## Manual Test Surface
 
 Recommended manual checks:
@@ -129,3 +134,8 @@ Recommended manual checks:
 - workbench chip and assembly affect join quality
 - grindstone sharpening raises cut/pierce and thin-edge risk
 - spear-like and hammer-like assemblies feel different when used
+
+Existing automated regression coverage for this slice lives primarily in:
+
+- `engine/tests/crafting-system-tests.cpp`
+- `server/src/session-registry.test.ts`

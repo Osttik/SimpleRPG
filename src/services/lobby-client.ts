@@ -21,6 +21,7 @@ class LobbyClient {
   private readonly wsUrl = resolveControlWsUrl();
 
   connect() {
+    this.shouldReconnect = true;
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
       return;
     }
@@ -30,12 +31,19 @@ class LobbyClient {
     this.socket = socket;
 
     socket.onopen = () => {
+      if (this.socket !== socket) {
+        return;
+      }
       store.dispatch(lobbyActions.setConnectionStatus('connected'));
+      store.dispatch(lobbyActions.setErrorMessage(null));
       this.refreshLobbies();
       this.refreshSaves();
     };
 
     socket.onmessage = (event) => {
+      if (this.socket !== socket) {
+        return;
+      }
       const data = JSON.parse(event.data as string);
       switch (data.type) {
         case 'lobby_list':
@@ -77,9 +85,25 @@ class LobbyClient {
     };
 
     socket.onclose = () => {
+      if (this.socket !== socket) {
+        return;
+      }
+
       this.socket = null;
       store.dispatch(lobbyActions.setConnectionStatus('disconnected'));
-      store.dispatch(lobbyActions.resetLobbyState());
+
+      const lobbyState = store.getState().lobby;
+      const sessionActive = (
+        lobbyState.sessionPhase === 'LoadingWorld'
+        || lobbyState.sessionPhase === 'Playing'
+        || lobbyState.sessionPhase === 'Paused'
+      ) && Boolean(lobbyState.gameplayMemberToken);
+
+      if (sessionActive) {
+        store.dispatch(lobbyActions.setErrorMessage('Lobby connection is lost. Reconnecting control channel...'));
+      } else {
+        store.dispatch(lobbyActions.resetLobbyState());
+      }
 
       if (!this.shouldReconnect) {
         return;

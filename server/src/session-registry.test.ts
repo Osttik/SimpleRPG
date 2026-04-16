@@ -12,10 +12,14 @@ class FakeSocket {
   public readonly sent: Array<{ value: unknown; isBinary: boolean }> = [];
   public readonly topics = new Set<string>();
   public ended = false;
+  public closed = false;
 
   constructor(private readonly userData: SocketData) {}
 
   send(message: any, isBinary = false) {
+    if (this.closed) {
+      throw new Error('socket already closed');
+    }
     this.sent.push({
       value: isBinary ? message : JSON.parse(String(message)),
       isBinary,
@@ -38,6 +42,11 @@ class FakeSocket {
 
   end() {
     this.ended = true;
+    this.closed = true;
+  }
+
+  closeForTest() {
+    this.closed = true;
   }
 }
 
@@ -183,6 +192,34 @@ test('create, join, start, and host disconnect follow the waiting-lobby lifecycl
   await fs.rm(tempDir, { recursive: true, force: true });
 });
 
+test('host control close skips sends to the already-closed socket while closing the lobby', async () => {
+  const { registry, tempDir } = await createRegistry();
+  const host = new FakeSocket({ mode: 'control', connectionId: 'host-close' });
+  const guest = new FakeSocket({ mode: 'control', connectionId: 'guest-close' });
+
+  registry.handleControlOpen(host as any);
+  registry.handleControlOpen(guest as any);
+
+  await registry.handleControlMessage(host as any, asArrayBuffer({
+    type: 'create_lobby',
+    name: 'Close Safety',
+    mode: 'new_game',
+  }));
+
+  const lobbyId = latestJson(host, 'lobby_state').lobby.lobbyId;
+
+  await registry.handleControlMessage(guest as any, asArrayBuffer({
+    type: 'join_lobby',
+    lobbyId,
+  }));
+
+  host.closeForTest();
+  assert.doesNotThrow(() => registry.handleControlClose(host as any));
+  assert.equal(latestJson(guest, 'session_closed').reason, 'host_disconnected');
+
+  await fs.rm(tempDir, { recursive: true, force: true });
+});
+
 test('session topics remain isolated during gameplay ticks', async () => {
   const { app, registry, tempDir } = await createRegistry();
   const hostA = new FakeSocket({ mode: 'control', connectionId: 'host-a' });
@@ -226,6 +263,36 @@ test('host can start a lobby alone and receive session_started without route-dep
   const started = latestJson(host, 'session_started');
   assert.equal(typeof started.memberToken, 'string');
   assert.equal(started.lobbyId, latestJson(host, 'lobby_state').lobby.lobbyId);
+
+  await fs.rm(tempDir, { recursive: true, force: true });
+});
+
+test('in-game host control disconnect does not close the live session until gameplay disconnects', async () => {
+  const { registry, tempDir } = await createRegistry();
+  const host = new FakeSocket({ mode: 'control', connectionId: 'host-live' });
+  const guest = new FakeSocket({ mode: 'control', connectionId: 'guest-live' });
+
+  registry.handleControlOpen(host as any);
+  registry.handleControlOpen(guest as any);
+
+  await registry.handleControlMessage(host as any, asArrayBuffer({ type: 'create_lobby', name: 'Live Host', mode: 'new_game' }));
+  const lobby = latestJson(host, 'lobby_state').lobby;
+
+  await registry.handleControlMessage(guest as any, asArrayBuffer({ type: 'join_lobby', lobbyId: lobby.lobbyId }));
+  await registry.handleControlMessage(host as any, asArrayBuffer({ type: 'start_lobby' }));
+
+  const hostGame = new FakeSocket({ mode: 'gameplay', memberToken: latestJson(host, 'session_started').memberToken });
+  const guestGame = new FakeSocket({ mode: 'gameplay', memberToken: latestJson(guest, 'session_started').memberToken });
+  registry.handleGameplayOpen(hostGame as any);
+  registry.handleGameplayOpen(guestGame as any);
+
+  host.closeForTest();
+  assert.doesNotThrow(() => registry.handleControlClose(host as any));
+  assert.equal(latestJson(guest, 'session_closed'), undefined);
+  assert.equal(hostGame.ended, false);
+
+  registry.handleGameplayClose(hostGame as any);
+  assert.equal(latestJson(guest, 'session_closed').reason, 'host_disconnected');
 
   await fs.rm(tempDir, { recursive: true, force: true });
 });

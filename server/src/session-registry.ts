@@ -41,6 +41,7 @@ interface LobbySession {
   topic: string;
   name: string;
   hostConnectionId: string;
+  hostMemberToken: string;
   hostLabel: string;
   status: 'waiting' | 'in_game' | 'closed';
   origin: 'new_game' | 'loaded_save';
@@ -59,8 +60,13 @@ function asBuffer(data: ArrayBuffer): Buffer {
   return Buffer.from(data);
 }
 
-function sendJson(ws: WebSocket<SocketData>, payload: unknown) {
-  ws.send(JSON.stringify(payload), false);
+function sendJson(ws: WebSocket<SocketData>, payload: unknown): boolean {
+  try {
+    ws.send(JSON.stringify(payload), false);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export class SessionRegistry {
@@ -135,11 +141,39 @@ export class SessionRegistry {
   }
 
   handleControlClose(ws: WebSocket<SocketData>) {
-    const { connectionId } = ws.getUserData();
+    const { connectionId, lobbyId, memberToken } = ws.getUserData();
     if (!connectionId) return;
 
     this.controlSockets.delete(connectionId);
-    this.leaveLobbyByConnection(connectionId, 'control_disconnected');
+    if (!lobbyId || !memberToken) {
+      this.leaveLobbyByConnection(connectionId, 'control_disconnected');
+      return;
+    }
+
+    const session = this.lobbies.get(lobbyId);
+    if (!session) {
+      return;
+    }
+
+    const member = session.members.get(memberToken);
+    if (member?.controlSocket === ws) {
+      member.controlSocket = undefined;
+    }
+
+    if (session.status === 'in_game' && member?.gameplaySocket) {
+      this.broadcastLobbyList();
+      this.broadcastLobbyState(session);
+      return;
+    }
+
+    if (session.hostConnectionId === connectionId) {
+      this.closeLobby(session.lobbyId, 'host_disconnected');
+      return;
+    }
+
+    this.detachMember(session, memberToken, 'control_disconnected');
+    this.broadcastLobbyList();
+    this.broadcastLobbyState(session);
   }
 
   handleGameplayOpen(ws: WebSocket<SocketData>) {
@@ -485,6 +519,20 @@ export class SessionRegistry {
       member.playerId = undefined;
     }
 
+    if (!member.controlSocket) {
+      if (member.token === session.hostMemberToken) {
+        this.closeLobby(session.lobbyId, 'host_disconnected');
+        return;
+      }
+
+      session.members.delete(memberToken);
+      if (session.members.size === 0) {
+        this.lobbies.delete(session.lobbyId);
+        this.broadcastLobbyList();
+        return;
+      }
+    }
+
     this.broadcastLobbyState(session);
   }
 
@@ -573,6 +621,7 @@ export class SessionRegistry {
       topic: `game:${lobbyId}`,
       name: lobbyName,
       hostConnectionId: connectionId,
+      hostMemberToken: memberToken,
       hostLabel: 'Host',
       status: 'waiting',
       origin: loadedDoc ? 'loaded_save' : 'new_game',
@@ -782,13 +831,13 @@ export class SessionRegistry {
     const members: LobbyMemberView[] = Array.from(session.members.values()).map((member) => ({
       memberToken: member.token,
       label: member.label,
-      isHost: session.hostConnectionId === member.controlSocket?.getUserData().connectionId,
+      isHost: member.token === session.hostMemberToken,
       isLocal: member.token === localMemberToken,
       connectedToGame: Boolean(member.gameplaySocket),
     }));
 
     const localMember = session.members.get(localMemberToken);
-    const isHost = Boolean(localMember?.controlSocket?.getUserData().connectionId && session.hostConnectionId === localMember.controlSocket.getUserData().connectionId);
+    const isHost = Boolean(localMember && localMember.token === session.hostMemberToken);
 
     return {
       lobbyId: session.lobbyId,

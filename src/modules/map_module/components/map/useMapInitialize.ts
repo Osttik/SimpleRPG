@@ -5,6 +5,17 @@ import { interactionsState, store } from '@/store';
 import { isOverlayOpen } from '@/components/overlay';
 import { getRelativePositions } from './controls';
 import { uiActions } from '@/store/slices/ui.slice';
+import { lobbyActions } from '@/store/slices/lobby.slice';
+
+function describeSessionClose(reason?: string) {
+  switch (reason) {
+    case 'host_disconnected':
+    case 'host_left':
+      return 'The lobby closed because the host left.';
+    default:
+      return 'The session is no longer available.';
+  }
+}
 
 export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
   const [socketWorker, setSocketWorker] = useState<Worker | null>(null);
@@ -218,6 +229,9 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
         gameState.craftingStation.error = String(data.message ?? 'Crafting request failed.');
         store.dispatch(uiActions.set_isCraftingOpen(true));
         window.dispatchEvent(new Event('gameStateUpdate'));
+      } else if (data.type === 'session_closed') {
+        store.dispatch(lobbyActions.setErrorMessage(describeSessionClose(data.reason)));
+        store.dispatch(lobbyActions.markSessionEnded());
       } else if (data.type === 'combat_events') {
         for (const event of data.events ?? []) {
           const victimId = event.victimId?.toString?.() ?? '';

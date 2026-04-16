@@ -112,9 +112,9 @@ Gameplay JSON/Binary messages remain session-local once the gameplay socket is a
 
 ### Host disconnect
 
-- Host control-socket disconnect closes the lobby.
-- Members receive `session_closed`.
-- Gameplay sockets are terminated.
+- During `waiting`, host control-socket disconnect closes the lobby.
+- During `in_game`, host control-socket disconnect alone does not close the session if the host gameplay socket is still attached.
+- Once host presence is actually gone, such as host gameplay disconnect after control loss, members receive `session_closed` and gameplay sockets are terminated.
 
 ## Save Slots
 
