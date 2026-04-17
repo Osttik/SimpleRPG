@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include "core/game-world-engine.h"
 #include "core/gameplay-constants.h"
+#include "core/logger.h"
 #include "core/tile-registry.h"
 #include "core/test-spawns.h"
 #include "core/crafting/material-processing.h"
@@ -94,6 +95,7 @@ const CraftingStationSlot *ResolveSlot(const CraftingStationComponentManager *st
 
 GameWorldEngine::GameWorldEngine()
 {
+  EngineLog("world", "initialized GameWorldEngine");
   ObjectManager.SetContext(this);
 
   Managers.Register(std::make_unique<MoveComponentManager>());
@@ -867,6 +869,11 @@ void GameWorldEngine::SetTileRegistry(const std::vector<TileDef> &registry)
 
 void GameWorldEngine::Tick()
 {
+  if (TickCount == 0)
+  {
+    EngineLog("gameplay", "executing first gameplay tick");
+  }
+
   auto *interactMgr = Ctx.GetManager<InteractableComponentManager>();
   auto *combatBodyMgr = Ctx.GetManager<CombatBodyComponentManager>();
   auto *combatStateMgr = Ctx.GetManager<CombatStateComponentManager>();

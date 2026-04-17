@@ -350,6 +350,7 @@ The engine has moved from a monolithic design to a **Delegated ECS-Lite Architec
 * **Hybrid Collision**:
     - **Environment**: O(1) grid lookup in `WorldManager`.
     - **Entities**: AABB tree + circle-circle resolution.
+* **Z-Aware Interaction Invariant**: For any interactable entity, `Owner Z == Interactable Target/Sensor Bounds Z == Interaction Filtering Z`. Do not spawn test or authored interactable props/stations onto unsupported gameplay layers, and do not let interactable bounds keep a silent default Z that differs from the owning entity.
 * **Inventory**: Items are owned by `Inventory` classes. `InventoryOperator` handles atomic transfers. Items are compositional (`Item` + `ItemFeature`), not inheritance-based.
 * **Equipment**: `EquipmentComponent` depends on `InventoryComponent`. Equipment slots hold references to items inside the inventory. Removing an item from inventory automatically unequips it via inventory removal listeners.
 * **Terrain Mutation**: Do not destructively rewrite authored chunk data for staged terrain damage. Keep authored tiles as base world data and layer sparse overrides on top.

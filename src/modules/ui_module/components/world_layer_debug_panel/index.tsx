@@ -45,6 +45,7 @@ export const WorldLayerDebugPanel = () => {
   const debug = gameState.worldLayerDebug;
   const visible = gameState.visibleLayers ?? { min: -3, max: 3 };
   const currentZ = gameState.myId ? gameState.players[gameState.myId]?.z ?? debug?.resolvedZ ?? 0 : 0;
+  const focusedZ = gameState.focusedId ? gameState.players[gameState.focusedId]?.z ?? null : null;
   const validation = gameState.worldLayerValidationIssues.slice(0, 4);
 
   return (
@@ -52,6 +53,7 @@ export const WorldLayerDebugPanel = () => {
       <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300">World Layer Debug</div>
       <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-300">
         <span>Authoritative Z</span><span className="text-right text-white">{currentZ}</span>
+        <span>Focused Interactable Z</span><span className="text-right text-white">{focusedZ ?? "n/a"}</span>
         <span>Visible Layers</span><span className="text-right text-white">{visible.min}..{visible.max}</span>
         <span>Phase</span><span className="text-right text-white">{debug?.phase || "idle"}</span>
         <span>Reason</span><span className="text-right text-white">{debug?.reason || "n/a"}</span>

@@ -186,8 +186,18 @@ test('create, join, start, and host disconnect follow the waiting-lobby lifecycl
   }));
   assert.match(latestJson(lateJoiner, 'request_error').message, /Only waiting lobbies/i);
 
+  const originalDateNow = Date.now;
+  let fakeNow = originalDateNow();
+  Date.now = () => fakeNow;
+
   registry.handleControlClose(host as any);
+  assert.equal(latestJson(guest, 'session_closed'), undefined);
+
+  fakeNow += 6000;
+  registry.tick();
   assert.equal(latestJson(guest, 'session_closed').reason, 'host_disconnected');
+
+  Date.now = originalDateNow;
 
   await fs.rm(tempDir, { recursive: true, force: true });
 });

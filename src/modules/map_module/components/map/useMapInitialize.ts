@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { useControls } from './useControls';
 import { interactionsState, store } from '@/store';
@@ -6,6 +6,9 @@ import { isOverlayOpen } from '@/components/overlay';
 import { getRelativePositions } from './controls';
 import { uiActions } from '@/store/slices/ui.slice';
 import { lobbyActions } from '@/store/slices/lobby.slice';
+import { createFrontendLogger } from '@/services/logger';
+
+const _logger = createFrontendLogger('gameplay');
 
 function describeSessionClose(reason?: string) {
   switch (reason) {
@@ -19,9 +22,16 @@ function describeSessionClose(reason?: string) {
 
 export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
   const [socketWorker, setSocketWorker] = useState<Worker | null>(null);
+  const onReadyRef = useRef(onReady);
+
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
 
   useEffect(() => {
     if (!memberToken) return;
+
+    _logger.log('mounting gameplay scene', { memberToken });
 
     let readyNotified = false;
 
@@ -159,12 +169,14 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
     localSocketWorker.onmessage = (event) => {
       const data = event.data;
       if (data.type === 'init') {
+        _logger.log('gameplay init delivered to main thread', { playerId: data.id });
         gameState.myId = data.id.toString();
         gameState.players = data.players;
         if (data.tileRegistry) gameState.tileRegistry = data.tileRegistry;
         if (!readyNotified) {
           readyNotified = true;
-          onReady?.();
+          _logger.log('gameplay scene is ready');
+          onReadyRef.current?.();
         }
       } else if (data.type === 'state') {
         gameState.players = data.players;
@@ -230,6 +242,7 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
         store.dispatch(uiActions.set_isCraftingOpen(true));
         window.dispatchEvent(new Event('gameStateUpdate'));
       } else if (data.type === 'session_closed') {
+        _logger.warn('gameplay session closed on main thread', { reason: data.reason ?? null });
         store.dispatch(lobbyActions.setErrorMessage(describeSessionClose(data.reason)));
         store.dispatch(lobbyActions.markSessionEnded());
       } else if (data.type === 'combat_events') {
@@ -263,6 +276,7 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
     gameState.socketWorker = localSocketWorker;
 
     return () => {
+      _logger.log('unmounting gameplay scene', { memberToken });
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('mousemove', postCameraPointerMove);
       canvas.removeEventListener('mousedown', handleMouseDown);
@@ -276,7 +290,7 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
       renderWorker.terminate();
       localSocketWorker.terminate();
     };
-  }, [memberToken, onReady]);
+  }, [memberToken]);
 
   useControls(socketWorker);
 };

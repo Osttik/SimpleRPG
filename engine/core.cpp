@@ -1,5 +1,6 @@
 #include <napi.h>
 #include "core/game-world-engine.h"
+#include "core/logger.h"
 #include "core/tile-registry.h"
 #include "core/crafting/material-processing.h"
 #include "core/components/crafting-station-component.h"
@@ -70,6 +71,7 @@ public:
     GameWorldWrapper(const Napi::CallbackInfo &info) : Napi::ObjectWrap<GameWorldWrapper>(info)
     {
         core_ = std::make_unique<GameWorldEngine>();
+        EngineLog("session", "created GameWorld wrapper and native world");
     }
 
 private:
@@ -1299,6 +1301,7 @@ private:
 
         auto spawnPosition = Point(float32(info[0].As<Napi::Number>().DoubleValue()), float32(info[1].As<Napi::Number>().DoubleValue()), 1);
         auto result = core_->Players.AddPlayer(*core_, spawnPosition);
+        EngineLog("gameplay", std::string("added player id=") + std::to_string(result));
 
         return Napi::Number::New(info.Env(), result);
     }
@@ -1310,7 +1313,9 @@ private:
             return info.Env().Null();
         }
 
-        core_->RemovePlayer(info[0].As<Napi::Number>().Int32Value());
+        const auto playerId = info[0].As<Napi::Number>().Int32Value();
+        EngineLog("gameplay", std::string("removing player id=") + std::to_string(playerId));
+        core_->RemovePlayer(playerId);
         return info.Env().Undefined();
     }
 
@@ -1384,6 +1389,7 @@ private:
         const uint32_t playerId = core_->Players.AddPlayer(
             *core_,
             Point(float32::from_raw_value(xRaw), float32::from_raw_value(yRaw), z));
+        EngineLog("session", std::string("restored player from save id=") + std::to_string(playerId));
 
         auto *player = core_->ObjectManager.GetById(playerId);
         auto *inventoryMgr = core_->Ctx.GetManager<InventoryComponentManager>();

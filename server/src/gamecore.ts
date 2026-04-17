@@ -3,7 +3,10 @@ import * as path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { WORLD_LAYER_DEBUG_ENABLED } from './config.js';
+import { createServerLogger } from './logger.js';
 import type { SavedPlayerState, SavedWorldState } from './types.js';
+
+const _logger = createServerLogger('session');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,6 +80,7 @@ function loadAddon() {
 }
 
 export function createWorld(options?: { saveState?: SavedWorldState | null }): NativeGameWorld {
+  _logger.log('creating native world', { hasSaveState: Boolean(options?.saveState) });
   const world = new (loadAddon().GameWorld)();
   world.setTileRegistry(tileRegistry);
   world.setLayerDebugEnabled?.(WORLD_LAYER_DEBUG_ENABLED);

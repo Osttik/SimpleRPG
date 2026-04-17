@@ -30,7 +30,7 @@ public:
         obj->Id, ContainerSlot::MainStorage, std::move(storage), obj);
     engine.Ctx.GetManager<CraftingStationComponentManager>()->AddStation(obj->Id, obj, stationType);
     engine.Ctx.GetManager<InteractableComponentManager>()->AddTarget(
-        obj->Id, obj, InteractionType::Station, label, std::make_unique<Circle>(position, radius));
+        obj->Id, obj, InteractionType::Station, label, std::make_unique<Circle>(Point(position.X, position.Y, chunkZ), radius));
     return obj->Id;
   }
 };

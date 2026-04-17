@@ -8,8 +8,11 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import { SelectButton } from 'primereact/selectbutton';
 import { Tag } from 'primereact/tag';
 import { lobbyClient } from '@/services/lobby-client';
+import { createFrontendLogger } from '@/services/logger';
 import { selectLobbyState } from '@/store/slices/lobby.slice';
 import { SaveSlotPicker } from '../save_slot_picker';
+
+const _logger = createFrontendLogger('lobby');
 
 const hostModeOptions = [
   { label: 'New Game', value: 'new_game' as const },
@@ -145,7 +148,14 @@ export function LobbyBrowserScreen() {
                       label="Start Game"
                       icon="pi pi-play"
                       className="border-none bg-amber-400 text-stone-950"
-                      onClick={() => lobbyClient.startLobby()}
+                      onClick={() => {
+                        _logger.log('host clicked start game', {
+                          lobbyId: currentLobby.lobbyId,
+                          playerCount: currentLobby.playerCount,
+                          status: currentLobby.status,
+                        });
+                        lobbyClient.startLobby();
+                      }}
                     />
                   ) : null}
                 </div>

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { CHUNK_PIXEL_SIZE, WORLD_LAYER_DEBUG_ENABLED } from './config.js';
 import { createWorld, type NativeGameWorld } from './gamecore.js';
 import { buildInitMessage } from './init-message.js';
+import { createServerLogger } from './logger.js';
 import { SaveSlotStore } from './save-slots.js';
 import {
   CHUNK_LAYER_SIZE,
@@ -28,6 +29,11 @@ import type {
 } from './types.js';
 import type { TemplatedApp, WebSocket } from './uws.js';
 
+const _sessionLogger = createServerLogger('session');
+const _lobbyLogger = createServerLogger('lobby');
+const _gameplayLogger = createServerLogger('gameplay');
+const HOST_CONTROL_DISCONNECT_GRACE_MS = 5000;
+
 interface LobbyMember {
   token: string;
   label: string;
@@ -50,6 +56,7 @@ interface LobbySession {
   pendingSavedPlayers: SavedPlayerState[];
   loadedSave?: Pick<SaveSlotMetadata, 'saveId' | 'displayName' | 'updatedAt'>;
   activeSaveId?: string;
+  hostControlDisconnectDeadlineMs?: number;
 }
 
 function layerToChunkZ(layer: number): number {
@@ -80,13 +87,45 @@ export class SessionRegistry {
   ) {}
 
   handleControlOpen(ws: WebSocket<SocketData>) {
-    const { connectionId } = ws.getUserData();
+    const { connectionId, memberToken: requestedMemberToken } = ws.getUserData();
     if (!connectionId) {
       ws.end(1011, 'missing_connection_id');
       return;
     }
 
     this.controlSockets.set(connectionId, ws);
+
+    if (requestedMemberToken) {
+      const resumedSession = this.findLobbyByMemberToken(requestedMemberToken);
+      const resumedMember = resumedSession?.members.get(requestedMemberToken);
+      if (resumedSession && resumedMember) {
+        resumedMember.controlSocket = ws;
+        ws.getUserData().lobbyId = resumedSession.lobbyId;
+        ws.getUserData().memberToken = requestedMemberToken;
+
+        if (requestedMemberToken === resumedSession.hostMemberToken) {
+          resumedSession.hostConnectionId = connectionId;
+          resumedSession.hostControlDisconnectDeadlineMs = undefined;
+        }
+
+        _lobbyLogger.log('resumed control socket membership', {
+          lobbyId: resumedSession.lobbyId,
+          memberToken: requestedMemberToken,
+          status: resumedSession.status,
+        });
+
+        sendJson(ws, { type: 'lobby_list', lobbies: this.buildLobbyList() });
+        sendJson(ws, { type: 'lobby_state', lobby: this.buildLobbyState(resumedSession, requestedMemberToken) });
+        if (resumedSession.status === 'in_game') {
+          sendJson(ws, { type: 'session_started', lobbyId: resumedSession.lobbyId, memberToken: requestedMemberToken, resumed: true });
+        }
+        this.broadcastLobbyList();
+        this.broadcastLobbyState(resumedSession);
+        return;
+      }
+    }
+
+    _lobbyLogger.log('control socket opened without resumable membership', { connectionId });
     sendJson(ws, { type: 'lobby_list', lobbies: this.buildLobbyList() });
   }
 
@@ -160,10 +199,27 @@ export class SessionRegistry {
       member.controlSocket = undefined;
     }
 
-    if (session.status === 'in_game' && member?.gameplaySocket) {
-      this.broadcastLobbyList();
-      this.broadcastLobbyState(session);
-      return;
+    if (session.status === 'in_game') {
+      if (member?.gameplaySocket) {
+        _lobbyLogger.warn('control socket closed during active gameplay; keeping member attached through gameplay socket', {
+          lobbyId: session.lobbyId,
+          memberToken,
+        });
+        this.broadcastLobbyList();
+        this.broadcastLobbyState(session);
+        return;
+      }
+
+      if (memberToken === session.hostMemberToken) {
+        session.hostControlDisconnectDeadlineMs = Date.now() + HOST_CONTROL_DISCONNECT_GRACE_MS;
+        _sessionLogger.warn('host control socket closed during in-game session before gameplay attach; waiting for reconnect or gameplay attach', {
+          lobbyId: session.lobbyId,
+          graceMs: HOST_CONTROL_DISCONNECT_GRACE_MS,
+        });
+        this.broadcastLobbyList();
+        this.broadcastLobbyState(session);
+        return;
+      }
     }
 
     if (session.hostConnectionId === connectionId) {
@@ -185,6 +241,7 @@ export class SessionRegistry {
 
     const session = this.findLobbyByMemberToken(memberToken);
     if (!session || session.status !== 'in_game') {
+      _gameplayLogger.warn('rejecting gameplay attach because session is not available', { memberToken, hasSession: Boolean(session) });
       sendJson(ws, { type: 'session_closed', reason: 'session_not_available' });
       ws.end(1008, 'invalid_session');
       return;
@@ -192,6 +249,7 @@ export class SessionRegistry {
 
     const member = session.members.get(memberToken);
     if (!member) {
+      _gameplayLogger.warn('rejecting gameplay attach because member was not found', { lobbyId: session.lobbyId, memberToken });
       sendJson(ws, { type: 'session_closed', reason: 'member_not_found' });
       ws.end(1008, 'invalid_member');
       return;
@@ -202,6 +260,9 @@ export class SessionRegistry {
     }
 
     member.gameplaySocket = ws;
+    if (memberToken === session.hostMemberToken) {
+      session.hostControlDisconnectDeadlineMs = undefined;
+    }
     ws.getUserData().lobbyId = session.lobbyId;
     ws.getUserData().loadedChunks = new Set<string>();
 
@@ -210,6 +271,12 @@ export class SessionRegistry {
     }
 
     ws.getUserData().playerId = member.playerId;
+    _gameplayLogger.log('gameplay attach accepted', {
+      lobbyId: session.lobbyId,
+      memberToken,
+      playerId: member.playerId,
+      isHost: memberToken === session.hostMemberToken,
+    });
     ws.subscribe(session.topic);
 
     this.sendInitState(session, ws, member.playerId);
@@ -514,6 +581,13 @@ export class SessionRegistry {
       member.gameplaySocket = undefined;
     }
 
+    _gameplayLogger.warn('gameplay socket closed', {
+      lobbyId,
+      memberToken,
+      playerId,
+      hadControlSocket: Boolean(member.controlSocket),
+    });
+
     if (playerId != null) {
       session.world.removePlayer(playerId);
       member.playerId = undefined;
@@ -538,6 +612,20 @@ export class SessionRegistry {
 
   tick() {
     for (const session of this.lobbies.values()) {
+      if (
+        session.status === 'in_game'
+        && session.hostControlDisconnectDeadlineMs != null
+      ) {
+        const hostMember = session.members.get(session.hostMemberToken);
+        if (hostMember?.controlSocket || hostMember?.gameplaySocket) {
+          session.hostControlDisconnectDeadlineMs = undefined;
+        } else if (Date.now() >= session.hostControlDisconnectDeadlineMs) {
+          _sessionLogger.warn('host control reconnect/gameplay attach grace expired; closing session', { lobbyId: session.lobbyId });
+          this.closeLobby(session.lobbyId, 'host_disconnected');
+          continue;
+        }
+      }
+
       if (session.status !== 'in_game') continue;
 
       const world = session.world;
@@ -636,6 +724,7 @@ export class SessionRegistry {
           }
         : undefined,
       activeSaveId: loadedDoc?.saveId,
+      hostControlDisconnectDeadlineMs: undefined,
     };
 
     session.members.set(memberToken, {
@@ -647,6 +736,13 @@ export class SessionRegistry {
     this.lobbies.set(lobbyId, session);
     ws.getUserData().lobbyId = lobbyId;
     ws.getUserData().memberToken = memberToken;
+
+    _lobbyLogger.log('created lobby', {
+      lobbyId,
+      hostMemberToken: memberToken,
+      name: lobbyName,
+      origin: session.origin,
+    });
 
     this.broadcastLobbyList();
     this.broadcastLobbyState(session);
@@ -671,6 +767,13 @@ export class SessionRegistry {
       token: memberToken,
       label,
       controlSocket: ws,
+    });
+
+    _lobbyLogger.log('joined lobby', {
+      lobbyId: session.lobbyId,
+      memberToken,
+      label,
+      playerCount: session.members.size,
     });
 
     ws.getUserData().lobbyId = session.lobbyId;
@@ -706,11 +809,22 @@ export class SessionRegistry {
     }
 
     session.status = 'in_game';
+    session.hostControlDisconnectDeadlineMs = undefined;
+    _sessionLogger.log('starting lobby session', {
+      lobbyId: session.lobbyId,
+      playerCount: session.members.size,
+      hostMemberToken: session.hostMemberToken,
+    });
     this.broadcastLobbyList();
     this.broadcastLobbyState(session);
 
     for (const member of session.members.values()) {
       if (member.controlSocket) {
+        _sessionLogger.log('emitting session_started', {
+          lobbyId: session.lobbyId,
+          memberToken: member.token,
+          isHost: member.token === session.hostMemberToken,
+        });
         sendJson(member.controlSocket, { type: 'session_started', lobbyId: session.lobbyId, memberToken: member.token });
       }
     }
@@ -752,6 +866,12 @@ export class SessionRegistry {
   private closeLobby(lobbyId: string, reason: string) {
     const session = this.lobbies.get(lobbyId);
     if (!session) return;
+
+    _sessionLogger.warn('closing lobby session', {
+      lobbyId,
+      reason,
+      playerCount: session.members.size,
+    });
 
     session.status = 'closed';
     for (const member of session.members.values()) {
@@ -873,11 +993,13 @@ export class SessionRegistry {
   private spawnPlayerForMember(session: LobbySession): number {
     const restored = session.pendingSavedPlayers.shift();
     if (restored) {
+      _gameplayLogger.log('restoring player from save state', { lobbyId: session.lobbyId });
       return session.world.addPlayerFromSaveState(restored);
     }
 
     const x = Math.random() * INITIAL_SPAWN_AREA_WIDTH;
     const y = Math.random() * INITIAL_SPAWN_AREA_HEIGHT;
+    _gameplayLogger.log('issuing gameplay spawn', { lobbyId: session.lobbyId, x, y });
     return session.world.addPlayer(x, y);
   }
 
@@ -902,6 +1024,12 @@ export class SessionRegistry {
     }));
 
     ws.send(Buffer.from(buildInitMessage(playerId, entities, tiles)), true);
+    _gameplayLogger.log('sent gameplay init state', {
+      lobbyId: session.lobbyId,
+      playerId,
+      entityCount: entities.length,
+      tileCount: tiles.length,
+    });
 
     const playerState = players[playerId];
     const centerCX = Math.floor((playerState?.x ?? 0) / CHUNK_PIXEL_SIZE);

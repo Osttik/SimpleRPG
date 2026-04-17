@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { LobbyBrowserScreen } from './modules/menu_module/components/lobby_browser';
 import GameScene from './GameScene';
 import {
@@ -8,6 +8,9 @@ import {
   selectSessionPhase,
 } from './store/slices/lobby.slice';
 import { store } from './store';
+import { createFrontendLogger } from './services/logger';
+
+const _logger = createFrontendLogger('play-shell');
 
 function LoadingWorldView() {
   return (
@@ -27,9 +30,38 @@ export default function PlayShell() {
   const sessionPhase = selectSessionPhase();
   const currentLobby = selectCurrentLobby();
   const gameplayMemberToken = selectGameplayMemberToken();
+  const handleGameSceneReady = useCallback(() => {
+    _logger.log('game scene reported ready', {
+      sessionPhase: store.getState().lobby.sessionPhase,
+      lobbyId: store.getState().lobby.currentLobby?.lobbyId ?? null,
+    });
+    if (store.getState().lobby.sessionPhase === 'LoadingWorld') {
+      store.dispatch(lobbyActions.setSessionPhase('Playing'));
+    }
+  }, []);
+
+  const renderMode = useMemo(() => {
+    const canRenderGame = Boolean(currentLobby && gameplayMemberToken);
+    if ((sessionPhase === 'LoadingWorld' || sessionPhase === 'Playing' || sessionPhase === 'Paused') && canRenderGame) {
+      return 'game';
+    }
+
+    return 'lobby';
+  }, [currentLobby, gameplayMemberToken, sessionPhase]);
+
+  useEffect(() => {
+    _logger.log('play shell state changed', {
+      sessionPhase,
+      renderMode,
+      lobbyId: currentLobby?.lobbyId ?? null,
+      lobbyStatus: currentLobby?.status ?? null,
+      hasGameplayMemberToken: Boolean(gameplayMemberToken),
+    });
+  }, [currentLobby?.lobbyId, currentLobby?.status, gameplayMemberToken, renderMode, sessionPhase]);
 
   useEffect(() => {
     if (sessionPhase === 'Ended') {
+      _logger.warn('session ended, scheduling fallback to lobby browser');
       const timer = window.setTimeout(() => {
         store.dispatch(lobbyActions.setSessionPhase('Lobby'));
       }, 0);
@@ -44,11 +76,7 @@ export default function PlayShell() {
       <div className="relative h-screen w-screen">
         <GameScene
           memberToken={gameplayMemberToken!}
-          onReady={() => {
-            if (store.getState().lobby.sessionPhase === 'LoadingWorld') {
-              store.dispatch(lobbyActions.setSessionPhase('Playing'));
-            }
-          }}
+          onReady={handleGameSceneReady}
         />
         {sessionPhase === 'LoadingWorld' ? (
           <div className="pointer-events-none absolute inset-0 z-[120] bg-black/60 backdrop-blur-[2px]">

@@ -24,7 +24,7 @@ public:
 
     engine.Ctx.GetManager<InteractableComponentManager>()->AddTarget(
         obj->Id, obj, InteractionType::Loot, "Chest",
-        std::make_unique<Circle>(position, radius));
+        std::make_unique<Circle>(Point(position.X, position.Y, chunkZ), radius));
 
     return obj->Id;
   }

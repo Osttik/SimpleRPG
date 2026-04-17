@@ -1,7 +1,9 @@
 import { store } from '@/store';
 import { lobbyActions, type LobbyStateView, type SaveSlotMeta, type LobbyListEntry } from '@/store/slices/lobby.slice';
+import { createFrontendLogger } from './logger';
 
 const DEFAULT_WS_PORT = 3001;
+const _logger = createFrontendLogger('lobby');
 
 function resolveControlWsUrl() {
   const configured = import.meta.env.VITE_WS_URL;
@@ -18,7 +20,18 @@ class LobbyClient {
   private socket: WebSocket | null = null;
   private reconnectTimer: number | null = null;
   private shouldReconnect = true;
-  private readonly wsUrl = resolveControlWsUrl();
+
+  private resolveWsUrl() {
+    const baseUrl = resolveControlWsUrl();
+    const lobbyState = store.getState().lobby;
+    const resumeMemberToken = lobbyState.currentLobby?.localMemberToken ?? lobbyState.gameplayMemberToken ?? null;
+    if (!resumeMemberToken) {
+      return baseUrl;
+    }
+
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    return `${baseUrl}${separator}memberToken=${encodeURIComponent(resumeMemberToken)}`;
+  }
 
   connect() {
     this.shouldReconnect = true;
@@ -27,13 +40,16 @@ class LobbyClient {
     }
 
     store.dispatch(lobbyActions.setConnectionStatus('connecting'));
-    const socket = new WebSocket(this.wsUrl);
+    const wsUrl = this.resolveWsUrl();
+    _logger.log('opening control socket', { wsUrl });
+    const socket = new WebSocket(wsUrl);
     this.socket = socket;
 
     socket.onopen = () => {
       if (this.socket !== socket) {
         return;
       }
+      _logger.log('control socket connected');
       store.dispatch(lobbyActions.setConnectionStatus('connected'));
       store.dispatch(lobbyActions.setErrorMessage(null));
       this.refreshLobbies();
@@ -45,6 +61,7 @@ class LobbyClient {
         return;
       }
       const data = JSON.parse(event.data as string);
+      _logger.log('received control message', { type: data.type, payload: data });
       switch (data.type) {
         case 'lobby_list':
           store.dispatch(lobbyActions.setLobbyList((data.lobbies ?? []) as LobbyListEntry[]));
@@ -55,9 +72,18 @@ class LobbyClient {
         case 'lobby_state':
           store.dispatch(lobbyActions.setCurrentLobby((data.lobby ?? null) as LobbyStateView | null));
           store.dispatch(lobbyActions.setErrorMessage(null));
+          _logger.log('updated current lobby state', {
+            lobbyId: data.lobby?.lobbyId ?? null,
+            status: data.lobby?.status ?? null,
+            localMemberToken: data.lobby?.localMemberToken ?? null,
+          });
           return;
         case 'session_started':
           if (typeof data.memberToken === 'string') {
+            _logger.log('received session_started', {
+              lobbyId: data.lobbyId ?? null,
+              memberToken: data.memberToken,
+            });
             store.dispatch(lobbyActions.setGameplayLaunch(data.memberToken));
           }
           return;
@@ -67,10 +93,12 @@ class LobbyClient {
           this.refreshSaves();
           return;
         case 'left_lobby':
+          _logger.warn('received left_lobby', { reason: data.reason ?? null });
           store.dispatch(lobbyActions.resetLobbyState());
           store.dispatch(lobbyActions.setInfoMessage('Returned to the lobby browser.'));
           return;
         case 'session_closed':
+          _logger.warn('received session_closed from control plane', { reason: data.reason ?? null });
           store.dispatch(lobbyActions.markSessionEnded());
           store.dispatch(lobbyActions.setErrorMessage(this.describeSessionClose(data.reason)));
           this.refreshLobbies();
@@ -89,6 +117,11 @@ class LobbyClient {
         return;
       }
 
+      _logger.warn('control socket closed', {
+        sessionPhase: store.getState().lobby.sessionPhase,
+        lobbyId: store.getState().lobby.currentLobby?.lobbyId ?? null,
+      });
+
       this.socket = null;
       store.dispatch(lobbyActions.setConnectionStatus('disconnected'));
 
@@ -100,9 +133,10 @@ class LobbyClient {
       ) && Boolean(lobbyState.gameplayMemberToken);
 
       if (sessionActive) {
+        _logger.warn('control socket closed while session is active; preserving play shell state');
         store.dispatch(lobbyActions.setErrorMessage('Lobby connection is lost. Reconnecting control channel...'));
       } else {
-        store.dispatch(lobbyActions.resetLobbyState());
+        _logger.warn('control socket closed outside active gameplay; keeping lobby state for reconnect');
       }
 
       if (!this.shouldReconnect) {
@@ -110,6 +144,10 @@ class LobbyClient {
       }
 
       this.reconnectTimer = window.setTimeout(() => this.connect(), 1000);
+    };
+
+    socket.onerror = () => {
+      _logger.error('control socket error');
     };
   }
 
@@ -132,6 +170,7 @@ class LobbyClient {
   }
 
   createLobby(payload: { name: string; mode: 'new_game' | 'load_save'; saveId?: string }) {
+    _logger.log('creating lobby', payload);
     this.send({
       type: 'create_lobby',
       name: payload.name,
@@ -141,14 +180,17 @@ class LobbyClient {
   }
 
   joinLobby(lobbyId: string) {
+    _logger.log('joining lobby', { lobbyId });
     this.send({ type: 'join_lobby', lobbyId });
   }
 
   leaveLobby() {
+    _logger.warn('leaving lobby');
     this.send({ type: 'leave_lobby' });
   }
 
   startLobby() {
+    _logger.log('sending start_lobby request');
     this.send({ type: 'start_lobby' });
   }
 
@@ -159,10 +201,12 @@ class LobbyClient {
 
   private send(payload: unknown) {
     if (this.socket?.readyState !== WebSocket.OPEN) {
+      _logger.warn('attempted to send control payload while socket is not ready', { payload });
       store.dispatch(lobbyActions.setErrorMessage('Lobby connection is not ready.'));
       return;
     }
 
+    _logger.log('sending control payload', payload);
     this.socket.send(JSON.stringify(payload));
   }
 
