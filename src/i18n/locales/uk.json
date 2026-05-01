@@ -18,7 +18,8 @@
       "saving": "Збереження..."
     },
     "confirmBackToMain": "Повернутися до головного меню?",
-    "loadingLobbies": "Відкриття лобі..."
+    "loadingLobbies": "Відкриття лобі...",
+    "title": "Ігрове меню"
   },
   "lobby": {
     "actions": {
@@ -188,6 +189,7 @@
     }
   },
   "loot": {
+    "title": "Здобич",
     "capacity": {
       "title": "Місткість гравця",
       "volume": "Об'єм: {{current}} / {{max}}",

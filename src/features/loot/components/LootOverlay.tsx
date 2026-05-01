@@ -58,6 +58,8 @@ export function LootOverlay() {
     <CoreOverlay
       visible={isOpen}
       setVisible={setOverlayVisible}
+      title={t('loot.title')}
+      closeLabel={t('common.close')}
       maximized
       content={(
         <div className={`grid h-full w-full ${LOOT_LAYOUT_CLASS} gap-4 p-5`}>

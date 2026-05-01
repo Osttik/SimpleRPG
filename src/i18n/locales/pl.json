@@ -18,7 +18,8 @@
       "saving": "Zapisywanie..."
     },
     "confirmBackToMain": "Wrócić do menu głównego?",
-    "loadingLobbies": "Otwieranie lobby..."
+    "loadingLobbies": "Otwieranie lobby...",
+    "title": "Menu gry"
   },
   "lobby": {
     "actions": {
@@ -188,6 +189,7 @@
     }
   },
   "loot": {
+    "title": "Łupy",
     "capacity": {
       "title": "Pojemność gracza",
       "volume": "Objętość: {{current}} / {{max}}",

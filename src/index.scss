@@ -213,6 +213,12 @@ html, body, #root {
   height: 100%;
 }
 
+.core-overlay-focus-root {
+  height: 100%;
+  min-height: 0;
+  outline: none;
+}
+
 .core-overlay-maximized {
   border-radius: 0 !important;
 }

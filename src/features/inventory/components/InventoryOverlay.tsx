@@ -94,6 +94,8 @@ export function InventoryOverlay() {
     <CoreOverlay
       visible={isOpen}
       setVisible={setOverlayVisible}
+      title={t('inventory.title')}
+      closeLabel={t('common.close')}
       maximized
       content={(
         <div className="flex h-full w-full gap-4 p-5">

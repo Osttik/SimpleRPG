@@ -55,16 +55,27 @@ export function InteractionCarousel() {
 
   if (!controller.isVisible) return null;
 
+  const activeItem = controller.visibleItems.find((item) => item.type === 'active');
+  const activeItemId = activeItem ? `interaction-carousel-${activeItem.option.id}-${activeItem.index}` : undefined;
+
   return (
-    <div className="carousel-wrapper" role="menu" aria-label={t(MODE_LABEL_KEYS[controller.mode])}>
+    <div
+      className="carousel-wrapper"
+      role="listbox"
+      tabIndex={0}
+      aria-label={t(MODE_LABEL_KEYS[controller.mode])}
+      aria-activedescendant={activeItemId}
+      aria-live="polite"
+    >
       <div className="menu-mode-label">{t(MODE_LABEL_KEYS[controller.mode])}</div>
       {controller.visibleItems.map((item, itemIndex) => (
         <button
           key={`${item.option.id}-${itemIndex}`}
+          id={`interaction-carousel-${item.option.id}-${item.index}`}
           type="button"
-          role="menuitem"
+          role="option"
           className={`menu-item ${item.type}`}
-          aria-current={item.type === 'active' ? 'true' : undefined}
+          aria-selected={item.type === 'active'}
           onClick={() => controller.selectItem(item.index)}
         >
           {translateCarouselLabel(t, controller.mode, item.option.id, item.option.label)}
