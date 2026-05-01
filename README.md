@@ -8,6 +8,7 @@ A high-performance Multiplayer 2D RPG featuring a deterministic C++ physics engi
 - **Server**: Node.js WebSocket server (`server/`) that runs the C++ engine via N-API and broadcasts authoritative state.
 - **Frontend**: React 19 + WebGL2 (`src/`) rendering circles as `gl.POINTS` for high performance.
 - **Client Runtime**: [NW.js](https://nwjs.io/) (Chromium + Node.js) to allow desktop execution and development.
+- **UI Contract**: `docs/ui-architecture-v1.md` defines feature UI structure, i18n, realtime adapter boundaries, tests, and statement migration rules.
 
 ## Tech Stack
 
