@@ -103,7 +103,15 @@
       }
 
       if (payload.type === 'create_lobby') {
-        this.lobby = makeLobby({ name: payload.name || 'Frontier Hall' });
+        const loadedSave = payload.mode === 'load_save'
+          ? saveSlots.find((save) => save.saveId === payload.saveId) ?? saveSlots[0]
+          : null;
+        this.lobby = makeLobby({
+          name: payload.name || 'Frontier Hall',
+          origin: loadedSave ? 'loaded_save' : 'new_game',
+          loadedSave,
+          activeSaveId: loadedSave?.saveId,
+        });
         this.emit({ type: 'lobby_state', lobby: this.lobby });
         this.emit({ type: 'lobby_list', lobbies: [this.lobby] });
         return;
