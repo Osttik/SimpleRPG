@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { PrimeIcons } from "primereact/api";
 import { CoreButton } from "./components/button";
 import { GameInternalState } from "./components/game_internal_state";
@@ -9,15 +9,18 @@ import { InventoryComponent } from './features/inventory/components/InventoryOve
 import { LootUI } from './features/loot/components/LootOverlay';
 import { InteractionUIModal } from './features/interactions/components/InteractionCarousel';
 import { CraftingUI } from './modules/ui_module/components/crafting_ui';
-import { CombatDebugPanel } from './modules/ui_module/components/combat_debug_panel';
-import { WorldLayerDebugPanel } from './modules/ui_module/components/world_layer_debug_panel';
-import { WorldLayerDebugOverlay } from './modules/ui_module/components/world_layer_debug_overlay';
 import { useAppTranslation } from './i18n';
+import { useDebugFeatureGate } from './features/debug/controllers/useDebugFeatureGate';
+
+const DebugHud = lazy(() => import('./features/debug/components/DebugHud').then((module) => ({
+  default: module.DebugHud,
+})));
 
 export const UIComponent = () => {
   const { t } = useAppTranslation();
   const { setMenuState } = useMenuActions();
   const isMenuOpen = selectIsMenuOpen();
+  const debugFeatures = useDebugFeatureGate();
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -31,14 +34,14 @@ export const UIComponent = () => {
   return (
     <div className="absolute w-screen h-screen overflow-hidden pointer-events-none z-50 flex flex-col p-10 bg-transparent">
       <audio ref={audioRef} src={gameMusicFile} loop />
-      <WorldLayerDebugOverlay />
+      {debugFeatures.anyEnabled ? (
+        <Suspense fallback={null}>
+          <DebugHud flags={debugFeatures} />
+        </Suspense>
+      ) : null}
       <div className='flex flex-row gap-2 w-full'>
         <div className='flex flex-row gap-2 flex-1 justify-start'>
           <GameInternalState className="absolute pointer-events-auto" />
-          <div className="absolute top-14 pointer-events-none">
-            <CombatDebugPanel />
-            <WorldLayerDebugPanel />
-          </div>
         </div>
         <div className='flex flex-row gap-2 flex-1 justify-center'>
         </div>

@@ -332,6 +332,88 @@
       "workerUnavailable": "Gameplay connection is not ready for crafting changes."
     }
   },
+  "debug": {
+    "combat": {
+      "controls": "Attacks: {{attacks}} | Hold block: {{block}}",
+      "emptyEvents": "No combat events received.",
+      "emptyParts": "No combat part updates yet.",
+      "eventSummary": "{{eventType}} T{{tick}} A{{attackerId}} -> V{{victimId}} {{part}} {{damage}}",
+      "eventTypes": {
+        "blocked": "Blocked",
+        "combat": "Combat",
+        "disabled": "Disabled",
+        "guardCrushed": "Guard Crushed",
+        "hit": "Hit",
+        "shieldBroken": "Shield Broken",
+        "shieldDamaged": "Shield Damaged",
+        "start": "Start",
+        "stop": "Stop"
+      },
+      "metrics": {
+        "drawCalls": "Draw calls",
+        "eventDrops": "Event drops",
+        "facingSwitches": "Facing switches/s",
+        "ik": "IK full/simple",
+        "instancedQuads": "Instanced quads",
+        "rigged": "Rigged",
+        "uiUpdates": "UI updates combat/anim"
+      },
+      "partFallback": "Part {{partId}}",
+      "sections": {
+        "focused": "Focused",
+        "me": "Me",
+        "recent": "Recent"
+      },
+      "title": "Combat Debug"
+    },
+    "worldLayers": {
+      "connectorAccepted": "{{label}} @ {{tileX}},{{tileY}} -> Z{{destinationZ}}",
+      "connectorRejected": "{{label}} @ {{tileX}},{{tileY}} {{reason}}",
+      "connectorTypes": {
+        "drop": "Drop",
+        "hatch": "Hatch",
+        "ladder": "Ladder",
+        "stairs": "Stairs",
+        "typeFallback": "Type {{type}}"
+      },
+      "empty": {
+        "connectors": "No connector candidates.",
+        "footprint": "No footprint samples.",
+        "landing": "No landing search this tick.",
+        "validation": "No loaded-chunk validation issues."
+      },
+      "fallbacks": {
+        "idle": "idle",
+        "notAvailable": "n/a",
+        "rejected": "rejected"
+      },
+      "fields": {
+        "authoritativeZ": "Authoritative Z",
+        "focusedInteractableZ": "Focused Interactable Z",
+        "phase": "Phase",
+        "reason": "Reason",
+        "visibleLayers": "Visible Layers"
+      },
+      "footprintSample": "{{tileX}},{{tileY}},Z{{z}} T{{tileId}} {{supportState}} {{blockedState}}",
+      "landing": {
+        "accepted": "Z{{candidateZ}} accepted",
+        "blocked": "Z{{candidateZ}} blocked",
+        "noSupport": "Z{{candidateZ}} no support"
+      },
+      "sections": {
+        "connectors": "Connectors",
+        "fallSearch": "Fall Search",
+        "footprint": "Footprint",
+        "validation": "Validation"
+      },
+      "states": {
+        "blocked": "blocked",
+        "support": "support",
+        "void": "void"
+      },
+      "title": "World Layer Debug"
+    }
+  },
   "settings": {
     "languageNames": {
       "en": "English",

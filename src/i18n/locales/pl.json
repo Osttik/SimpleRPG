@@ -332,6 +332,88 @@
       "workerUnavailable": "Polaczenie gry nie jest gotowe do zmian rzemiosla."
     }
   },
+  "debug": {
+    "combat": {
+      "controls": "Ataki: {{attacks}} | Blok: {{block}}",
+      "emptyEvents": "Nie odebrano zdarzen walki.",
+      "emptyParts": "Brak aktualizacji czesci bojowych.",
+      "eventSummary": "{{eventType}} T{{tick}} A{{attackerId}} -> V{{victimId}} {{part}} {{damage}}",
+      "eventTypes": {
+        "blocked": "Zablokowano",
+        "combat": "Walka",
+        "disabled": "Wylaczono",
+        "guardCrushed": "Przelamany blok",
+        "hit": "Trafienie",
+        "shieldBroken": "Tarcza pekla",
+        "shieldDamaged": "Tarcza uszkodzona",
+        "start": "Start",
+        "stop": "Stop"
+      },
+      "metrics": {
+        "drawCalls": "Wywolania rysowania",
+        "eventDrops": "Porzucone zdarzenia",
+        "facingSwitches": "Zmiany kierunku/s",
+        "ik": "IK pelne/proste",
+        "instancedQuads": "Kwadraty instancji",
+        "rigged": "Rigowane",
+        "uiUpdates": "Aktualizacje UI walka/anim"
+      },
+      "partFallback": "Czesc {{partId}}",
+      "sections": {
+        "focused": "Cel",
+        "me": "Ja",
+        "recent": "Ostatnie"
+      },
+      "title": "Debug walki"
+    },
+    "worldLayers": {
+      "connectorAccepted": "{{label}} @ {{tileX}},{{tileY}} -> Z{{destinationZ}}",
+      "connectorRejected": "{{label}} @ {{tileX}},{{tileY}} {{reason}}",
+      "connectorTypes": {
+        "drop": "Spadek",
+        "hatch": "Wlaz",
+        "ladder": "Drabina",
+        "stairs": "Schody",
+        "typeFallback": "Typ {{type}}"
+      },
+      "empty": {
+        "connectors": "Brak kandydatow lacznikow.",
+        "footprint": "Brak probek sladu.",
+        "landing": "Brak szukania ladowania w tym ticku.",
+        "validation": "Brak problemow walidacji zaladowanych chunkow."
+      },
+      "fallbacks": {
+        "idle": "bezczynny",
+        "notAvailable": "brak",
+        "rejected": "odrzucono"
+      },
+      "fields": {
+        "authoritativeZ": "Autorytatywne Z",
+        "focusedInteractableZ": "Z wybranego obiektu",
+        "phase": "Faza",
+        "reason": "Powod",
+        "visibleLayers": "Widoczne warstwy"
+      },
+      "footprintSample": "{{tileX}},{{tileY}},Z{{z}} T{{tileId}} {{supportState}} {{blockedState}}",
+      "landing": {
+        "accepted": "Z{{candidateZ}} zaakceptowane",
+        "blocked": "Z{{candidateZ}} zablokowane",
+        "noSupport": "Z{{candidateZ}} brak podparcia"
+      },
+      "sections": {
+        "connectors": "Laczniki",
+        "fallSearch": "Szukanie upadku",
+        "footprint": "Slad",
+        "validation": "Walidacja"
+      },
+      "states": {
+        "blocked": "blokada",
+        "support": "podparcie",
+        "void": "pustka"
+      },
+      "title": "Debug warstw swiata"
+    }
+  },
   "settings": {
     "languageNames": {
       "en": "Angielski",
