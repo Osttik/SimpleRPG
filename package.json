@@ -10,9 +10,11 @@
     "nw": "npm run build:cpp && concurrently \"npm run dev:web\" \"npm run start:nw\"",
     "dev": "start_dev.bat npm run build:cpp && concurrently \"npm run dev:web\" \"npm run dev:server\" \"npm run start:nw\"",
     "dev:web": "vite --port 3000",
+    "dev:web:test": "vite --host 127.0.0.1 --port 4174 --mode test",
     "dev:server": "npm --prefix server run dev",
     "test": "vitest run",
     "test:frontend": "vitest run",
+    "test:smoke": "playwright test",
     "generate:combat-rig": "node build_scripts/generate-combat-rig-contract.js",
     "validate:combat-rig": "node build_scripts/generate-combat-rig-contract.js --check",
     "build:cpp": "node build_scripts/build-core.js",
@@ -47,6 +49,7 @@
     "valtio": "^2.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.2.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
