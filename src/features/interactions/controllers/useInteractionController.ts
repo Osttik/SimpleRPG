@@ -1,4 +1,5 @@
 import { createGameplayRealtimeAdapter } from '@/api/realtime/gameplay-worker-adapter';
+import { isOverlayOpen } from '@/components/overlay';
 import { KeyEnum } from '@/defines/key.enum';
 import { gameState } from '@/modules/game_module/game_state';
 import { keyboardService } from '@/services/keyboard.service';
@@ -105,23 +106,28 @@ export function useInteractionController(): InteractionControllerState {
 
   useEffect(() => {
     const handleScroll = (event: WheelEvent) => {
+      if (isOverlayOpen()) return;
       moveIndex(event.deltaY > 0 ? 1 : -1);
     };
 
     const moveUpSub = keyboardService.subscribeToKeyDown(KeyEnum.ArrowUp, (event) => {
+      if (isOverlayOpen()) return;
       if (event.repeat) return;
       event.preventDefault();
       moveIndex(-1);
     });
     const moveDownSub = keyboardService.subscribeToKeyDown(KeyEnum.ArrowDown, (event) => {
+      if (isOverlayOpen()) return;
       if (event.repeat) return;
       event.preventDefault();
       moveIndex(1);
     });
     const keySub = keyboardService.subscribeToKeyDown([KeyEnum.e, KeyEnum.E], () => {
+      if (isOverlayOpen()) return;
       activateCurrent();
     });
     const backSub = keyboardService.subscribeToKeyDown([KeyEnum.q, KeyEnum.Q], () => {
+      if (isOverlayOpen()) return;
       if (mode === 'interaction' && interactions.targets.length > 1) {
         setMode('target');
       }

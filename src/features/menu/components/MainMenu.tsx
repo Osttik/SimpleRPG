@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { SUPPORTED_LOCALES } from '@/i18n';
 import bgImage from '@/assets/Start_Menu.png';
 import mainMusic from '@/assets/Main.m4a';
@@ -18,7 +18,7 @@ function SparkParticles() {
   })), []);
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-20">
+    <div className="absolute inset-0 pointer-events-none z-20" aria-hidden="true">
       {particles.map(({ key, ...style }) => (
         <div key={key} className="spark-particle" style={style} />
       ))}
@@ -43,6 +43,23 @@ export const MainMenu = () => {
     handleStart,
   } = useMainMenuController();
 
+  useEffect(() => {
+    if (!showSettings) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (settingsTab === 'main') {
+        setShowSettings(false);
+        return;
+      }
+      setSettingsTab('main');
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [settingsTab, setSettingsTab, setShowSettings, showSettings]);
+
   return (
     <div className="w-screen h-screen relative select-none overflow-hidden bg-black flex items-center justify-center">
       <audio ref={audioRef} src={mainMusic} loop />
@@ -63,31 +80,36 @@ export const MainMenu = () => {
         </div>
       ) : (
         <>
-          <div className="absolute inset-0 w-full h-full bg-cover bg-center animate-slow-zoom" style={{ backgroundImage: `url(${bgImage})` }} />
-          <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]"></div>
+          <div className="absolute inset-0 w-full h-full bg-cover bg-center animate-slow-zoom" style={{ backgroundImage: `url(${bgImage})` }} aria-hidden="true" />
+          <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]" aria-hidden="true"></div>
 
           <div className="relative z-10 flex flex-col items-center justify-center">
             {!showSettings ? (
               <div className="flex flex-col items-center gap-6">
-                <button onClick={handleStart} className="rpg-btn text-5xl font-bold uppercase medieval-font cursor-pointer">
+                <button type="button" onClick={handleStart} className="rpg-btn text-5xl font-bold uppercase medieval-font cursor-pointer">
                   {t('menu.actions.play')}
                 </button>
-                <button onClick={() => { setShowSettings(true); setSettingsTab('main'); }} className="rpg-btn text-4xl font-bold uppercase medieval-font cursor-pointer">
+                <button type="button" onClick={() => { setShowSettings(true); setSettingsTab('main'); }} className="rpg-btn text-4xl font-bold uppercase medieval-font cursor-pointer">
                   {t('common.settings')}
                 </button>
-                <button onClick={() => window.close()} className="rpg-btn text-4xl font-bold uppercase medieval-font opacity-60 cursor-pointer">
+                <button type="button" onClick={() => window.close()} className="rpg-btn text-4xl font-bold uppercase medieval-font opacity-60 cursor-pointer">
                   {t('menu.actions.exit')}
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-6 p-10 min-w-[450px] border border-[#d4af37]/30 rounded-[30px] bg-black/75 backdrop-blur-2xl shadow-2xl animate-fade-in">
-                <h2 className="text-[#d4af37] text-4xl medieval-font uppercase border-b border-[#d4af37]/40 pb-3 w-full text-center tracking-widest">{t('common.settings')}</h2>
+              <div
+                className="flex flex-col items-center gap-6 p-10 min-w-[450px] border border-[#d4af37]/30 rounded-[30px] bg-black/75 backdrop-blur-2xl shadow-2xl animate-fade-in"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="main-menu-settings-title"
+              >
+                <h2 id="main-menu-settings-title" className="text-[#d4af37] text-4xl medieval-font uppercase border-b border-[#d4af37]/40 pb-3 w-full text-center tracking-widest">{t('common.settings')}</h2>
 
                 {settingsTab === 'main' && (
                   <div className="flex flex-col items-center gap-4 w-full">
-                    <button onClick={() => setSettingsTab('music')} className="rpg-btn text-3xl uppercase medieval-font">{t('common.music')}</button>
-                    <button onClick={() => setSettingsTab('lang')} className="rpg-btn text-3xl uppercase medieval-font">{t('common.language')}</button>
-                    <button onClick={() => setShowSettings(false)} className="rpg-btn text-2xl opacity-70 uppercase medieval-font mt-2">{t('common.back')}</button>
+                    <button type="button" onClick={() => setSettingsTab('music')} className="rpg-btn text-3xl uppercase medieval-font">{t('common.music')}</button>
+                    <button type="button" onClick={() => setSettingsTab('lang')} className="rpg-btn text-3xl uppercase medieval-font">{t('common.language')}</button>
+                    <button type="button" onClick={() => setShowSettings(false)} className="rpg-btn text-2xl opacity-70 uppercase medieval-font mt-2">{t('common.back')}</button>
                   </div>
                 )}
 
@@ -95,7 +117,7 @@ export const MainMenu = () => {
                   <div className="flex flex-col items-center gap-5 w-full">
                     <label className="text-[#d4af37] text-2xl medieval-font uppercase">{t('settings.musicVolume', { volume })}</label>
                     <input type="range" min="0" max="100" value={volume} onChange={handleSliderChange} className="custom-slider" />
-                    <button onClick={() => setSettingsTab('main')} className="rpg-btn text-2xl uppercase medieval-font mt-2">{t('common.back')}</button>
+                    <button type="button" onClick={() => setSettingsTab('main')} className="rpg-btn text-2xl uppercase medieval-font mt-2">{t('common.back')}</button>
                   </div>
                 )}
 
@@ -104,13 +126,15 @@ export const MainMenu = () => {
                     {LANGUAGE_OPTIONS.map((locale) => (
                       <button
                         key={locale}
+                        type="button"
+                        aria-pressed={language === locale}
                         onClick={() => handleLanguageChange(locale)}
                         className={`text-2xl medieval-font uppercase ${language === locale ? 'text-white' : 'text-[#d4af37]/50'}`}
                       >
                         {t(`settings.languageNames.${locale}`)}
                       </button>
                     ))}
-                    <button onClick={() => setSettingsTab('main')} className="rpg-btn text-2xl uppercase medieval-font mt-2">{t('common.back')}</button>
+                    <button type="button" onClick={() => setSettingsTab('main')} className="rpg-btn text-2xl uppercase medieval-font mt-2">{t('common.back')}</button>
                   </div>
                 )}
               </div>

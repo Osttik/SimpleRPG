@@ -24,6 +24,8 @@ export const MenuModal = () => {
     <CoreOverlay
       visible={isMenuOpen}
       setVisible={setMenuState}
+      title={t('menu.title')}
+      closeLabel={t('common.close')}
       content={(
         <div className="flex flex-col gap-8 p-16 items-center bg-transparent border-none shadow-none">
           {currentLobby?.isHost ? (

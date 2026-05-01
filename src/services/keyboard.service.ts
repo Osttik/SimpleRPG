@@ -17,6 +17,19 @@ type MouseServiceEvent = Omit<MouseEvent, 'button'> & {
   button: MouseKeyEnumValue;
 }
 
+export const isEditableKeyboardTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+
+  const editableTarget = target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
+  if (!(editableTarget instanceof HTMLElement)) return false;
+
+  const maybeFormControl = editableTarget as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+  if ('disabled' in maybeFormControl && maybeFormControl.disabled) return false;
+  if ('readOnly' in maybeFormControl && maybeFormControl.readOnly) return false;
+
+  return true;
+};
+
 const getKey = (event: TEvent) => {
   if (event.button != null) return event.button;
   if (event.key != null) return event.key;
@@ -55,10 +68,12 @@ class KeyboardService {
   };
 
   private handleOnKeyDown = (e: KeyboardServiceEvent) => {
+    if (isEditableKeyboardTarget(e.target)) return;
     this._sinksKeyDown.forEach(sink => sink(e));
   };
 
   private handleOnKeyUp = (e: KeyboardServiceEvent) => {
+    if (isEditableKeyboardTarget(e.target)) return;
     this._sinksKeyUp.forEach(sink => sink(e));
   };
 

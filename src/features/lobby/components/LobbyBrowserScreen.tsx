@@ -273,6 +273,12 @@ export function LobbyBrowserScreen() {
       <Dialog
         header={t('lobby.dialog.title')}
         visible={hostDialogVisible}
+        modal
+        draggable={false}
+        resizable={false}
+        closeOnEscape
+        aria-label={t('lobby.dialog.title')}
+        ariaCloseIconLabel={t('common.close')}
         style={{ width: 'min(920px, 94vw)' }}
         className="overflow-hidden"
         onHide={closeHostDialog}

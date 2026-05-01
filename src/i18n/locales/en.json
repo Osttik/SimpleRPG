@@ -18,7 +18,8 @@
       "saving": "Saving..."
     },
     "confirmBackToMain": "Back to main menu?",
-    "loadingLobbies": "Opening Lobbies..."
+    "loadingLobbies": "Opening Lobbies...",
+    "title": "Game Menu"
   },
   "lobby": {
     "actions": {
@@ -188,6 +189,7 @@
     }
   },
   "loot": {
+    "title": "Loot",
     "capacity": {
       "title": "Player Capacity",
       "volume": "Volume: {{current}} / {{max}}",

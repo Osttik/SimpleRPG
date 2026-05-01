@@ -12,8 +12,10 @@ import { CraftingUI } from './modules/ui_module/components/crafting_ui';
 import { CombatDebugPanel } from './modules/ui_module/components/combat_debug_panel';
 import { WorldLayerDebugPanel } from './modules/ui_module/components/world_layer_debug_panel';
 import { WorldLayerDebugOverlay } from './modules/ui_module/components/world_layer_debug_overlay';
+import { useAppTranslation } from './i18n';
 
 export const UIComponent = () => {
+  const { t } = useAppTranslation();
   const { setMenuState } = useMenuActions();
   const isMenuOpen = selectIsMenuOpen();
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -43,6 +45,8 @@ export const UIComponent = () => {
         <div className="flex flex-row gap-2 flex-1 justify-end pointer-events-auto">
           <CoreButton
             icon={PrimeIcons.BARS}
+            aria-label={t('menu.title')}
+            aria-expanded={isMenuOpen}
             onClick={() => setMenuState(!isMenuOpen)}
             className="bg-black/60 border-2 border-[#d4af37]/40 text-[#d4af37] w-16 h-16 rounded-xl hover:scale-110 transition-all shadow-xl"
           />

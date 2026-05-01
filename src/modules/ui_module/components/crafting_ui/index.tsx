@@ -161,6 +161,8 @@ export const CraftingUI = () => {
     <CoreOverlay
       visible={isCraftingOpen}
       setVisible={openCrafting}
+      title="Crafting"
+      closeLabel="Close"
       maximized
       content={(
         <div className="flex h-full w-full gap-4 bg-[linear-gradient(180deg,rgba(15,12,10,0.98),rgba(31,22,14,0.98))] p-5 text-amber-50">
