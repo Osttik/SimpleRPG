@@ -1,0 +1,32 @@
+{
+  "common": {
+    "back": "Back",
+    "close": "Close",
+    "language": "Language",
+    "loading": "Loading...",
+    "music": "Music",
+    "settings": "Settings"
+  },
+  "menu": {
+    "actions": {
+      "exit": "Leave",
+      "play": "Play"
+    },
+    "loadingLobbies": "Opening Lobbies..."
+  },
+  "settings": {
+    "languageNames": {
+      "en": "English",
+      "pl": "Polish",
+      "uk": "Ukrainian"
+    },
+    "musicVolume": "Music: {{volume}}%"
+  },
+  "validation": {
+    "i18nStatements": {
+      "dictionaryShape": "Every locale dictionary must expose the same statement keys as English.",
+      "nonEmptyStatements": "Every translated statement must be a non-empty string.",
+      "supportedLocales": "Only supported locale codes can be registered at runtime."
+    }
+  }
+}
