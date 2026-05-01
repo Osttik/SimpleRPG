@@ -1,4 +1,5 @@
 import { CoreOverlay } from '@/components/overlay';
+import { createGameplayRealtimeAdapter } from '@/api/realtime/gameplay-worker-adapter';
 import { KeyEnum } from '@/defines/key.enum';
 import { gameState } from '@/modules/game_module/game_state';
 import { keyboardService } from '@/services/keyboard.service';
@@ -12,6 +13,7 @@ type InventoryTab = 'all' | 'equipped';
 const INVENTORY_TABS: InventoryTab[] = ['all', 'equipped'];
 const DETAILS_PANEL_MIN_WIDTH_CLASS = 'min-w-[22rem]';
 const SPRITE_PREVIEW_SIZE_CLASS = 'h-44 w-44';
+const gameplayRealtime = createGameplayRealtimeAdapter(() => gameState.socketWorker);
 
 const getDummyDescription = (item: InventoryItemView | null) => {
   if (!item) {
@@ -44,8 +46,8 @@ export const InventoryComponent = () => {
         window.dispatchEvent(new Event('gameStateUpdate'));
       }
       const nextState = !isInventoryOpen;
-      if (nextState && gameState.socketWorker) {
-        gameState.socketWorker.postMessage({ type: 'request_player_inventory' });
+      if (nextState) {
+        gameplayRealtime.requestPlayerInventory();
       }
       openInventory(nextState);
     });
@@ -58,10 +60,10 @@ export const InventoryComponent = () => {
 
   useEffect(() => {
     const dropSub = keyboardService.subscribeToKeyDown([KeyEnum.r, KeyEnum.R], () => {
-      if (!isInventoryOpen || !selectedItemId || !gameState.socketWorker) return;
+      if (!isInventoryOpen || !selectedItemId) return;
       const itemIndex = items.findIndex(item => item.id === selectedItemId);
       if (itemIndex < 0) return;
-      gameState.socketWorker.postMessage({ type: 'drop_item', itemIndex, targetId: 0 });
+      gameplayRealtime.dropItem(itemIndex);
     });
 
     return () => dropSub.dispose();
@@ -85,10 +87,9 @@ export const InventoryComponent = () => {
   );
 
   const toggleEquip = (item: InventoryItemView) => {
-    if (!gameState.socketWorker) return;
     const itemIndex = items.findIndex(candidate => candidate.id === item.id);
     if (itemIndex < 0) return;
-    gameState.socketWorker.postMessage({ type: 'equip_item', itemIndex });
+    gameplayRealtime.equipItem(itemIndex);
   };
 
   return (

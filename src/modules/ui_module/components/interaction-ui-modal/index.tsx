@@ -1,3 +1,4 @@
+import { createGameplayRealtimeAdapter } from '@/api/realtime/gameplay-worker-adapter';
 import { KeyEnum } from '@/defines/key.enum';
 import { gameState } from '@/modules/game_module/game_state';
 import { keyboardService } from '@/services/keyboard.service';
@@ -6,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSnapshot } from 'valtio';
 
 type MenuMode = 'target' | 'interaction';
+const gameplayRealtime = createGameplayRealtimeAdapter(() => gameState.socketWorker);
 
 export const InteractionUIModal = () => {
   const interactions = useSnapshot(interactionsState);
@@ -72,12 +74,9 @@ export const InteractionUIModal = () => {
   };
 
   const triggerInteraction = () => {
-    if (!gameState.socketWorker || !selectedTarget || !selectedInteraction) return;
+    if (!selectedTarget || !selectedInteraction) return;
     if (selectedInteraction.interactionId === 'loot' || selectedInteraction.interactionId === 'pickup' || selectedInteraction.interactionId === 'craft') {
-      gameState.socketWorker.postMessage({
-        type: 'interact',
-        targetId: Number(selectedTarget.targetId),
-      });
+      gameplayRealtime.interactWithTarget(selectedTarget.targetId);
     }
   };
 

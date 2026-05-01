@@ -1,3 +1,4 @@
+import { createGameplayRealtimeAdapter, type GameplayWorkerMessage } from '@/api/realtime/gameplay-worker-adapter';
 import { CoreOverlay } from '@/components/overlay';
 import { gameState, type CraftingStatSnapshotView } from '@/modules/game_module/game_state';
 import { selectIsCraftingOpen, useUIActions } from '@/store/slices/ui.slice';
@@ -43,6 +44,7 @@ const SHARPEN_SIDES = [
   { value: 2, label: 'Left' },
   { value: 3, label: 'Right' },
 ];
+const gameplayRealtime = createGameplayRealtimeAdapter(() => gameState.socketWorker);
 
 function getWorkpiece(item: InventoryItemView | null): WorkpieceView | null {
   if (!item?.workpiece || typeof item.workpiece !== 'object') {
@@ -125,8 +127,8 @@ export const CraftingUI = () => {
     ));
   }, [previewWorkpiece]);
 
-  const post = (message: Record<string, unknown>) => {
-    gameState.socketWorker?.postMessage(message);
+  const post = (message: GameplayWorkerMessage) => {
+    gameplayRealtime.post(message);
   };
 
   const refreshStation = () => {

@@ -1,4 +1,5 @@
 import { CoreOverlay } from '@/components/overlay';
+import { createGameplayRealtimeAdapter } from '@/api/realtime/gameplay-worker-adapter';
 import { KeyEnum } from '@/defines/key.enum';
 import { gameState } from '@/modules/game_module/game_state';
 import { keyboardService } from '@/services/keyboard.service';
@@ -14,6 +15,7 @@ type SelectedItemRef =
   | null;
 const LOOT_LAYOUT_CLASS = 'grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.9fr)_minmax(0,1.2fr)]';
 const LOOT_SPRITE_PREVIEW_SIZE_CLASS = 'h-44 w-44';
+const gameplayRealtime = createGameplayRealtimeAdapter(() => gameState.socketWorker);
 
 const getDummyDescription = (item: InventoryItemView | null) => {
   if (!item) {
@@ -59,14 +61,10 @@ export const LootUI = () => {
 
   useEffect(() => {
     const dropSub = keyboardService.subscribeToKeyDown([KeyEnum.r, KeyEnum.R], () => {
-      if (!isOpen || !selected || selected.source !== 'player' || !gameState.socketWorker) return;
+      if (!isOpen || !selected || selected.source !== 'player') return;
       const itemIndex = playerInv.findIndex(item => item.id === selected.itemId);
       if (itemIndex < 0) return;
-      gameState.socketWorker.postMessage({
-        type: 'drop_item',
-        itemIndex,
-        targetId: Number(gameState.lootingTargetId || 0),
-      });
+      gameplayRealtime.dropItem(itemIndex, Number(gameState.lootingTargetId || 0));
     });
 
     return () => dropSub.dispose();
@@ -79,7 +77,7 @@ export const LootUI = () => {
   }, [selected, chestInv, playerInv]);
 
   const transfer = (source: 'chest' | 'player', item: InventoryItemView) => {
-    if (!gameState.lootingTargetId || !gameState.socketWorker) return;
+    if (!gameState.lootingTargetId) return;
     const fromContainer = source === 'player' ? 0 : 1;
     const toContainer = source === 'player' ? 1 : 0;
     const index = source === 'player'
@@ -87,13 +85,7 @@ export const LootUI = () => {
       : chestInv.findIndex(i => i.id === item.id);
     if (index < 0) return;
 
-    gameState.socketWorker.postMessage({
-      type: 'transfer_item',
-      targetId: gameState.lootingTargetId,
-      fromContainer,
-      toContainer,
-      itemIndex: index,
-    });
+    gameplayRealtime.transferItem(gameState.lootingTargetId, fromContainer, toContainer, index);
   };
 
   const closeLoot = () => {

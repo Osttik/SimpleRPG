@@ -7,6 +7,11 @@ import { getRelativePositions } from './controls';
 import { uiActions } from '@/store/slices/ui.slice';
 import { lobbyActions } from '@/store/slices/lobby.slice';
 import { createFrontendLogger } from '@/services/logger';
+import {
+  mapCraftingStation,
+  mapLootInventoryUpdate,
+  mapPlayerInventoryUpdate,
+} from '@/api/realtime/gameplay-mappers';
 
 const _logger = createFrontendLogger('gameplay');
 
@@ -18,6 +23,19 @@ function describeSessionClose(reason?: string) {
     default:
       return 'The session is no longer available.';
   }
+}
+
+function applyCraftingStationUpdate(data: unknown) {
+  const station = mapCraftingStation(data, {
+    ...gameState.craftingStation,
+    craftingInventory: gameState.craftingInventory,
+    craftingInventoryMeta: gameState.craftingInventoryMeta,
+  });
+  const { craftingInventory, craftingInventoryMeta, ...stationState } = station;
+
+  Object.assign(gameState.craftingStation, stationState);
+  gameState.craftingInventory = craftingInventory;
+  gameState.craftingInventoryMeta = craftingInventoryMeta;
 }
 
 export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
@@ -189,54 +207,33 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
           ? data.selectedTargetId
           : null;
       } else if (data.type === 'open_loot') {
-        gameState.lootingTargetId = data.chestId;
-        gameState.chestInventory = data.chestInventory;
-        gameState.playerInventory = data.playerInventory;
-        gameState.chestInventoryMeta = data.chestInventoryMeta ?? gameState.chestInventoryMeta;
-        gameState.playerInventoryMeta = data.playerInventoryMeta ?? gameState.playerInventoryMeta;
+        const update = mapLootInventoryUpdate(data, gameState.playerInventoryMeta, gameState.chestInventoryMeta);
+        gameState.lootingTargetId = update.chestId;
+        gameState.chestInventory = update.chestInventory;
+        gameState.playerInventory = update.playerInventory;
+        gameState.chestInventoryMeta = update.chestInventoryMeta;
+        gameState.playerInventoryMeta = update.playerInventoryMeta;
         window.dispatchEvent(new Event('gameStateUpdate'));
       } else if (data.type === 'player_inventory') {
-        gameState.playerInventory = data.playerInventory;
-        gameState.playerInventoryMeta = data.playerInventoryMeta ?? gameState.playerInventoryMeta;
+        const update = mapPlayerInventoryUpdate(data, gameState.playerInventoryMeta);
+        gameState.playerInventory = update.playerInventory;
+        gameState.playerInventoryMeta = update.playerInventoryMeta;
         window.dispatchEvent(new Event('gameStateUpdate'));
       } else if (data.type === 'station_state' || data.payloadType === 'station_state') {
-        gameState.craftingStation.stationId = data.stationId ?? null;
-        gameState.craftingStation.stationType = data.stationType ?? null;
-        gameState.craftingStation.stationLabel = data.stationLabel ?? null;
-        gameState.craftingStation.insertedItems = data.insertedItem ?? [];
-        gameState.craftingStation.slots = data.slots ?? [];
-        gameState.craftingStation.moldSlots = data.moldSlots ?? [];
-        gameState.craftingStation.moltenPool = data.moltenPool ?? null;
-        gameState.craftingStation.comparisonBefore = data.comparisonBefore ?? null;
-        gameState.craftingStation.warnings = data.warnings ?? [];
-        gameState.craftingStation.heatingActive = Boolean(data.heatingActive);
-        gameState.craftingStation.heatingTicks = Number(data.heatingTicks ?? 0);
-        gameState.craftingStation.lastMold = Number(data.lastMold ?? 0);
-        gameState.craftingInventory = data.craftingInventory ?? [];
-        gameState.craftingInventoryMeta = data.craftingInventoryMeta ?? gameState.craftingInventoryMeta;
-        gameState.craftingStation.error = data.error ?? null;
+        applyCraftingStationUpdate(data);
         store.dispatch(uiActions.set_isCraftingOpen(true));
         window.dispatchEvent(new Event('gameStateUpdate'));
       } else if (data.type === 'crafting_inventory') {
-        gameState.craftingInventory = data.craftingInventory ?? [];
-        gameState.craftingInventoryMeta = data.craftingInventoryMeta ?? gameState.craftingInventoryMeta;
+        const update = mapCraftingStation(data, {
+          ...gameState.craftingStation,
+          craftingInventory: gameState.craftingInventory,
+          craftingInventoryMeta: gameState.craftingInventoryMeta,
+        });
+        gameState.craftingInventory = update.craftingInventory;
+        gameState.craftingInventoryMeta = update.craftingInventoryMeta;
         window.dispatchEvent(new Event('gameStateUpdate'));
       } else if (data.type === 'crafting_result') {
-        gameState.craftingStation.stationId = data.stationId ?? gameState.craftingStation.stationId;
-        gameState.craftingStation.stationType = data.stationType ?? gameState.craftingStation.stationType;
-        gameState.craftingStation.stationLabel = data.stationLabel ?? gameState.craftingStation.stationLabel;
-        gameState.craftingStation.insertedItems = data.insertedItem ?? gameState.craftingStation.insertedItems;
-        gameState.craftingStation.slots = data.slots ?? gameState.craftingStation.slots;
-        gameState.craftingStation.moldSlots = data.moldSlots ?? gameState.craftingStation.moldSlots;
-        gameState.craftingStation.moltenPool = data.moltenPool ?? gameState.craftingStation.moltenPool;
-        gameState.craftingStation.comparisonBefore = data.comparisonBefore ?? gameState.craftingStation.comparisonBefore;
-        gameState.craftingStation.warnings = data.warnings ?? gameState.craftingStation.warnings;
-        gameState.craftingStation.heatingActive = Boolean(data.heatingActive);
-        gameState.craftingStation.heatingTicks = Number(data.heatingTicks ?? 0);
-        gameState.craftingStation.lastMold = Number(data.lastMold ?? gameState.craftingStation.lastMold ?? 0);
-        gameState.craftingInventory = data.craftingInventory ?? gameState.craftingInventory;
-        gameState.craftingInventoryMeta = data.craftingInventoryMeta ?? gameState.craftingInventoryMeta;
-        gameState.craftingStation.error = data.error ?? null;
+        applyCraftingStationUpdate(data);
         window.dispatchEvent(new Event('gameStateUpdate'));
       } else if (data.type === 'crafting_error') {
         gameState.craftingStation.error = String(data.message ?? 'Crafting request failed.');

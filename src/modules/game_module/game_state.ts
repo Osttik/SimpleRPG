@@ -1,5 +1,5 @@
 import { RefObject } from "react";
-import type { InventoryItemView, InventoryMetaView } from "../ui_module/components/inventory_view";
+import type { InventoryItem as InventoryItemView, InventoryMeta as InventoryMetaView } from "@/api/realtime/dtos";
 
 interface IPlayer {
   x: number;

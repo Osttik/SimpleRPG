@@ -7,7 +7,7 @@ import { Message } from 'primereact/message';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { SelectButton } from 'primereact/selectbutton';
 import { Tag } from 'primereact/tag';
-import { lobbyClient } from '@/services/lobby-client';
+import { lobbyClient } from '@/api/realtime/lobby-client';
 import { createFrontendLogger } from '@/services/logger';
 import { selectLobbyState } from '@/store/slices/lobby.slice';
 import { SaveSlotPicker } from '../save_slot_picker';
