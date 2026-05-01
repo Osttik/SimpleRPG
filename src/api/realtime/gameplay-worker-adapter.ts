@@ -22,7 +22,11 @@ export type GameplayWorkerMessage =
   | { type: 'join_workpieces'; stationId: number };
 
 export class GameplayRealtimeAdapter {
-  constructor(private readonly getPort: () => RealtimeMessagePort | null | undefined) {}
+  private readonly getPort: () => RealtimeMessagePort | null | undefined;
+
+  constructor(getPort: () => RealtimeMessagePort | null | undefined) {
+    this.getPort = getPort;
+  }
 
   post(message: GameplayWorkerMessage) {
     const port = this.getPort();
