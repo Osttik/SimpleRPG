@@ -7,7 +7,7 @@ import { selectIsMenuOpen, useMenuActions } from "./store/slices/menu.slice";
 import gameMusicFile from './assets/Game.m4a';
 import { InventoryComponent } from './modules/ui_module/components/inventory';
 import { LootUI } from './features/loot/components/LootOverlay';
-import { InteractionUIModal } from './modules/ui_module/components/interaction-ui-modal';
+import { InteractionUIModal } from './features/interactions/components/InteractionCarousel';
 import { CraftingUI } from './modules/ui_module/components/crafting_ui';
 import { CombatDebugPanel } from './modules/ui_module/components/combat_debug_panel';
 import { WorldLayerDebugPanel } from './modules/ui_module/components/world_layer_debug_panel';

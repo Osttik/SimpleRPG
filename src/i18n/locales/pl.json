@@ -132,6 +132,26 @@
     },
     "empty": "Brak przedmiotów"
   },
+  "interactions": {
+    "actions": {
+      "craft": "Wytwarzaj",
+      "loot": "Przeszukaj",
+      "pickup": "Podnieś",
+      "talk": "Rozmawiaj"
+    },
+    "hint": "Kółko: przełącz | E: potwierdź | Q: wstecz",
+    "mode": {
+      "interaction": "Wybierz interakcję",
+      "target": "Wybierz cel"
+    },
+    "targets": {
+      "anvil": "Kowadło",
+      "chest": "Skrzynia",
+      "grindstone": "Kamień szlifierski",
+      "smelter": "Piec hutniczy",
+      "workbench": "Stół warsztatowy"
+    }
+  },
   "loot": {
     "capacity": {
       "title": "Pojemność gracza",

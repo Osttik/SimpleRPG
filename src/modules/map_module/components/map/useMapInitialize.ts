@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { gameState } from '../../../game_module/game_state';
 import { useControls } from './useControls';
-import { interactionsState, store } from '@/store';
+import { clearInteractionTargets, setInteractionTargets } from '@/features/interactions/state/interactions-state';
+import { store } from '@/store';
 import { isOverlayOpen } from '@/components/overlay';
 import { getRelativePositions } from './controls';
 import { uiActions } from '@/store/slices/ui.slice';
@@ -202,10 +203,7 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
       } else if (data.type === 'pong') {
         gameState.ping = Date.now() - data.timestamp;
       } else if (data.type === 'interaction_options') {
-        interactionsState.targets = data.targets ?? [];
-        interactionsState.selectedTargetId = data.selectedTargetId && data.selectedTargetId !== '0'
-          ? data.selectedTargetId
-          : null;
+        setInteractionTargets(data.targets ?? [], data.selectedTargetId);
       } else if (data.type === 'open_loot') {
         const update = mapLootInventoryUpdate(data, gameState.playerInventoryMeta, gameState.chestInventoryMeta);
         gameState.lootingTargetId = update.chestId;
@@ -282,8 +280,7 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
       canvas.removeEventListener('mouseleave', handleMouseLeave);
       window.removeEventListener('mouseup', handleMouseUp);
       gameState.socketWorker = null;
-      interactionsState.targets = [];
-      interactionsState.selectedTargetId = null;
+      clearInteractionTargets();
       store.dispatch(uiActions.set_isCraftingOpen(false));
       delete canvas.dataset.transferred;
       renderWorker.terminate();
