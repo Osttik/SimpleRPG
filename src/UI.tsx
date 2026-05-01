@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { PrimeIcons } from "primereact/api";
 import { CoreButton } from "./components/button";
 import { GameInternalState } from "./components/game_internal_state";
-import { MenuModal } from "./modules/menu_module/components/menu_modal";
+import { MenuModal } from "./features/menu/components/MenuModal";
 import { selectIsMenuOpen, useMenuActions } from "./store/slices/menu.slice";
 import gameMusicFile from './assets/Game.m4a';
 import { InventoryComponent } from './modules/ui_module/components/inventory';

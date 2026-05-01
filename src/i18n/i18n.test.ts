@@ -29,10 +29,14 @@ describe('i18n statement validation', () => {
       pl: {
         ...localeResources.pl,
         menu: {
+          ...localeResources.pl.menu,
           actions: {
+            continue: 'Kontynuuj',
             play: 'Graj',
+            quit: 'Wyjdź',
+            saveGame: 'Zapisz grę',
+            saving: 'Zapisywanie...',
           },
-          loadingLobbies: 'Otwieranie lobby...',
         },
       },
     } as unknown as Parameters<typeof validateI18nStatements>[0];

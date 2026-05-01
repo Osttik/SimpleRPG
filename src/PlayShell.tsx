@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { LobbyBrowserScreen } from './modules/menu_module/components/lobby_browser';
+import { LobbyBrowserScreen } from './features/lobby/components/LobbyBrowserScreen';
 import GameScene from './GameScene';
+import { useAppTranslation } from './i18n';
 import {
   lobbyActions,
   selectCurrentLobby,
@@ -13,13 +14,15 @@ import { createFrontendLogger } from './services/logger';
 const _logger = createFrontendLogger('play-shell');
 
 function LoadingWorldView() {
+  const { t } = useAppTranslation();
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(180,83,9,0.3),_rgba(12,10,9,1)_58%),linear-gradient(160deg,_rgba(8,7,6,1),_rgba(23,17,10,1))] text-amber-50">
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-5">
-        <div className="text-xs uppercase tracking-[0.4em] text-amber-200/50">Session Phase</div>
-        <div className="medieval-font text-4xl uppercase tracking-[0.16em] text-amber-50">Loading World</div>
+        <div className="text-xs uppercase tracking-[0.4em] text-amber-200/50">{t('lobby.loadingWorld.eyebrow')}</div>
+        <div className="medieval-font text-4xl uppercase tracking-[0.16em] text-amber-50">{t('lobby.loadingWorld.title')}</div>
         <div className="max-w-xl text-center text-sm leading-6 text-amber-100/70">
-          Attaching the gameplay socket and world renderer without leaving the active play session.
+          {t('lobby.loadingWorld.description')}
         </div>
       </div>
     </div>

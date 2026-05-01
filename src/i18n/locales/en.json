@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Back",
+    "cancel": "Cancel",
     "close": "Close",
     "language": "Language",
     "loading": "Loading...",
@@ -9,10 +10,112 @@
   },
   "menu": {
     "actions": {
+      "continue": "Continue",
       "exit": "Leave",
-      "play": "Play"
+      "play": "Play",
+      "quit": "Quit",
+      "saveGame": "Save Game",
+      "saving": "Saving..."
     },
+    "confirmBackToMain": "Back to main menu?",
     "loadingLobbies": "Opening Lobbies..."
+  },
+  "lobby": {
+    "actions": {
+      "createLobby": "Create Lobby",
+      "hostFirstLobby": "Host the First Lobby",
+      "hostLobby": "Host Lobby",
+      "inGame": "In Game",
+      "joinLobby": "Join Lobby",
+      "leaveLobby": "Leave Lobby",
+      "mainMenu": "Main Menu",
+      "refresh": "Refresh",
+      "refreshSaves": "Refresh Saves",
+      "startGame": "Start Game"
+    },
+    "description": {
+      "browser": "Browse waiting worlds, inspect loaded saves, or host a new session without touching the gameplay renderer.",
+      "warTable": "Stage the party, inspect the session source, and start the run when the host is ready."
+    },
+    "dialog": {
+      "lobbyName": "Lobby Name",
+      "lobbyNamePlaceholder": "Enter a hall name",
+      "saveSlot": "Save Slot",
+      "sessionSource": "Session Source",
+      "title": "Host A Lobby"
+    },
+    "empty": {
+      "description": "Host the first room or refresh after another player creates one. Only waiting lobbies are open for joining in this first pass.",
+      "title": "No Lobbies Available"
+    },
+    "fields": {
+      "joinRule": "Join Rule",
+      "origin": "Origin",
+      "players": "Players"
+    },
+    "hostLabel": "Host: {{label}}",
+    "hostModes": {
+      "loadSave": "Load Save",
+      "newGame": "New Game"
+    },
+    "joinRule": {
+      "locked": "Locked",
+      "open": "Open"
+    },
+    "loadedFrom": "Loaded from {{name}}",
+    "loadingWorld": {
+      "description": "Attaching the gameplay socket and world renderer without leaving the active play session.",
+      "eyebrow": "Session Phase",
+      "title": "Loading World"
+    },
+    "memberCount": "{{count}} member{{suffix}}",
+    "messages": {
+      "contactingRegistry": "Contacting lobby registry"
+    },
+    "origin": {
+      "loadedSave": "Loaded Save",
+      "newGame": "New Game",
+      "newShort": "New",
+      "saveShort": "Save"
+    },
+    "playEyebrow": "Play",
+    "presence": {
+      "inWorld": "In World",
+      "waiting": "Waiting"
+    },
+    "roles": {
+      "host": "Host",
+      "member": "Member",
+      "you": "You"
+    },
+    "saves": {
+      "defaultName": "{{lobbyName}} Save",
+      "empty": "No server-local saves exist yet.",
+      "slotLabel": "Save Slot",
+      "sourceLobby": "Source lobby: {{name}}",
+      "updated": "Updated {{date}}",
+      "version": "v{{version}}"
+    },
+    "sections": {
+      "session": "Session",
+      "sessionSource": "Session Source"
+    },
+    "source": {
+      "activeSaveBound": "Active save slot bound for in-session saves",
+      "description": "Waiting lobbies are joinable in v1. Once the host starts the session, gameplay sockets attach to this world and new joins are blocked.",
+      "freshWorld": "Fresh World",
+      "freshWorldDescription": "This lobby was created from a fresh authoritative world instance.",
+      "loadedSave": "Loaded Save"
+    },
+    "status": {
+      "closed": "Closed",
+      "in_game": "In Game",
+      "waiting": "Waiting"
+    },
+    "title": {
+      "browser": "Lobby Browser",
+      "warTable": "War Table"
+    }
   },
   "settings": {
     "languageNames": {
