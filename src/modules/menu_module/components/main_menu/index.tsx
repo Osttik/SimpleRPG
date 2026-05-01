@@ -1,27 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { SUPPORTED_LOCALES, useAppTranslation, type SupportedLocale } from '../../../../i18n';
 import { useMenuActions } from '../../../../store/slices/menu.slice';
 import bgImage from '../../../../assets/Start_Menu.png';
 import mainMusic from '../../../../assets/Main.m4a';
 import loadingSfx from '../../../../assets/loading.mp3';
 
-type LangCode = 'UA' | 'EN' | 'PL';
-
-const i18n: Record<LangCode, any> = {
-  UA: { start: "Підключитись", sets: "Налаштування", exit: "Вийти", load: "Завантаження...", mus: "Музика", back: "Назад", lang: "Мова" },
-  EN: { start: "Play", sets: "Settings", exit: "Leave", load: "Opening Lobbies...", mus: "Music", back: "Back", lang: "Language" },
-  PL: { start: "Połącz", sets: "Ustawienia", exit: "Wyjdź", load: "Ładowanie...", mus: "Muzyka", back: "Wróć", lang: "Język" }
-};
+const LANGUAGE_OPTIONS = SUPPORTED_LOCALES;
 
 export const MainMenu = () => {
   const navigate = useNavigate();
   const { setMenuState } = useMenuActions();
+  const { t, language, changeLanguage } = useAppTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'main' | 'music' | 'lang'>('main');
-  const [lang, setLang] = useState<LangCode>(() => (localStorage.getItem('lang') as LangCode) || 'UA');
   const [volume, setVolume] = useState(() => Number(localStorage.getItem('game_music_volume')) || 50);
-  
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const loadRef = useRef<HTMLAudioElement>(null);
 
@@ -32,11 +27,15 @@ export const MainMenu = () => {
     }
   }, []);
 
-  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSliderChange = (e: ChangeEvent<HTMLInputElement>) => {
     const v = Number(e.target.value);
     setVolume(v);
     localStorage.setItem('game_music_volume', v.toString());
     if (audioRef.current) audioRef.current.volume = v / 100;
+  };
+
+  const handleLanguageChange = (locale: SupportedLocale) => {
+    void changeLanguage(locale);
   };
 
   const handleStart = () => {
@@ -48,7 +47,7 @@ export const MainMenu = () => {
     setTimeout(() => {
       setMenuState(false);
       navigate('/play');
-    }, 900); 
+    }, 900);
   };
 
   const particles = Array.from({ length: 40 }).map((_, i) => (
@@ -77,7 +76,7 @@ export const MainMenu = () => {
               <div className="hourglassSand" />
             </div>
           </div>
-          <h2 className="text-[#d4af37] text-4xl medieval-font animate-pulse mt-10 uppercase tracking-[0.2em]">{i18n[lang].load}</h2>
+          <h2 className="text-[#d4af37] text-4xl medieval-font animate-pulse mt-10 uppercase tracking-[0.2em]">{t('menu.loadingLobbies')}</h2>
         </div>
       ) : (
         <>
@@ -88,41 +87,47 @@ export const MainMenu = () => {
             {!showSettings ? (
               <div className="flex flex-col items-center gap-6">
                 <button onClick={handleStart} className="rpg-btn text-5xl font-bold uppercase medieval-font cursor-pointer">
-                  {i18n[lang].start}
+                  {t('menu.actions.play')}
                 </button>
                 <button onClick={() => { setShowSettings(true); setSettingsTab('main'); }} className="rpg-btn text-4xl font-bold uppercase medieval-font cursor-pointer">
-                  {i18n[lang].sets}
+                  {t('common.settings')}
                 </button>
                 <button onClick={() => window.close()} className="rpg-btn text-4xl font-bold uppercase medieval-font opacity-60 cursor-pointer">
-                  {i18n[lang].exit}
+                  {t('menu.actions.exit')}
                 </button>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-6 p-10 min-w-[450px] border border-[#d4af37]/30 rounded-[30px] bg-black/75 backdrop-blur-2xl shadow-2xl animate-fade-in">
-                <h2 className="text-[#d4af37] text-4xl medieval-font uppercase border-b border-[#d4af37]/40 pb-3 w-full text-center tracking-widest">{i18n[lang].sets}</h2>
-                
+                <h2 className="text-[#d4af37] text-4xl medieval-font uppercase border-b border-[#d4af37]/40 pb-3 w-full text-center tracking-widest">{t('common.settings')}</h2>
+
                 {settingsTab === 'main' && (
                   <div className="flex flex-col items-center gap-4 w-full">
-                    <button onClick={() => setSettingsTab('music')} className="rpg-btn text-3xl uppercase medieval-font">{i18n[lang].mus}</button>
-                    <button onClick={() => setSettingsTab('lang')} className="rpg-btn text-3xl uppercase medieval-font">{i18n[lang].lang}</button>
-                    <button onClick={() => setShowSettings(false)} className="rpg-btn text-2xl opacity-70 uppercase medieval-font mt-2">{i18n[lang].back}</button>
+                    <button onClick={() => setSettingsTab('music')} className="rpg-btn text-3xl uppercase medieval-font">{t('common.music')}</button>
+                    <button onClick={() => setSettingsTab('lang')} className="rpg-btn text-3xl uppercase medieval-font">{t('common.language')}</button>
+                    <button onClick={() => setShowSettings(false)} className="rpg-btn text-2xl opacity-70 uppercase medieval-font mt-2">{t('common.back')}</button>
                   </div>
                 )}
 
                 {settingsTab === 'music' && (
                   <div className="flex flex-col items-center gap-5 w-full">
-                    <label className="text-[#d4af37] text-2xl medieval-font uppercase">{i18n[lang].mus}: {volume}%</label>
+                    <label className="text-[#d4af37] text-2xl medieval-font uppercase">{t('settings.musicVolume', { volume })}</label>
                     <input type="range" min="0" max="100" value={volume} onChange={handleSliderChange} className="custom-slider" />
-                    <button onClick={() => setSettingsTab('main')} className="rpg-btn text-2xl uppercase medieval-font mt-2">{i18n[lang].back}</button>
+                    <button onClick={() => setSettingsTab('main')} className="rpg-btn text-2xl uppercase medieval-font mt-2">{t('common.back')}</button>
                   </div>
                 )}
 
                 {settingsTab === 'lang' && (
                   <div className="flex flex-col items-center gap-4 w-full">
-                    <button onClick={() => { setLang('UA'); localStorage.setItem('lang', 'UA'); }} className={`text-2xl medieval-font uppercase ${lang === 'UA' ? 'text-white' : 'text-[#d4af37]/50'}`}>Українська</button>
-                    <button onClick={() => { setLang('EN'); localStorage.setItem('lang', 'EN'); }} className={`text-2xl medieval-font uppercase ${lang === 'EN' ? 'text-white' : 'text-[#d4af37]/50'}`}>English</button>
-                    <button onClick={() => { setLang('PL'); localStorage.setItem('lang', 'PL'); }} className={`text-2xl medieval-font uppercase ${lang === 'PL' ? 'text-white' : 'text-[#d4af37]/50'}`}>Polski</button>
-                    <button onClick={() => setSettingsTab('main')} className="rpg-btn text-2xl uppercase medieval-font mt-2">{i18n[lang].back}</button>
+                    {LANGUAGE_OPTIONS.map((locale) => (
+                      <button
+                        key={locale}
+                        onClick={() => handleLanguageChange(locale)}
+                        className={`text-2xl medieval-font uppercase ${language === locale ? 'text-white' : 'text-[#d4af37]/50'}`}
+                      >
+                        {t(`settings.languageNames.${locale}`)}
+                      </button>
+                    ))}
+                    <button onClick={() => setSettingsTab('main')} className="rpg-btn text-2xl uppercase medieval-font mt-2">{t('common.back')}</button>
                   </div>
                 )}
               </div>

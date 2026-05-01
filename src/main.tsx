@@ -7,6 +7,7 @@ import './index.scss';
 import { PrimeReactProviderServiceComponent } from './services/components/PrimeReactProviderServiceComponent.tsx';
 import { BrowserRouter } from 'react-router-dom';
 import { addExtensions } from './extensions/index.ts';
+import './i18n';
 
 addExtensions();
 

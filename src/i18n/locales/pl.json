@@ -1,0 +1,32 @@
+{
+  "common": {
+    "back": "Wróć",
+    "close": "Zamknij",
+    "language": "Język",
+    "loading": "Ładowanie...",
+    "music": "Muzyka",
+    "settings": "Ustawienia"
+  },
+  "menu": {
+    "actions": {
+      "exit": "Wyjdź",
+      "play": "Graj"
+    },
+    "loadingLobbies": "Otwieranie lobby..."
+  },
+  "settings": {
+    "languageNames": {
+      "en": "Angielski",
+      "pl": "Polski",
+      "uk": "Ukraiński"
+    },
+    "musicVolume": "Muzyka: {{volume}}%"
+  },
+  "validation": {
+    "i18nStatements": {
+      "dictionaryShape": "Każdy słownik lokalizacji musi udostępniać te same klucze tekstów co angielski.",
+      "nonEmptyStatements": "Każdy przetłumaczony tekst musi być niepustym ciągiem.",
+      "supportedLocales": "W czasie działania można rejestrować tylko obsługiwane kody lokalizacji."
+    }
+  }
+}
