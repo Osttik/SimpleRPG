@@ -68,7 +68,11 @@
       "eyebrow": "Фаза сесії",
       "title": "Завантаження світу"
     },
-    "memberCount": "{{count}} учасник{{suffix}}",
+    "memberCount": "{{count}} учасників",
+    "memberCount_one": "{{count}} учасник",
+    "memberCount_few": "{{count}} учасники",
+    "memberCount_many": "{{count}} учасників",
+    "memberCount_other": "{{count}} учасника",
     "messages": {
       "contactingRegistry": "Зв'язок з реєстром лобі"
     },

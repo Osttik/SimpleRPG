@@ -68,7 +68,11 @@
       "eyebrow": "Faza sesji",
       "title": "Ładowanie świata"
     },
-    "memberCount": "{{count}} uczestnik{{suffix}}",
+    "memberCount": "{{count}} uczestników",
+    "memberCount_one": "{{count}} uczestnik",
+    "memberCount_few": "{{count}} uczestników",
+    "memberCount_many": "{{count}} uczestników",
+    "memberCount_other": "{{count}} uczestników",
     "messages": {
       "contactingRegistry": "Łączenie z rejestrem lobby"
     },

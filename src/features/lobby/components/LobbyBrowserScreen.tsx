@@ -106,7 +106,7 @@ export function LobbyBrowserScreen() {
                   </h2>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-amber-100/70">
                     <Tag value={t(`lobby.status.${currentLobby.status}`)} severity={lobbyStatusSeverity(currentLobby.status)} />
-                    <span>{t('lobby.memberCount', { count: currentLobby.playerCount, suffix: currentLobby.playerCount === 1 ? '' : 's' })}</span>
+                    <span>{t('lobby.memberCount', { count: currentLobby.playerCount })}</span>
                     <span>{currentLobby.origin === 'loaded_save' ? t('lobby.origin.loadedSave') : t('lobby.origin.newGame')}</span>
                   </div>
                 </div>

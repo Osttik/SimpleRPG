@@ -68,7 +68,11 @@
       "eyebrow": "Session Phase",
       "title": "Loading World"
     },
-    "memberCount": "{{count}} member{{suffix}}",
+    "memberCount": "{{count}} members",
+    "memberCount_one": "{{count}} member",
+    "memberCount_few": "{{count}} members",
+    "memberCount_many": "{{count}} members",
+    "memberCount_other": "{{count}} members",
     "messages": {
       "contactingRegistry": "Contacting lobby registry"
     },
