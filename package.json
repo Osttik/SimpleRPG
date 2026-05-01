@@ -11,6 +11,8 @@
     "dev": "start_dev.bat npm run build:cpp && concurrently \"npm run dev:web\" \"npm run dev:server\" \"npm run start:nw\"",
     "dev:web": "vite --port 3000",
     "dev:server": "npm --prefix server run dev",
+    "test": "vitest run",
+    "test:frontend": "vitest run",
     "generate:combat-rig": "node build_scripts/generate-combat-rig-contract.js",
     "validate:combat-rig": "node build_scripts/generate-combat-rig-contract.js --check",
     "build:cpp": "node build_scripts/build-core.js",
@@ -43,14 +45,26 @@
     "valtio": "^2.3.1"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^6.0.0",
+    "autoprefixer": "^10.5.0",
     "cmake-js": "^8.0.0",
     "concurrently": "^9.2.1",
     "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "jsdom": "^29.1.1",
+    "msw": "^2.14.2",
     "nw": "^0.109.0-sdk",
     "sass": "^1.98.0",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
-    "vite": "^8.0.0"
+    "typescript-eslint": "^8.59.1",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.5"
   }
 }
