@@ -6,7 +6,7 @@ import { MenuModal } from "./features/menu/components/MenuModal";
 import { selectIsMenuOpen, useMenuActions } from "./store/slices/menu.slice";
 import gameMusicFile from './assets/Game.m4a';
 import { InventoryComponent } from './modules/ui_module/components/inventory';
-import { LootUI } from './modules/ui_module/components/loot_ui';
+import { LootUI } from './features/loot/components/LootOverlay';
 import { InteractionUIModal } from './modules/ui_module/components/interaction-ui-modal';
 import { CraftingUI } from './modules/ui_module/components/crafting_ui';
 import { CombatDebugPanel } from './modules/ui_module/components/combat_debug_panel';

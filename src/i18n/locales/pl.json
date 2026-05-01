@@ -121,6 +121,47 @@
       "warTable": "Stół narad"
     }
   },
+  "inventory": {
+    "columns": {
+      "name": "Nazwa",
+      "price": "Cena",
+      "quantity": "Ilość",
+      "slot": "Slot",
+      "volume": "Objętość",
+      "weight": "Waga"
+    },
+    "empty": "Brak przedmiotów"
+  },
+  "loot": {
+    "capacity": {
+      "title": "Pojemność gracza",
+      "volume": "Objętość: {{current}} / {{max}}",
+      "weight": "Waga: {{weight}}"
+    },
+    "chest": {
+      "title": "Skrzynia"
+    },
+    "details": {
+      "description": "{{name}} używa teraz tymczasowego opisu. Ten panel pokaże później statystyki i modyfikatory z backendu.",
+      "emptyDescription": "Wybierz przedmiot do obejrzenia. Kliknij dwukrotnie, aby przenieść go między ekwipunkami.",
+      "noSelection": "Nie wybrano przedmiotu",
+      "quantityPrice": "Ilość: {{quantity}} | Cena: {{price}}",
+      "title": "Opis"
+    },
+    "player": {
+      "title": "Plecak gracza"
+    },
+    "sprite": {
+      "empty": "Brak grafiki"
+    },
+    "transfer": {
+      "capacityBlocked": "Docelowy ekwipunek nie ma dość wolnej objętości.",
+      "missingItem": "Ten przedmiot nie jest już dostępny.",
+      "missingTarget": "Nie otwarto celu łupów.",
+      "pending": "Wysłano prośbę o przeniesienie...",
+      "workerUnavailable": "Połączenie gry nie jest gotowe do przenoszenia przedmiotów."
+    }
+  },
   "settings": {
     "languageNames": {
       "en": "Angielski",
