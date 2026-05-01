@@ -132,6 +132,26 @@
     },
     "empty": "No items"
   },
+  "interactions": {
+    "actions": {
+      "craft": "Craft",
+      "loot": "Loot",
+      "pickup": "Pick Up",
+      "talk": "Talk"
+    },
+    "hint": "Wheel: switch | E: confirm | Q: back",
+    "mode": {
+      "interaction": "Select Interaction",
+      "target": "Select Target"
+    },
+    "targets": {
+      "anvil": "Anvil",
+      "chest": "Chest",
+      "grindstone": "Grindstone",
+      "smelter": "Smelter",
+      "workbench": "Workbench"
+    }
+  },
   "loot": {
     "capacity": {
       "title": "Player Capacity",

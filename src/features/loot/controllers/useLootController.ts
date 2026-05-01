@@ -1,9 +1,9 @@
 import { createGameplayRealtimeAdapter } from '@/api/realtime/gameplay-worker-adapter';
 import type { InventoryItem, InventoryMeta } from '@/api/realtime/dtos';
 import { KeyEnum } from '@/defines/key.enum';
+import { setSelectedInteractionTarget } from '@/features/interactions/state/interactions-state';
 import { gameState } from '@/modules/game_module/game_state';
 import { keyboardService } from '@/services/keyboard.service';
-import { interactionsState } from '@/store';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   buildLootTransferRequest,
@@ -76,7 +76,7 @@ export function useLootController(): LootControllerState {
 
   const closeLoot = useCallback(() => {
     gameState.lootingTargetId = null;
-    interactionsState.selectedTargetId = gameState.focusedId ?? null;
+    setSelectedInteractionTarget(gameState.focusedId);
     setSelected(null);
     setTransferState(EMPTY_LOOT_TRANSFER_STATE);
     setIsOpen(false);

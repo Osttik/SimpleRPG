@@ -1,5 +1,5 @@
+import { interactionsState } from "@/features/interactions/state/interactions-state";
 import { useSnapshot } from "valtio";
-import { interactionsState } from "..";
 
 export const useInteractions = () => {
   return useSnapshot(interactionsState)
