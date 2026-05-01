@@ -3,7 +3,7 @@ import {
   type WorldLayerConnectorCandidateView,
   type WorldLayerFootprintSampleView,
 } from "@/modules/game_module/game_state";
-import { useEffect, useState } from "react";
+import { useGameStateSubscription } from "@/modules/game_module/game_state_subscriptions";
 
 const ENABLED = import.meta.env.DEV && import.meta.env.VITE_DEBUG_WORLD_LAYERS === "1";
 const TILE_SIZE = 40;
@@ -33,18 +33,13 @@ function sampleColor(sample: WorldLayerFootprintSampleView) {
 }
 
 export const WorldLayerDebugOverlay = () => {
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    if (!ENABLED) return;
-    const refresh = () => setVersion((v) => v + 1);
-    window.addEventListener("gameStateUpdate", refresh);
-    return () => window.removeEventListener("gameStateUpdate", refresh);
-  }, []);
-
-  void version;
-
   if (!ENABLED) return null;
+
+  return <WorldLayerDebugOverlayContent />;
+};
+
+const WorldLayerDebugOverlayContent = () => {
+  useGameStateSubscription('worldLayerDebug');
 
   const debug = gameState.worldLayerDebug;
   const camera = gameState.camera;

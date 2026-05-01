@@ -3,7 +3,7 @@ import {
   type WorldLayerConnectorCandidateView,
   type WorldLayerLandingCandidateView,
 } from "@/modules/game_module/game_state";
-import { useEffect, useState } from "react";
+import { useGameStateSubscription } from "@/modules/game_module/game_state_subscriptions";
 
 const ENABLED = import.meta.env.DEV && import.meta.env.VITE_DEBUG_WORLD_LAYERS === "1";
 
@@ -29,18 +29,13 @@ function summarizeLanding(candidate: WorldLayerLandingCandidateView): string {
 }
 
 export const WorldLayerDebugPanel = () => {
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    if (!ENABLED) return;
-    const refresh = () => setVersion((v) => v + 1);
-    window.addEventListener("gameStateUpdate", refresh);
-    return () => window.removeEventListener("gameStateUpdate", refresh);
-  }, []);
-
-  void version;
-
   if (!ENABLED) return null;
+
+  return <WorldLayerDebugPanelContent />;
+};
+
+const WorldLayerDebugPanelContent = () => {
+  useGameStateSubscription('worldLayerDebug');
 
   const debug = gameState.worldLayerDebug;
   const visible = gameState.visibleLayers ?? { min: -3, max: 3 };
