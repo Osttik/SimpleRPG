@@ -332,6 +332,88 @@
       "workerUnavailable": "Ihrove ziednannia ne hotove do zmin remesla."
     }
   },
+  "debug": {
+    "combat": {
+      "controls": "Ataky: {{attacks}} | Blok: {{block}}",
+      "emptyEvents": "Boiovi podii shche ne otrymano.",
+      "emptyParts": "Onovlen chastyn tila shche nemaie.",
+      "eventSummary": "{{eventType}} T{{tick}} A{{attackerId}} -> V{{victimId}} {{part}} {{damage}}",
+      "eventTypes": {
+        "blocked": "Zablokovano",
+        "combat": "Bii",
+        "disabled": "Vymkneno",
+        "guardCrushed": "Blok probyto",
+        "hit": "Udar",
+        "shieldBroken": "Shchyt zlamano",
+        "shieldDamaged": "Shchyt poshkodzheno",
+        "start": "Start",
+        "stop": "Stop"
+      },
+      "metrics": {
+        "drawCalls": "Vyklyky maliuvannia",
+        "eventDrops": "Vidkynuti podii",
+        "facingSwitches": "Zminy napriamku/s",
+        "ik": "IK povnyi/prostyi",
+        "instancedQuads": "Instans kvadraty",
+        "rigged": "Rigovani",
+        "uiUpdates": "Onovlennia UI bii/anim"
+      },
+      "partFallback": "Chastyna {{partId}}",
+      "sections": {
+        "focused": "Tsil",
+        "me": "Ia",
+        "recent": "Ostanni"
+      },
+      "title": "Debug boiu"
+    },
+    "worldLayers": {
+      "connectorAccepted": "{{label}} @ {{tileX}},{{tileY}} -> Z{{destinationZ}}",
+      "connectorRejected": "{{label}} @ {{tileX}},{{tileY}} {{reason}}",
+      "connectorTypes": {
+        "drop": "Spusk",
+        "hatch": "Liuk",
+        "ladder": "Drabyna",
+        "stairs": "Skhody",
+        "typeFallback": "Typ {{type}}"
+      },
+      "empty": {
+        "connectors": "Kandydativ ziednuvachiv nemaie.",
+        "footprint": "Zrazkiv slidu nemaie.",
+        "landing": "Poshuku pryzemlennia v tsomu tiku nemaie.",
+        "validation": "Problem validatsii zavantazhenykh chunkiv nemaie."
+      },
+      "fallbacks": {
+        "idle": "ochikuie",
+        "notAvailable": "n/d",
+        "rejected": "vidkhyleno"
+      },
+      "fields": {
+        "authoritativeZ": "Avtorytetne Z",
+        "focusedInteractableZ": "Z vybranoi tsili",
+        "phase": "Faza",
+        "reason": "Prychyna",
+        "visibleLayers": "Vydymi shary"
+      },
+      "footprintSample": "{{tileX}},{{tileY}},Z{{z}} T{{tileId}} {{supportState}} {{blockedState}}",
+      "landing": {
+        "accepted": "Z{{candidateZ}} pryiniato",
+        "blocked": "Z{{candidateZ}} zablokovano",
+        "noSupport": "Z{{candidateZ}} nemaie opory"
+      },
+      "sections": {
+        "connectors": "Ziednuvachi",
+        "fallSearch": "Poshuk padinnia",
+        "footprint": "Slid",
+        "validation": "Validatsiia"
+      },
+      "states": {
+        "blocked": "blok",
+        "support": "opora",
+        "void": "porozhnecha"
+      },
+      "title": "Debug shariv svitu"
+    }
+  },
   "settings": {
     "languageNames": {
       "en": "Англійська",
