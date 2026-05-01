@@ -121,6 +121,47 @@
       "warTable": "War Table"
     }
   },
+  "inventory": {
+    "columns": {
+      "name": "Name",
+      "price": "Price",
+      "quantity": "Qty",
+      "slot": "Slot",
+      "volume": "Volume",
+      "weight": "Weight"
+    },
+    "empty": "No items"
+  },
+  "loot": {
+    "capacity": {
+      "title": "Player Capacity",
+      "volume": "Volume: {{current}} / {{max}}",
+      "weight": "Weight: {{weight}}"
+    },
+    "chest": {
+      "title": "Chest"
+    },
+    "details": {
+      "description": "{{name}} is currently using placeholder lore text. This panel will later show backend-driven item stats and modifiers.",
+      "emptyDescription": "Select an item to inspect. Double-click to transfer between inventories.",
+      "noSelection": "No item selected",
+      "quantityPrice": "Qty: {{quantity}} | Price: {{price}}",
+      "title": "Description"
+    },
+    "player": {
+      "title": "Player Backpack"
+    },
+    "sprite": {
+      "empty": "No sprite"
+    },
+    "transfer": {
+      "capacityBlocked": "The target inventory does not have enough free volume.",
+      "missingItem": "That item is no longer available.",
+      "missingTarget": "No loot target is open.",
+      "pending": "Transfer requested...",
+      "workerUnavailable": "Gameplay connection is not ready for item transfer."
+    }
+  },
   "settings": {
     "languageNames": {
       "en": "English",
