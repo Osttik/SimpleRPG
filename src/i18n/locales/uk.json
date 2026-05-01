@@ -1,5 +1,7 @@
 {
   "common": {
+    "no": "Ni",
+    "yes": "Tak",
     "back": "Назад",
     "cancel": "Скасувати",
     "close": "Закрити",
@@ -217,6 +219,117 @@
       "missingTarget": "Ціль здобичі не відкрита.",
       "pending": "Запит на перенесення надіслано...",
       "workerUnavailable": "Ігрове з'єднання ще не готове до перенесення предметів."
+    }
+  },
+  "crafting": {
+    "title": "Remeslo",
+    "actions": {
+      "apply": "Zastosuvaty",
+      "assembleOutput": "Zibraty rezultat",
+      "bend": "Zihnuty",
+      "cast": "Vidlity",
+      "chipArea": "Skoloty dilanku",
+      "chipChisel": "Skol / rizets",
+      "collectOutput": "Zibraty rezultat",
+      "forge": "Kuvaty",
+      "forgeHammer": "Kuvannia / molot",
+      "insert": "Vklasty",
+      "joinAssemble": "Ziednaty / zibraty",
+      "refresh": "Onovyty",
+      "refreshInventory": "Onovyty inventar",
+      "remove": "Vydalyty",
+      "sharpen": "Zahostryty",
+      "startHeating": "Pochaty nahriv"
+    },
+    "common": {
+      "none": "nemaie"
+    },
+    "fields": {
+      "amount": "Kilkist",
+      "displacement": "Zmishchennia",
+      "height": "Vysota",
+      "intensity": "Intensyvnist",
+      "length": "Dovzhyna",
+      "mold": "Forma",
+      "side": "Bik",
+      "startX": "Start X",
+      "startY": "Start Y",
+      "thickness": "Tovshchyna",
+      "width": "Shyryna",
+      "zone": "Zona"
+    },
+    "materials": {
+      "itemSelect": "Material z naplichnyka",
+      "slotSelect": "Slot stantsii",
+      "title": "Materialy z naplichnyka"
+    },
+    "moltenPool": {
+      "active": "Aktyvnyi: {{value}}",
+      "heat": "Nahriv: {{value}}",
+      "material": "Material: {{value}}",
+      "quality": "Yakist: {{value}}",
+      "sources": "Dzherela: {{value}}",
+      "title": "Rozplav",
+      "units": "Odylytsi: {{value}}"
+    },
+    "options": {
+      "molds": {
+        "bladeBlank": "Zahotovka leza",
+        "hammerBlank": "Zahotovka molota",
+        "shaftBlank": "Zahotovka derzhaka",
+        "shovelBlank": "Zahotovka lopaty",
+        "spikeBlank": "Zahotovka shypa"
+      },
+      "sides": {
+        "bottom": "Nyz",
+        "left": "Livoruch",
+        "right": "Pravoruch",
+        "top": "Verkh"
+      },
+      "zones": {
+        "bottom": "Nyz",
+        "center": "Tsentr",
+        "top": "Verkh"
+      }
+    },
+    "preview": {
+      "heatQuality": "Nahriv: {{heat}} | Yakist: {{quality}}",
+      "noItem": "Predmet ne vybrano",
+      "noProfile": "Profil ne zavantazheno.",
+      "stageInvalid": "Etap: {{stage}} | Pomylka: {{invalid}}",
+      "title": "Perehliad"
+    },
+    "sections": {
+      "anvilActions": "Dii kovadla",
+      "grindstoneActions": "Dii tochyla",
+      "smelterActions": "Dii plavylnia",
+      "workbenchActions": "Dii verstaka"
+    },
+    "slots": {
+      "empty": "Pusto",
+      "title": "Sloty stantsii"
+    },
+    "station": {
+      "eyebrow": "Stantsiia",
+      "fallbackDescription": "Vzaiemodii z blyzkoiu stantsiieiu.",
+      "fallbackName": "Stantsiia"
+    },
+    "stats": {
+      "breakRisk": "Ryzyk polomky",
+      "blunt": "Droblennia",
+      "cutting": "Rizannia",
+      "digging": "Kopannia",
+      "durability": "Mitsnist",
+      "piercing": "Probyttia",
+      "swing": "Zamakh",
+      "thrust": "Ukol"
+    },
+    "status": {
+      "missingItem": "Tsei material bilshe nedostupnyi.",
+      "missingSlot": "Spershu vybery slot stantsii.",
+      "missingStation": "Stantsiia remesla ne vidkryta.",
+      "pending": "Zapyt remesla nadislano...",
+      "workerUnavailable": "Ihrove ziednannia ne hotove do zmin remesla."
     }
   },
   "settings": {

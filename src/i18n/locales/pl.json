@@ -6,6 +6,8 @@
     "language": "Język",
     "loading": "Ładowanie...",
     "music": "Muzyka",
+    "no": "Nie",
+    "yes": "Tak",
     "settings": "Ustawienia"
   },
   "menu": {
@@ -217,6 +219,117 @@
       "missingTarget": "Nie otwarto celu łupów.",
       "pending": "Wysłano prośbę o przeniesienie...",
       "workerUnavailable": "Połączenie gry nie jest gotowe do przenoszenia przedmiotów."
+    }
+  },
+  "crafting": {
+    "title": "Rzemioslo",
+    "actions": {
+      "apply": "Zastosuj",
+      "assembleOutput": "Zloz wynik",
+      "bend": "Giecie",
+      "cast": "Odlej",
+      "chipArea": "Odlup obszar",
+      "chipChisel": "Odlupywanie / dluto",
+      "collectOutput": "Zbierz wynik",
+      "forge": "Kuj",
+      "forgeHammer": "Kucie / mlot",
+      "insert": "Wloz",
+      "joinAssemble": "Laczenie / skladanie",
+      "refresh": "Odswiez",
+      "refreshInventory": "Odswiez ekwipunek",
+      "remove": "Usun",
+      "sharpen": "Naostrz",
+      "startHeating": "Rozpocznij grzanie"
+    },
+    "common": {
+      "none": "brak"
+    },
+    "fields": {
+      "amount": "Ilosc",
+      "displacement": "Przesuniecie",
+      "height": "Wysokosc",
+      "intensity": "Intensywnosc",
+      "length": "Dlugosc",
+      "mold": "Forma",
+      "side": "Strona",
+      "startX": "Start X",
+      "startY": "Start Y",
+      "thickness": "Grubosc",
+      "width": "Szerokosc",
+      "zone": "Strefa"
+    },
+    "materials": {
+      "itemSelect": "Material z plecaka",
+      "slotSelect": "Slot stacji",
+      "title": "Materialy z plecaka"
+    },
+    "moltenPool": {
+      "active": "Aktywne: {{value}}",
+      "heat": "Cieplo: {{value}}",
+      "material": "Material: {{value}}",
+      "quality": "Jakosc: {{value}}",
+      "sources": "Zrodla: {{value}}",
+      "title": "Plynny metal",
+      "units": "Jednostki: {{value}}"
+    },
+    "options": {
+      "molds": {
+        "bladeBlank": "Blank ostrza",
+        "hammerBlank": "Blank mlota",
+        "shaftBlank": "Blank trzonka",
+        "shovelBlank": "Blank lopaty",
+        "spikeBlank": "Blank kolca"
+      },
+      "sides": {
+        "bottom": "Dol",
+        "left": "Lewo",
+        "right": "Prawo",
+        "top": "Gora"
+      },
+      "zones": {
+        "bottom": "Dol",
+        "center": "Srodek",
+        "top": "Gora"
+      }
+    },
+    "preview": {
+      "heatQuality": "Cieplo: {{heat}} | Jakosc: {{quality}}",
+      "noItem": "Nie wybrano przedmiotu",
+      "noProfile": "Brak profilu.",
+      "stageInvalid": "Etap: {{stage}} | Nieprawidlowe: {{invalid}}",
+      "title": "Podglad"
+    },
+    "sections": {
+      "anvilActions": "Akcje kowadla",
+      "grindstoneActions": "Akcje kamienia szlifierskiego",
+      "smelterActions": "Akcje pieca",
+      "workbenchActions": "Akcje warsztatu"
+    },
+    "slots": {
+      "empty": "Puste",
+      "title": "Sloty stacji"
+    },
+    "station": {
+      "eyebrow": "Stacja",
+      "fallbackDescription": "Wejdz w interakcje z pobliska stacja.",
+      "fallbackName": "Stacja"
+    },
+    "stats": {
+      "breakRisk": "Ryzyko pekniecia",
+      "blunt": "Obuch",
+      "cutting": "Ciecie",
+      "digging": "Kopanie",
+      "durability": "Wytrzymalosc",
+      "piercing": "Przebicie",
+      "swing": "Zamach",
+      "thrust": "Pchniecie"
+    },
+    "status": {
+      "missingItem": "Ten material nie jest juz dostepny.",
+      "missingSlot": "Najpierw wybierz slot stacji.",
+      "missingStation": "Nie otwarto stacji rzemiosla.",
+      "pending": "Wyslano prosbe rzemiosla...",
+      "workerUnavailable": "Polaczenie gry nie jest gotowe do zmian rzemiosla."
     }
   },
   "settings": {

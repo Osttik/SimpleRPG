@@ -67,6 +67,46 @@ export class GameplayRealtimeAdapter {
   requestStationState(stationId: number) {
     return this.post({ type: 'request_station_state', stationId });
   }
+
+  insertStationItem(stationId: number, itemIndex: number, slotId: string) {
+    return this.post({ type: 'insert_station_item', stationId, itemIndex, slotId });
+  }
+
+  removeStationItem(stationId: number, slotId: string) {
+    return this.post({ type: 'remove_station_item', stationId, slotId });
+  }
+
+  startHeating(stationId: number) {
+    return this.post({ type: 'start_heating', stationId });
+  }
+
+  collectSmeltResult(stationId: number, slotId = 'output') {
+    return this.post({ type: 'collect_smelt_result', stationId, slotId });
+  }
+
+  castWorkpiece(stationId: number, mold: number, width: number, length: number, thicknessRaw: number) {
+    return this.post({ type: 'cast_workpiece', stationId, mold, width, length, thicknessRaw });
+  }
+
+  bendWorkpiece(stationId: number, zone: number, displacement: number) {
+    return this.post({ type: 'bend_workpiece', stationId, zone, displacement });
+  }
+
+  forgeWorkpiece(stationId: number, zone: number, intensity: number) {
+    return this.post({ type: 'forge_workpiece', stationId, zone, intensity });
+  }
+
+  chipWorkpiece(stationId: number, startX: number, startY: number, width: number, height: number) {
+    return this.post({ type: 'chip_workpiece', stationId, startX, startY, width, height });
+  }
+
+  sharpenWorkpiece(stationId: number, side: number, amount: number) {
+    return this.post({ type: 'sharpen_workpiece', stationId, side, amount });
+  }
+
+  joinWorkpieces(stationId: number) {
+    return this.post({ type: 'join_workpieces', stationId });
+  }
 }
 
 export const createGameplayRealtimeAdapter = (
