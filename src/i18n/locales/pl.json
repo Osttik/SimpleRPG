@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Wróć",
+    "cancel": "Anuluj",
     "close": "Zamknij",
     "language": "Język",
     "loading": "Ładowanie...",
@@ -9,10 +10,116 @@
   },
   "menu": {
     "actions": {
+      "continue": "Kontynuuj",
       "exit": "Wyjdź",
-      "play": "Graj"
+      "play": "Graj",
+      "quit": "Wyjdź",
+      "saveGame": "Zapisz grę",
+      "saving": "Zapisywanie..."
     },
+    "confirmBackToMain": "Wrócić do menu głównego?",
     "loadingLobbies": "Otwieranie lobby..."
+  },
+  "lobby": {
+    "actions": {
+      "createLobby": "Utwórz lobby",
+      "hostFirstLobby": "Utwórz pierwsze lobby",
+      "hostLobby": "Utwórz lobby",
+      "inGame": "W grze",
+      "joinLobby": "Dołącz",
+      "leaveLobby": "Opuść lobby",
+      "mainMenu": "Menu główne",
+      "refresh": "Odśwież",
+      "refreshSaves": "Odśwież zapisy",
+      "startGame": "Rozpocznij grę"
+    },
+    "description": {
+      "browser": "Przeglądaj oczekujące światy, sprawdzaj zapisy albo utwórz nową sesję bez dotykania renderera gry.",
+      "warTable": "Zbierz drużynę, sprawdź źródło sesji i rozpocznij wyprawę, gdy host będzie gotowy."
+    },
+    "dialog": {
+      "lobbyName": "Nazwa lobby",
+      "lobbyNamePlaceholder": "Wpisz nazwę sali",
+      "saveSlot": "Slot zapisu",
+      "sessionSource": "Źródło sesji",
+      "title": "Utwórz lobby"
+    },
+    "empty": {
+      "description": "Utwórz pierwszy pokój albo odśwież listę po tym, jak inny gracz go stworzy. W tej wersji dołączać można tylko do oczekujących lobby.",
+      "title": "Brak dostępnych lobby"
+    },
+    "fields": {
+      "joinRule": "Zasada wejścia",
+      "origin": "Pochodzenie",
+      "players": "Gracze"
+    },
+    "hostLabel": "Host: {{label}}",
+    "hostModes": {
+      "loadSave": "Wczytaj zapis",
+      "newGame": "Nowa gra"
+    },
+    "joinRule": {
+      "locked": "Zablokowane",
+      "open": "Otwarte"
+    },
+    "loadedFrom": "Wczytano z {{name}}",
+    "loadingWorld": {
+      "description": "Podłączanie gniazda gry i renderera świata bez opuszczania aktywnej sesji.",
+      "eyebrow": "Faza sesji",
+      "title": "Ładowanie świata"
+    },
+    "memberCount": "{{count}} uczestników",
+    "memberCount_one": "{{count}} uczestnik",
+    "memberCount_few": "{{count}} uczestników",
+    "memberCount_many": "{{count}} uczestników",
+    "memberCount_other": "{{count}} uczestników",
+    "messages": {
+      "contactingRegistry": "Łączenie z rejestrem lobby"
+    },
+    "origin": {
+      "loadedSave": "Wczytany zapis",
+      "newGame": "Nowa gra",
+      "newShort": "Nowa",
+      "saveShort": "Zapis"
+    },
+    "playEyebrow": "Graj",
+    "presence": {
+      "inWorld": "W świecie",
+      "waiting": "Oczekuje"
+    },
+    "roles": {
+      "host": "Host",
+      "member": "Uczestnik",
+      "you": "Ty"
+    },
+    "saves": {
+      "defaultName": "{{lobbyName}} zapis",
+      "empty": "Nie ma jeszcze zapisów lokalnych dla serwera.",
+      "slotLabel": "Slot zapisu",
+      "sourceLobby": "Źródło lobby: {{name}}",
+      "updated": "Zaktualizowano {{date}}",
+      "version": "v{{version}}"
+    },
+    "sections": {
+      "session": "Sesja",
+      "sessionSource": "Źródło sesji"
+    },
+    "source": {
+      "activeSaveBound": "Aktywny slot zapisu jest powiązany z zapisami w sesji",
+      "description": "Oczekujące lobby są dostępne do dołączenia w v1. Po starcie sesji gniazda gry podłączają się do tego świata, a nowe wejścia są blokowane.",
+      "freshWorld": "Nowy świat",
+      "freshWorldDescription": "To lobby utworzono z nowej autorytatywnej instancji świata.",
+      "loadedSave": "Wczytany zapis"
+    },
+    "status": {
+      "closed": "Zamknięte",
+      "in_game": "W grze",
+      "waiting": "Oczekuje"
+    },
+    "title": {
+      "browser": "Przeglądarka lobby",
+      "warTable": "Stół narad"
+    }
   },
   "settings": {
     "languageNames": {

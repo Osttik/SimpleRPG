@@ -16,6 +16,22 @@ describe('i18n runtime', () => {
     expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('pl');
     expect(i18n.t('menu.actions.play')).toBe('Graj');
   });
+
+  it('uses locale-owned plural forms for lobby member counts', async () => {
+    await changeLanguage('en');
+    expect(i18n.t('lobby.memberCount', { count: 1 })).toBe('1 member');
+    expect(i18n.t('lobby.memberCount', { count: 2 })).toBe('2 members');
+
+    await changeLanguage('uk');
+    expect(i18n.t('lobby.memberCount', { count: 1 })).toBe('1 учасник');
+    expect(i18n.t('lobby.memberCount', { count: 2 })).toBe('2 учасники');
+    expect(i18n.t('lobby.memberCount', { count: 5 })).toBe('5 учасників');
+
+    await changeLanguage('pl');
+    expect(i18n.t('lobby.memberCount', { count: 1 })).toBe('1 uczestnik');
+    expect(i18n.t('lobby.memberCount', { count: 2 })).toBe('2 uczestników');
+    expect(i18n.t('lobby.memberCount', { count: 5 })).toBe('5 uczestników');
+  });
 });
 
 describe('i18n statement validation', () => {
@@ -29,10 +45,14 @@ describe('i18n statement validation', () => {
       pl: {
         ...localeResources.pl,
         menu: {
+          ...localeResources.pl.menu,
           actions: {
+            continue: 'Kontynuuj',
             play: 'Graj',
+            quit: 'Wyjdź',
+            saveGame: 'Zapisz grę',
+            saving: 'Zapisywanie...',
           },
-          loadingLobbies: 'Otwieranie lobby...',
         },
       },
     } as unknown as Parameters<typeof validateI18nStatements>[0];

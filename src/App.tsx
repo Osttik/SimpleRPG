@@ -1,23 +1,15 @@
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { MainMenu } from './modules/menu_module/components/main_menu';
+import { MainMenu } from './features/menu/components/MainMenu';
 import PlayShell from './PlayShell';
-import { lobbyClient } from './api/realtime/lobby-client';
+import { useLobbyConnectionController } from './features/lobby/controllers/useLobbyConnectionController';
 import { createFrontendLogger } from './services/logger';
 
 const _logger = createFrontendLogger('app');
 
 function App() {
   const location = useLocation();
-
-  useEffect(() => {
-    _logger.log('connecting lobby control client');
-    lobbyClient.connect();
-    return () => {
-      _logger.log('disconnecting lobby control client');
-      lobbyClient.disconnect();
-    };
-  }, []);
+  useLobbyConnectionController();
 
   useEffect(() => {
     _logger.log('route changed', { pathname: location.pathname, search: location.search });
