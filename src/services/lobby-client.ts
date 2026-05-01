@@ -62,6 +62,13 @@ class LobbyClient {
       }
       const data = JSON.parse(event.data as string);
       _logger.log('received control message', { type: data.type, payload: data });
+      const currentState = store.getState().lobby;
+      const sessionActive = (
+        currentState.sessionPhase === 'LoadingWorld'
+        || currentState.sessionPhase === 'Playing'
+        || currentState.sessionPhase === 'Paused'
+      ) && Boolean(currentState.gameplayMemberToken);
+
       switch (data.type) {
         case 'lobby_list':
           store.dispatch(lobbyActions.setLobbyList((data.lobbies ?? []) as LobbyListEntry[]));
@@ -70,6 +77,13 @@ class LobbyClient {
           store.dispatch(lobbyActions.setSaveList((data.saves ?? []) as SaveSlotMeta[]));
           return;
         case 'lobby_state':
+          if (!data.lobby && sessionActive) {
+            _logger.warn('ignoring null lobby_state while gameplay session is active', {
+              sessionPhase: currentState.sessionPhase,
+              gameplayMemberToken: currentState.gameplayMemberToken,
+            });
+            return;
+          }
           store.dispatch(lobbyActions.setCurrentLobby((data.lobby ?? null) as LobbyStateView | null));
           store.dispatch(lobbyActions.setErrorMessage(null));
           _logger.log('updated current lobby state', {
@@ -93,6 +107,13 @@ class LobbyClient {
           this.refreshSaves();
           return;
         case 'left_lobby':
+          if (sessionActive) {
+            _logger.warn('ignoring left_lobby while gameplay session is active', {
+              reason: data.reason ?? null,
+              sessionPhase: currentState.sessionPhase,
+            });
+            return;
+          }
           _logger.warn('received left_lobby', { reason: data.reason ?? null });
           store.dispatch(lobbyActions.resetLobbyState());
           store.dispatch(lobbyActions.setInfoMessage('Returned to the lobby browser.'));

@@ -39,8 +39,9 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
     if (!canvas) return;
 
     if (canvas.dataset.transferred === "true") {
-      console.warn("Vite HMR detected on an OffscreenCanvas. Forcing full reload to restore WebGL context...");
-      window.location.reload();
+      _logger.error('encountered canvas that is already marked as transferred; aborting duplicate gameplay canvas init', {
+        memberToken,
+      });
       return;
     }
     canvas.dataset.transferred = "true";
@@ -287,6 +288,7 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
       interactionsState.targets = [];
       interactionsState.selectedTargetId = null;
       store.dispatch(uiActions.set_isCraftingOpen(false));
+      delete canvas.dataset.transferred;
       renderWorker.terminate();
       localSocketWorker.terminate();
     };

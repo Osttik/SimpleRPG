@@ -75,6 +75,7 @@ export default function PlayShell() {
     return (
       <div className="relative h-screen w-screen">
         <GameScene
+          key={gameplayMemberToken!}
           memberToken={gameplayMemberToken!}
           onReady={handleGameSceneReady}
         />

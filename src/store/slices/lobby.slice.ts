@@ -72,6 +72,10 @@ interface LobbyUiState {
   isSaving: boolean;
 }
 
+function isActiveGameplayPhase(phase: SessionPhase) {
+  return phase === 'LoadingWorld' || phase === 'Playing' || phase === 'Paused';
+}
+
 const initialState: LobbyUiState = {
   connectionStatus: 'connecting',
   sessionPhase: 'Lobby',
@@ -99,13 +103,20 @@ const lobbySlice = createSlice({
       state.saves = action.payload;
     },
     setCurrentLobby(state, action: PayloadAction<LobbyStateView | null>) {
-      state.currentLobby = action.payload;
       if (!action.payload) {
+        if (isActiveGameplayPhase(state.sessionPhase) && state.gameplayMemberToken) {
+          return;
+        }
+
+        state.currentLobby = null;
         state.gameplayMemberToken = null;
         if (state.sessionPhase !== 'Ended') {
           state.sessionPhase = 'Lobby';
         }
+        return;
       }
+
+      state.currentLobby = action.payload;
     },
     setGameplayLaunch(state, action: PayloadAction<string>) {
       state.gameplayMemberToken = action.payload;
