@@ -6,6 +6,8 @@
     "language": "Language",
     "loading": "Loading...",
     "music": "Music",
+    "no": "No",
+    "yes": "Yes",
     "settings": "Settings"
   },
   "menu": {
@@ -217,6 +219,117 @@
       "missingTarget": "No loot target is open.",
       "pending": "Transfer requested...",
       "workerUnavailable": "Gameplay connection is not ready for item transfer."
+    }
+  },
+  "crafting": {
+    "title": "Crafting",
+    "actions": {
+      "apply": "Apply",
+      "assembleOutput": "Assemble Output",
+      "bend": "Bend",
+      "cast": "Cast",
+      "chipArea": "Chip Area",
+      "chipChisel": "Chip / Chisel",
+      "collectOutput": "Collect Output",
+      "forge": "Forge",
+      "forgeHammer": "Forge / Hammer",
+      "insert": "Insert",
+      "joinAssemble": "Join / Assemble",
+      "refresh": "Refresh",
+      "refreshInventory": "Refresh Inventory",
+      "remove": "Remove",
+      "sharpen": "Sharpen",
+      "startHeating": "Start Heating"
+    },
+    "common": {
+      "none": "none"
+    },
+    "fields": {
+      "amount": "Amount",
+      "displacement": "Displacement",
+      "height": "Height",
+      "intensity": "Intensity",
+      "length": "Length",
+      "mold": "Mold",
+      "side": "Side",
+      "startX": "Start X",
+      "startY": "Start Y",
+      "thickness": "Thickness",
+      "width": "Width",
+      "zone": "Zone"
+    },
+    "materials": {
+      "itemSelect": "Backpack material",
+      "slotSelect": "Station slot",
+      "title": "Backpack Materials"
+    },
+    "moltenPool": {
+      "active": "Active: {{value}}",
+      "heat": "Heat: {{value}}",
+      "material": "Material: {{value}}",
+      "quality": "Quality: {{value}}",
+      "sources": "Sources: {{value}}",
+      "title": "Molten Pool",
+      "units": "Units: {{value}}"
+    },
+    "options": {
+      "molds": {
+        "bladeBlank": "Blade Blank",
+        "hammerBlank": "Hammer Blank",
+        "shaftBlank": "Shaft Blank",
+        "shovelBlank": "Shovel Blank",
+        "spikeBlank": "Spike Blank"
+      },
+      "sides": {
+        "bottom": "Bottom",
+        "left": "Left",
+        "right": "Right",
+        "top": "Top"
+      },
+      "zones": {
+        "bottom": "Bottom",
+        "center": "Center",
+        "top": "Top"
+      }
+    },
+    "preview": {
+      "heatQuality": "Heat: {{heat}} | Quality: {{quality}}",
+      "noItem": "No item selected",
+      "noProfile": "No profile loaded.",
+      "stageInvalid": "Stage: {{stage}} | Invalid: {{invalid}}",
+      "title": "Preview"
+    },
+    "sections": {
+      "anvilActions": "Anvil Actions",
+      "grindstoneActions": "Grindstone Actions",
+      "smelterActions": "Smelter Actions",
+      "workbenchActions": "Workbench Actions"
+    },
+    "slots": {
+      "empty": "Empty",
+      "title": "Station Slots"
+    },
+    "station": {
+      "eyebrow": "Station",
+      "fallbackDescription": "Interact with a nearby station.",
+      "fallbackName": "Station"
+    },
+    "stats": {
+      "breakRisk": "Break Risk",
+      "blunt": "Blunt",
+      "cutting": "Cutting",
+      "digging": "Digging",
+      "durability": "Durability",
+      "piercing": "Piercing",
+      "swing": "Swing",
+      "thrust": "Thrust"
+    },
+    "status": {
+      "missingItem": "That material is no longer available.",
+      "missingSlot": "Select a station slot first.",
+      "missingStation": "No crafting station is open.",
+      "pending": "Crafting request sent...",
+      "workerUnavailable": "Gameplay connection is not ready for crafting changes."
     }
   },
   "settings": {
