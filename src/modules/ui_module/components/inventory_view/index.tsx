@@ -1,26 +1,9 @@
 import { DataTable, type DataTableRowClickEvent } from 'primereact/datatable';
 import { Column } from 'primereact/column';
+import type { InventoryItem, InventoryMeta } from '@/api/realtime/dtos';
 
-export interface InventoryItemView {
-  id: string;
-  name: string;
-  spriteKey: string;
-  quantity: number;
-  volume: number;
-  weight: number;
-  stackable: boolean;
-  maxStack: number;
-  price: number;
-  equipped: boolean;
-  equipSlot: string;
-  workpiece?: Record<string, unknown> | null;
-}
-
-export interface InventoryMetaView {
-  currentVolume: number;
-  maxVolume: number;
-  currentWeight: number;
-}
+export type InventoryItemView = InventoryItem;
+export type InventoryMetaView = InventoryMeta;
 
 interface InventoryViewProps {
   title: string;

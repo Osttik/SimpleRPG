@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { MainMenu } from './modules/menu_module/components/main_menu';
 import PlayShell from './PlayShell';
-import { lobbyClient } from './services/lobby-client';
+import { lobbyClient } from './api/realtime/lobby-client';
 import { createFrontendLogger } from './services/logger';
 
 const _logger = createFrontendLogger('app');

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CoreOverlay } from "../../../../components/overlay";
 import { useMenuActions, selectIsMenuOpen } from "../../../../store/slices/menu.slice";
 import { lobbyActions, selectCurrentLobby, selectLobbyState, selectSessionPhase } from "../../../../store/slices/lobby.slice";
-import { lobbyClient } from "../../../../services/lobby-client";
+import { lobbyClient } from "@/api/realtime/lobby-client";
 import { store } from "../../../../store";
 
 type LangCode = 'UA' | 'EN' | 'PL';

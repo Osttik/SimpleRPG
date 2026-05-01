@@ -1,63 +1,22 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { useSelector } from 'react-redux';
+import type {
+  Lobby as LobbyStateView,
+  LobbyListItem as LobbyListEntry,
+  SaveSlot as SaveSlotMeta,
+} from '@/api/realtime/dtos';
 import type { RootState } from '..';
 import { useAppDispatch } from '../hooks/useAppDispatch';
 
+export type {
+  Lobby as LobbyStateView,
+  LobbyListItem as LobbyListEntry,
+  LobbyMember as LobbyMemberView,
+  SaveSlot as SaveSlotMeta,
+} from '@/api/realtime/dtos';
+
 export type LobbyConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 export type SessionPhase = 'Lobby' | 'LoadingWorld' | 'Playing' | 'Paused' | 'Ended';
-
-export interface LobbyListEntry {
-  lobbyId: string;
-  name: string;
-  hostLabel: string;
-  playerCount: number;
-  status: 'waiting' | 'in_game' | 'closed';
-  origin: 'new_game' | 'loaded_save';
-  loadedSave?: {
-    saveId: string;
-    displayName: string;
-    updatedAt: string;
-  };
-}
-
-export interface SaveSlotMeta {
-  saveId: string;
-  displayName: string;
-  createdAt: string;
-  updatedAt: string;
-  sourceLobbyName?: string;
-  version: number;
-  worldFormat: string;
-  worldVersion: number;
-}
-
-export interface LobbyMemberView {
-  memberToken: string;
-  label: string;
-  isHost: boolean;
-  isLocal: boolean;
-  connectedToGame: boolean;
-}
-
-export interface LobbyStateView {
-  lobbyId: string;
-  name: string;
-  hostLabel: string;
-  status: 'waiting' | 'in_game' | 'closed';
-  origin: 'new_game' | 'loaded_save';
-  loadedSave?: {
-    saveId: string;
-    displayName: string;
-    updatedAt: string;
-  };
-  playerCount: number;
-  members: LobbyMemberView[];
-  localMemberToken: string;
-  isHost: boolean;
-  canStart: boolean;
-  canJoinGame: boolean;
-  activeSaveId?: string;
-}
 
 interface LobbyUiState {
   connectionStatus: LobbyConnectionStatus;
