@@ -1,6 +1,6 @@
 import { gameState, type CombatEventView } from "@/modules/game_module/game_state";
+import { getGameStateRenderMetrics, useGameStateSubscription } from "@/modules/game_module/game_state_subscriptions";
 import { BodyPartLabelById } from "@/modules/game_module/animation/generated/combatRigContract";
-import { useEffect, useState } from "react";
 
 const EVENT_LABELS: Record<number, string> = {
   0: 'Start',
@@ -16,20 +16,13 @@ const formatEvent = (event: CombatEventView) => {
 };
 
 export const CombatDebugPanel = () => {
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    const refresh = () => setVersion((v) => v + 1);
-    window.addEventListener('gameStateUpdate', refresh);
-    return () => window.removeEventListener('gameStateUpdate', refresh);
-  }, []);
-
-  void version;
+  useGameStateSubscription(['combat', 'animationMetrics']);
 
   const myParts = gameState.myId ? gameState.combatBodies[gameState.myId] : undefined;
   const focusedParts = gameState.focusedId ? gameState.combatBodies[gameState.focusedId] : undefined;
   const recentEvents = gameState.combatEventLog.slice(-6).reverse();
   const metrics = gameState.animationMetrics;
+  const uiRenderMetrics = getGameStateRenderMetrics();
 
   const renderPartList = (parts?: Record<number, { hp: number }>) => {
     if (!parts || Object.keys(parts).length === 0) {
@@ -83,6 +76,7 @@ export const CombatDebugPanel = () => {
           <span>Draw calls</span><span className="text-right text-white">{metrics.drawCallsBeforeBatching}{'->'}{metrics.drawCallsAfterBatching}</span>
           <span>Facing switches/s</span><span className="text-right text-white">{metrics.facingSectorSwitchesPerSecond.toFixed(1)}</span>
           <span>Event drops</span><span className="text-right text-white">{metrics.lateCombatEventsDiscarded + metrics.staleCombatEventsDiscarded}</span>
+          <span>UI updates combat/anim</span><span className="text-right text-white">{uiRenderMetrics.combat.notificationCount}/{uiRenderMetrics.animationMetrics.notificationCount}</span>
         </div>
       ) : null}
     </div>

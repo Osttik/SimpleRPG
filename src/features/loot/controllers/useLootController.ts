@@ -3,6 +3,7 @@ import type { InventoryItem, InventoryMeta } from '@/api/realtime/dtos';
 import { KeyEnum } from '@/defines/key.enum';
 import { setSelectedInteractionTarget } from '@/features/interactions/state/interactions-state';
 import { gameState } from '@/modules/game_module/game_state';
+import { publishGameStateUpdate, useGameStateSubscription } from '@/modules/game_module/game_state_subscriptions';
 import { keyboardService } from '@/services/keyboard.service';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -35,27 +36,14 @@ export interface LootControllerState {
 }
 
 export function useLootController(): LootControllerState {
-  const [isOpen, setIsOpen] = useState(false);
-  const [chestInventory, setChestInventory] = useState<InventoryItem[]>([]);
-  const [playerInventory, setPlayerInventory] = useState<InventoryItem[]>([]);
-  const [chestMeta, setChestMeta] = useState<InventoryMeta>(gameState.chestInventoryMeta);
-  const [playerMeta, setPlayerMeta] = useState<InventoryMeta>(gameState.playerInventoryMeta);
+  const lootVersion = useGameStateSubscription('loot');
   const [selected, setSelected] = useState<SelectedLootItemRef>(null);
   const [transferState, setTransferState] = useState<LootTransferState>(EMPTY_LOOT_TRANSFER_STATE);
-
-  useEffect(() => {
-    const handleUpdate = () => {
-      setIsOpen(!!gameState.lootingTargetId);
-      setChestInventory([...(gameState.chestInventory ?? [])]);
-      setPlayerInventory([...(gameState.playerInventory ?? [])]);
-      setChestMeta(gameState.chestInventoryMeta);
-      setPlayerMeta(gameState.playerInventoryMeta);
-    };
-
-    handleUpdate();
-    window.addEventListener('gameStateUpdate', handleUpdate);
-    return () => window.removeEventListener('gameStateUpdate', handleUpdate);
-  }, []);
+  const isOpen = !!gameState.lootingTargetId;
+  const chestInventory = useMemo(() => [...(gameState.chestInventory ?? [])], [lootVersion]);
+  const playerInventory = useMemo(() => [...(gameState.playerInventory ?? [])], [lootVersion]);
+  const chestMeta: InventoryMeta = gameState.chestInventoryMeta;
+  const playerMeta: InventoryMeta = gameState.playerInventoryMeta;
 
   useEffect(() => {
     setSelected((current) => normalizeLootSelection(current, chestInventory, playerInventory));
@@ -79,8 +67,7 @@ export function useLootController(): LootControllerState {
     setSelectedInteractionTarget(gameState.focusedId);
     setSelected(null);
     setTransferState(EMPTY_LOOT_TRANSFER_STATE);
-    setIsOpen(false);
-    window.dispatchEvent(new Event('gameStateUpdate'));
+    publishGameStateUpdate('loot');
   }, []);
 
   const setOverlayVisible = useCallback((visible: boolean) => {
@@ -88,7 +75,6 @@ export function useLootController(): LootControllerState {
       closeLoot();
       return;
     }
-    setIsOpen(true);
   }, [closeLoot]);
 
   const selectItem = useCallback((source: LootContainer, item: InventoryItem | null) => {

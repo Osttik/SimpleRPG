@@ -1,6 +1,7 @@
 import { createGameplayRealtimeAdapter, type GameplayWorkerMessage } from '@/api/realtime/gameplay-worker-adapter';
 import { CoreOverlay } from '@/components/overlay';
 import { gameState, type CraftingStatSnapshotView } from '@/modules/game_module/game_state';
+import { useGameStateSubscription } from '@/modules/game_module/game_state_subscriptions';
 import { selectIsCraftingOpen, useUIActions } from '@/store/slices/ui.slice';
 import { useEffect, useMemo, useState } from 'react';
 import type { InventoryItemView } from '../inventory_view';
@@ -65,7 +66,7 @@ function statValue(workpiece: WorkpieceView | null, key: keyof NonNullable<Workp
 export const CraftingUI = () => {
   const isCraftingOpen = selectIsCraftingOpen();
   const { openCrafting } = useUIActions();
-  const [, forceTick] = useState(0);
+  const craftingVersion = useGameStateSubscription('crafting');
   const [selectedInventoryIndex, setSelectedInventoryIndex] = useState(0);
   const [selectedInsertSlot, setSelectedInsertSlot] = useState('');
   const [selectedPreviewSlot, setSelectedPreviewSlot] = useState('');
@@ -85,16 +86,10 @@ export const CraftingUI = () => {
   const station = gameState.craftingStation;
 
   useEffect(() => {
-    const refresh = () => forceTick((value) => value + 1);
-    window.addEventListener('gameStateUpdate', refresh);
-    return () => window.removeEventListener('gameStateUpdate', refresh);
-  }, []);
-
-  useEffect(() => {
     if (selectedInventoryIndex >= gameState.craftingInventory.length) {
       setSelectedInventoryIndex(0);
     }
-  }, [selectedInventoryIndex]);
+  }, [craftingVersion, selectedInventoryIndex]);
 
   useEffect(() => {
     const firstOpenSlot = station.slots.find((slot) => slot.role !== 'output' && !slot.item)?.slotId ?? station.slots[0]?.slotId ?? '';

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { gameState } from '../../../game_module/game_state';
+import { publishGameStateUpdate } from '../../../game_module/game_state_subscriptions';
 import { useControls } from './useControls';
 import { clearInteractionTargets, setInteractionTargets } from '@/features/interactions/state/interactions-state';
 import { store } from '@/store';
@@ -110,7 +111,7 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
         }
       } else if (event.data.type === 'animation_metrics') {
         gameState.animationMetrics = event.data.metrics;
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate('animationMetrics');
       }
     };
 
@@ -211,16 +212,16 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
         gameState.playerInventory = update.playerInventory;
         gameState.chestInventoryMeta = update.chestInventoryMeta;
         gameState.playerInventoryMeta = update.playerInventoryMeta;
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate(['loot', 'inventory']);
       } else if (data.type === 'player_inventory') {
         const update = mapPlayerInventoryUpdate(data, gameState.playerInventoryMeta);
         gameState.playerInventory = update.playerInventory;
         gameState.playerInventoryMeta = update.playerInventoryMeta;
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate(['inventory', 'loot']);
       } else if (data.type === 'station_state' || data.payloadType === 'station_state') {
         applyCraftingStationUpdate(data);
         store.dispatch(uiActions.set_isCraftingOpen(true));
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate('crafting');
       } else if (data.type === 'crafting_inventory') {
         const update = mapCraftingStation(data, {
           ...gameState.craftingStation,
@@ -229,14 +230,14 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
         });
         gameState.craftingInventory = update.craftingInventory;
         gameState.craftingInventoryMeta = update.craftingInventoryMeta;
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate('crafting');
       } else if (data.type === 'crafting_result') {
         applyCraftingStationUpdate(data);
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate('crafting');
       } else if (data.type === 'crafting_error') {
         gameState.craftingStation.error = String(data.message ?? 'Crafting request failed.');
         store.dispatch(uiActions.set_isCraftingOpen(true));
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate('crafting');
       } else if (data.type === 'session_closed') {
         _logger.warn('gameplay session closed on main thread', { reason: data.reason ?? null });
         store.dispatch(lobbyActions.setErrorMessage(describeSessionClose(data.reason)));
@@ -258,13 +259,13 @@ export const useMapInitialize = (memberToken: string, onReady?: () => void) => {
         if (gameState.combatEventLog.length > 24) {
           gameState.combatEventLog = gameState.combatEventLog.slice(-24);
         }
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate('combat');
       } else if (data.type === 'world_layer_debug') {
         gameState.worldLayerDebug = data;
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate('worldLayerDebug');
       } else if (data.type === 'world_layer_validation') {
         gameState.worldLayerValidationIssues = data.issues ?? [];
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate('worldLayerDebug');
       }
     };
 

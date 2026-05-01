@@ -2,6 +2,7 @@ import { CoreOverlay } from '@/components/overlay';
 import { createGameplayRealtimeAdapter } from '@/api/realtime/gameplay-worker-adapter';
 import { KeyEnum } from '@/defines/key.enum';
 import { gameState } from '@/modules/game_module/game_state';
+import { publishGameStateUpdate, useGameStateSubscription } from '@/modules/game_module/game_state_subscriptions';
 import { keyboardService } from '@/services/keyboard.service';
 import { selectIsInventoryOpen, useUIActions } from '@/store/slices/ui.slice';
 import { Button } from 'primereact/button';
@@ -26,24 +27,18 @@ const getDummyDescription = (item: InventoryItemView | null) => {
 export const InventoryComponent = () => {
   const isInventoryOpen = selectIsInventoryOpen();
   const { openInventory } = useUIActions();
-  const [items, setItems] = useState<InventoryItemView[]>([]);
+  const inventoryVersion = useGameStateSubscription('inventory');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<InventoryTab>('all');
+  const items = useMemo(() => [...(gameState.playerInventory ?? [])], [inventoryVersion]);
 
   useEffect(() => {
-    const updateFromState = () => {
-      setItems([...(gameState.playerInventory ?? [])]);
-    };
-
-    updateFromState();
-    window.addEventListener('gameStateUpdate', updateFromState);
-
     const sub = keyboardService.subscribeToKeyDown([KeyEnum.i, KeyEnum.I], () => {
       if (gameState.lootingTargetId) {
         gameState.lootingTargetId = null;
         gameState.chestInventory = [];
         gameState.playerInventory = [];
-        window.dispatchEvent(new Event('gameStateUpdate'));
+        publishGameStateUpdate(['inventory', 'loot']);
       }
       const nextState = !isInventoryOpen;
       if (nextState) {
@@ -53,7 +48,6 @@ export const InventoryComponent = () => {
     });
 
     return () => {
-      window.removeEventListener('gameStateUpdate', updateFromState);
       sub.dispose();
     };
   }, [openInventory, isInventoryOpen]);
