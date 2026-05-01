@@ -122,6 +122,16 @@
     }
   },
   "inventory": {
+    "actions": {
+      "missingItem": "Цей предмет більше недоступний.",
+      "pending": "Запит на зміну інвентарю надіслано...",
+      "workerUnavailable": "Ігрове з'єднання ще не готове до змін інвентарю."
+    },
+    "capacity": {
+      "title": "Місткість гравця",
+      "volume": "Об'єм: {{current}} / {{max}}",
+      "weight": "Вага: {{weight}}"
+    },
     "columns": {
       "name": "Назва",
       "price": "Ціна",
@@ -130,7 +140,32 @@
       "volume": "Об'єм",
       "weight": "Вага"
     },
-    "empty": "Немає предметів"
+    "details": {
+      "description": "Перевірений у полі {{name}}. Цінність і опис поки є тимчасовим текстом. Складається в стос: {{stackable}}.",
+      "emptyDescription": "Виберіть предмет, щоб переглянути деталі.",
+      "equipState": "Спорядження: {{state}}",
+      "noSelection": "Предмет не вибрано",
+      "quantityPrice": "К-сть: {{quantity}} | Ціна: {{price}}",
+      "title": "Опис"
+    },
+    "empty": "Немає предметів",
+    "equipment": {
+      "equipped": "Споряджено",
+      "notEquipped": "Не споряджено"
+    },
+    "sprite": {
+      "empty": "Немає спрайта",
+      "title": "Перегляд спрайта"
+    },
+    "stackable": {
+      "no": "ні",
+      "yes": "так"
+    },
+    "tabs": {
+      "all": "Усі предмети",
+      "equipped": "Споряджені"
+    },
+    "title": "Інвентар"
   },
   "interactions": {
     "actions": {

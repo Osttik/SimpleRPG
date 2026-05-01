@@ -122,6 +122,16 @@
     }
   },
   "inventory": {
+    "actions": {
+      "missingItem": "Ten przedmiot nie jest już dostępny.",
+      "pending": "Wysłano prośbę o zmianę ekwipunku...",
+      "workerUnavailable": "Połączenie gry nie jest gotowe do zmian ekwipunku."
+    },
+    "capacity": {
+      "title": "Pojemność gracza",
+      "volume": "Objętość: {{current}} / {{max}}",
+      "weight": "Waga: {{weight}}"
+    },
     "columns": {
       "name": "Nazwa",
       "price": "Cena",
@@ -130,7 +140,32 @@
       "volume": "Objętość",
       "weight": "Waga"
     },
-    "empty": "Brak przedmiotów"
+    "details": {
+      "description": "Sprawdzony w terenie {{name}}. Wartość i opis są na razie tekstem zastępczym. Można składować: {{stackable}}.",
+      "emptyDescription": "Wybierz przedmiot, aby zobaczyć szczegóły.",
+      "equipState": "Wyposażenie: {{state}}",
+      "noSelection": "Nie wybrano przedmiotu",
+      "quantityPrice": "Ilość: {{quantity}} | Cena: {{price}}",
+      "title": "Opis"
+    },
+    "empty": "Brak przedmiotów",
+    "equipment": {
+      "equipped": "Wyposażony",
+      "notEquipped": "Nie wyposażono"
+    },
+    "sprite": {
+      "empty": "Brak grafiki",
+      "title": "Podgląd grafiki"
+    },
+    "stackable": {
+      "no": "nie",
+      "yes": "tak"
+    },
+    "tabs": {
+      "all": "Wszystkie przedmioty",
+      "equipped": "Wyposażone"
+    },
+    "title": "Ekwipunek"
   },
   "interactions": {
     "actions": {

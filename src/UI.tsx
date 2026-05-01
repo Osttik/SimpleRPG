@@ -5,7 +5,7 @@ import { GameInternalState } from "./components/game_internal_state";
 import { MenuModal } from "./features/menu/components/MenuModal";
 import { selectIsMenuOpen, useMenuActions } from "./store/slices/menu.slice";
 import gameMusicFile from './assets/Game.m4a';
-import { InventoryComponent } from './modules/ui_module/components/inventory';
+import { InventoryComponent } from './features/inventory/components/InventoryOverlay';
 import { LootUI } from './features/loot/components/LootOverlay';
 import { InteractionUIModal } from './features/interactions/components/InteractionCarousel';
 import { CraftingUI } from './modules/ui_module/components/crafting_ui';

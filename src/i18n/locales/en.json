@@ -122,6 +122,16 @@
     }
   },
   "inventory": {
+    "actions": {
+      "missingItem": "That item is no longer available.",
+      "pending": "Inventory request sent...",
+      "workerUnavailable": "Gameplay connection is not ready for inventory changes."
+    },
+    "capacity": {
+      "title": "Player Capacity",
+      "volume": "Volume: {{current}} / {{max}}",
+      "weight": "Weight: {{weight}}"
+    },
     "columns": {
       "name": "Name",
       "price": "Price",
@@ -130,7 +140,32 @@
       "volume": "Volume",
       "weight": "Weight"
     },
-    "empty": "No items"
+    "details": {
+      "description": "A field-tested {{name}}. Value and lore are placeholder text for now. Stack: {{stackable}}.",
+      "emptyDescription": "Select an item to inspect details.",
+      "equipState": "Equip: {{state}}",
+      "noSelection": "No item selected",
+      "quantityPrice": "Qty: {{quantity}} | Price: {{price}}",
+      "title": "Description"
+    },
+    "empty": "No items",
+    "equipment": {
+      "equipped": "Equipped",
+      "notEquipped": "Not equipped"
+    },
+    "sprite": {
+      "empty": "No sprite",
+      "title": "Sprite Preview"
+    },
+    "stackable": {
+      "no": "no",
+      "yes": "yes"
+    },
+    "tabs": {
+      "all": "All Items",
+      "equipped": "Equipped"
+    },
+    "title": "Inventory"
   },
   "interactions": {
     "actions": {
